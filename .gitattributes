@@ -1,0 +1,23 @@
+# 行尾统一：仓库内一律 LF，避免 Windows 上 checkout 后 .sh 带 CRLF 导致
+# 「bad interpreter: /bin/bash^M」这类只在别的机器上才炸的问题。
+* text=auto eol=lf
+
+# 脚本：强制 LF（tools/run_*.sh 要在 Git Bash / WSL / CI 里跑）
+*.sh    text eol=lf
+*.mjs   text eol=lf
+*.ts    text eol=lf
+*.ets   text eol=lf
+
+# Windows 批处理必须 CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# 二进制资源：不做行尾转换
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.hap   binary
+*.p12   binary
+
+# 证书是文本，但绝不能因为行尾转换破坏 PEM 结构
+*.pem   text eol=lf
