@@ -23,6 +23,8 @@ import {
 } from '../core/model/SchoolModels.ts';
 import { weeksContains, weekOf } from '../corelogic/CourseWeekdayLogic.ts';
 import { FALLBACK_TIME_TABLE, courseTimeText, sectionStart } from '../corelogic/TimeTableLogic.ts';
+import { TimeTableStore } from '../data/TimeTableStore.ts';
+import type { TimeTable } from '../corelogic/timeutil.ts';
 import { of as colorOfCourse } from '../corelogic/CourseColorLogic.ts';
 import { courseColors, CourseColors } from '../core/theme/CoursePalette.ts';
 import { parseISODate } from '../corelogic/timeutil.ts';
@@ -102,6 +104,8 @@ struct SchedulePage {
   @State makeUpDays: number = 0;
   /** 开学日（第一周周一）的 epoch day；-1 = 未知（此时不做教学调整匹配）。 */
   @State firstEpochDay: number = -1;
+  /** 当前作息（M6-2 可由用户自定义；默认学校官方表）。 */
+  @State table: TimeTable = FALLBACK_TIME_TABLE;
   /** 缓存时效标签（'离线缓存 · 12 分钟前'）；空串 = 本次是联网数据。 */
   @State cacheNote: string = '';
   /** 刷新失败但仍有缓存时的提示（不可把缓存当最新）。 */
@@ -136,6 +140,13 @@ struct SchedulePage {
     this.cacheNote = '';
     this.refreshNote = '';
     const ctx: Context = getContext(this) as Context;
+
+    // ⓪ 先取作息（M6-2）：时间列必须在首帧就用用户设定的时刻
+    try {
+      this.table = await TimeTableStore.load();
+    } catch (e) {
+      warn('SchedulePage timetable load fail: ' + JSON.stringify(e));
+    }
 
     // ① 缓存先上屏
     const cached: CachedSchedule | null = await CourseCache.loadLast();
@@ -716,7 +727,7 @@ struct SchedulePage {
           }.width('100%')
           Text('时间：周' + DAY_LABELS[this.selected!.SKXQ - 1] + ' 第 ' + this.selected!.KSJC +
             '-' + this.selected!.JSJC + ' 节（' +
-            courseTimeText(FALLBACK_TIME_TABLE, this.selected!.KSJC, this.selected!.JSJC) + '）')
+            courseTimeText(this.table, this.selected!.KSJC, this.selected!.JSJC) + '）')
             .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 4 })
           Text('地点：' + (this.selected!.JASMC.length > 0 ? this.selected!.JASMC : '未标注') +
             (this.selected!.XXXQMC.length > 0 ? '（' + this.selected!.XXXQMC + '）' : ''))
@@ -846,11 +857,11 @@ struct SchedulePage {
   }
 
   private timeText(section: number): string {
-    const start: number | null = sectionStart(FALLBACK_TIME_TABLE, section);
+    const start: number | null = sectionStart(this.table, section);
     if (start === null) {
       return '';
     }
-    const text: string = courseTimeText(FALLBACK_TIME_TABLE, section, section);
+    const text: string = courseTimeText(this.table, section, section);
     if (text.length === 0) {
       return '';
     }

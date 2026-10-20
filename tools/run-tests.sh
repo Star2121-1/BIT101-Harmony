@@ -27,7 +27,7 @@ if [ "${major:-0}" -lt 22 ] || { [ "${major:-0}" -eq 22 ] && [ "${minor:-0}" -lt
   exit 1
 fi
 
-suites="test-parser test-teaching test-edges test-shuttle test-colors"
+suites="test-parser test-teaching test-edges test-shuttle test-colors test-timetable"
 total=0
 passed=0
 failed_suites=""

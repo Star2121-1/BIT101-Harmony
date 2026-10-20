@@ -27,6 +27,7 @@ import { SchoolService } from '../service/SchoolService.ts';
 import { CampusInfo } from '../core/model/SchoolModels.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
+import { TimeTableStore } from '../data/TimeTableStore.ts';
 
 /** 默认校区偏好的持久化键（ClassroomPage 也读这个）。 */
 export const KEY_DEFAULT_CAMPUS: string = 'default_campus_code';
@@ -51,6 +52,8 @@ struct SettingsPage {
   /** 开发者选项：默认收起。M1/M2 的验证件收在这里，不占正式界面。 */
   @State devOpen: boolean = false;
   @State diagText: string = '';
+  /** 作息是否为自定义（从 TimeTableStore 读）。 */
+  @State ttCustom: boolean = false;
 
   private p(): Palette {
     return palette(this.isDark);
@@ -69,6 +72,11 @@ struct SettingsPage {
       this.loggedIn = snap.hasSchoolCookies;
     } catch (e) {
       warn('Settings refresh fail: ' + JSON.stringify(e));
+    }
+    try {
+      this.ttCustom = await TimeTableStore.isCustom();
+    } catch (e) {
+      this.ttCustom = false;
     }
     try {
       this.campusCode = await Prefs.getString(KEY_DEFAULT_CAMPUS, '');
@@ -293,6 +301,26 @@ struct SettingsPage {
 
           // ── 查找 ──
           this.groupTitle('查找')
+          Column() {
+            Row() {
+              Text('作息时间')
+                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+              Text(this.ttCustom ? '自定义' : '学校官方')
+                .fontSize(13).fontColor(this.p().textMuted)
+              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+            }
+            .width('100%').padding({ bottom: 10 })
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/TimeTablePage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+          }
+          .width('100%').padding(12)
+          .backgroundColor(this.p().bgCard)
+          .borderRadius(10)
+
+          this.groupTitle('空教室')
           Column() {
             Row() {
               Text('空教室默认校区')

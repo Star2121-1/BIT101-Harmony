@@ -36,6 +36,8 @@ Android 版是用 WebView 承载学校 CAS 登录页的，在 HarmonyOS 上这�
 | 空教室查询 | ✅ | 校区 → 楼 → 教室，逐节显示忙闲 |
 | **「现在去哪儿自习」** | ✅ | 有课就告诉你正在上什么；空闲给 8 个候选，可换一批 |
 | 班车时刻 | ✅ | 两站，末班判定「今天已发完」 |
+| 深色模式 | ✅ | 三档（跟随系统/浅色/深色），由 WCAG 对比度单测钉住 |
+| 作息自定义 | ✅ | 13 节可改，重叠/越界会被拦下并说明原因 |
 
 **还没做的**：座位预约的选座界面、延河课堂作业（DDL）、通知提醒、桌面卡片、深色模式、一卡通 / 校园网 / 图书馆、校园地图、成绩查询。
 
@@ -82,7 +84,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version          # 需要 22.6+（支持 --experimental-strip-types）
-bash tools/run-tests.sh # 5 个套件，234 条断言
+bash tools/run-tests.sh # 6 个套件，262 条断言
 ```
 
 | 套件 | 断言数 | 测什么 |
@@ -92,6 +94,7 @@ bash tools/run-tests.sh # 5 个套件，234 条断言
 | `test-edges` | 40 | 节次 / 周次 / 日期边界 |
 | `test-shuttle` | 30 | 班车时刻表 |
 | `test-colors` | 83 | 深浅两套配色的 WCAG 对比度（含 24 个课程色组合） |
+| `test-timetable` | 28 | 作息表校验（重叠/越界/往返）与「改时间→文案变」 |
 
 CI（`.github/workflows/test.yml`）每次 push 自动跑这些，外加一条**关键资源存在性检查** —— 它守的是两个真实踩过的坑：TLS 中间证书被 `.gitignore` 误伤（编译能过、运行期静默降级）、app 图标被全局 `*.png` 误删。
 

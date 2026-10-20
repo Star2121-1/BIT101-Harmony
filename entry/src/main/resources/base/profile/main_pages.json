@@ -9,6 +9,7 @@
     "pages/CasLoginProbe",
     "pages/CasProbePage",
     "pages/SpotDetailPage",
-    "pages/SettingsPage"
+    "pages/SettingsPage",
+    "pages/TimeTablePage"
   ]
 }

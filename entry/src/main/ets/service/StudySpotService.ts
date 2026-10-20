@@ -23,6 +23,7 @@ import {
 import { skzcToWeeks } from '../core/model/SchoolModels.ts';
 import { weeksContains, weekOf, effectiveWeekday } from '../corelogic/CourseWeekdayLogic.ts';
 import { FALLBACK_TIME_TABLE } from '../corelogic/TimeTableLogic.ts';
+import { TimeTableStore } from '../data/TimeTableStore.ts';
 import { parseISODate } from '../corelogic/timeutil.ts';
 import type { TimeTable } from '../corelogic/timeutil.ts';
 import {
@@ -172,7 +173,8 @@ export class StudySpotService {
     const dd: string = String(d.getDate()).padStart(2, '0');
     const dateStr: string = d.getFullYear() + '-' + mm + '-' + dd;
     const now: number = d.getHours() * 60 + d.getMinutes();
-    const table: TimeTable = FALLBACK_TIME_TABLE;
+    // 作息可自定义（M6-2）：取不到就当官方表
+    const table: TimeTable = await TimeTableStore.load();
 
     // ── ② 教学调整（有缓存，快）──
     let entries: TeachingEntry[] = [];
