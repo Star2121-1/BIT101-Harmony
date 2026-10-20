@@ -7,18 +7,29 @@
  * 跑法（Node 22+，靠 --experimental-strip-types 直接吃 .ts，不需要 tsc）：
  *   node --experimental-strip-types tools/test-parser.mjs
  *
- * fixture：`../../evidence/m1-5-http-probe/cas-login-raw-desktopUA.html`
- * —— 2026-10-20 用 curl 从 sso.bit.edu.cn 抓下的**服务端原始页面**（不跑 JS）。
+ * fixture：`tools/fixtures/cas/login-page.html`（**随仓库走**）
+ * —— 2026-10-20 从 sso.bit.edu.cn 抓下的**服务端原始页面**（不跑 JS）。
  * 期望值来自同一轮真机 hilog（execution=12465 / croypto 16 字节 / USTC / sso / sourceId）。
+ *
+ * ⚠️ 2026-10-20 栽过：fixture 原先指向仓库外的 `../../evidence/...`，
+ * 在原工作区能跑、`git clone` 出来就必然红（仓库外没有那个文件）。
+ * 那不是「可重跑」，是「在这台机器上碰巧能跑」。fixture 必须入库。
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const parserPath = join(here, '..', 'entry', 'src', 'main', 'ets', 'core', 'crypto', 'CasParser.ts');
-const fixturePath = join(here, '..', '..', 'evidence', 'm1-5-http-probe', 'cas-login-raw-desktopUA.html');
+const fixturePath = join(here, 'fixtures', 'cas', 'login-page.html');
+
+// fixture 缺失要**明确红**，不能静默跳过 —— 否则「测试通过」会变成一句空话
+if (!existsSync(fixturePath)) {
+  console.error('FIXTURE MISSING: ' + fixturePath);
+  console.error('fixture 必须随仓库提交（tools/fixtures/cas/login-page.html），否则本测试不可重跑。');
+  process.exit(1);
+}
 
 const P = await import('file://' + parserPath.replace(/\\/g, '/'));
 
@@ -37,7 +48,7 @@ function ok(cond, msg) {
 // ── 1. 真机原始登录页：六锚点 ──
 const html = readFileSync(fixturePath, 'utf8');
 const page = P.parseCasPage(200, html);
-console.log('--- fixture: cas-login-raw-desktopUA.html, len=' + html.length + ' ---');
+console.log('--- fixture: tools/fixtures/cas/login-page.html, len=' + html.length + ' ---');
 eq(page.status, 200, 'status');
 eq(page.execution.length, 12465, 'execution 长度（对齐 M1 真机 hilog）');
 ok(page.execution.length > 1000, 'execution 不是空/半截');

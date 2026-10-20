@@ -1,0 +1,514 @@
+<!doctype html><html lang="zh">
+  <head>
+    <meta charset="utf-8" /><title>统一身份认证平台</title>
+    <base href="./" /><meta name="renderer" content="webkit" /><meta name="force-rendering" content="webkit" /><meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1" /><meta content="always" name="referrer" /><meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"
+    /><meta name="google" content="notranslate" /><!-- HTTP 1.1 --><meta http-equiv="pragma" content="no-cache" /><!-- HTTP 1.0 --><meta http-equiv="cache-control" content="no-cache" /><!-- Prevent caching at the proxy server --><meta http-equiv="expires" content="0" /><link id="login_favicon" rel="icon" type="image/x-icon" href="" /><style>
+      html,
+      body {
+        margin: 0px;
+        padding: 0px;
+      }
+
+      #sso_redirect {
+        border: 0;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        background-size: contain;
+        /* background-image: url("./images/loading30.gif"); */
+        background-repeat: no-repeat;
+        background-position: center;
+      }
+
+      @media screen and (min-width: 1400px) {
+        #sso_redirect {
+          /* background-image: url("./images/loading50.gif"); */
+        }
+      }
+
+      .background-div {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        z-index: -1;
+      }
+
+      .table-tr-th {
+        background-color: white;
+        padding: 20px 50px 20px 50px;
+      }
+
+      .browser-download-item {
+        /* display: inline-block; */
+        float: left;
+        height: 160px;
+        width: 120px;
+        text-align: center;
+      }
+
+      .copy-right {
+        position: absolute;
+        bottom: 32px;
+        text-align: center;
+        width: 100%;
+        color: white;
+        bottom: 32px;
+      }
+    </style>
+    <script type="text/javascript">
+      /*<![CDATA[*/
+      var appId = "https:\/\/sso.bit.edu.cn";
+      /*]]>*/
+    </script>
+    <script>
+      (function () {
+        var viewportMeta = document.querySelector('meta[name="viewport"]');
+        if (!viewportMeta) {
+          viewportMeta = document.createElement("meta");
+          viewportMeta.name = "viewport";
+          document.head.appendChild(viewportMeta);
+        }
+        function isTabletLandscape() {
+          var screenWidth =
+            window.innerWidth ||
+            document.documentElement.clientWidth ||
+            document.body.clientWidth;
+          var screenHeight =
+            window.innerHeight ||
+            document.documentElement.clientHeight ||
+            document.body.clientHeight;
+          var isTablet = screenWidth >= 768 && screenHeight <= 750;
+          var isLandscape = screenWidth > screenHeight;
+          return isTablet && isLandscape;
+        }
+        if (isTabletLandscape()) {
+          viewportMeta.content =
+            "width=device-width, initial-scale=0.8, maximum-scale=1, user-scalable=0";
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div
+      style="display: none"
+      class="ruleList"
+    >
+      <div class="code">UsernamePassword</div>
+      <div class="showName">用户名密码</div>
+      <div class="image">./images/login-page/UsernamePassword.png</div>
+      <div class="isRedirect">false</div>
+      <div
+        class="adapterIsAutoRedirect"
+      >true</div>
+      <div class="logoId"></div>
+    </div>
+    <div
+      style="display: none"
+      class="ruleList"
+    >
+      <div class="code">smsLogin</div>
+      <div class="showName">短信验证码</div>
+      <div class="image">./images/login-page/smsLogin.png</div>
+      <div class="isRedirect">false</div>
+      <div
+        class="adapterIsAutoRedirect"
+      >true</div>
+      <div class="logoId"></div>
+    </div>
+    <div
+      style="display: none"
+      class="ruleList"
+    >
+      <div class="code">webauthn</div>
+      <div class="showName">通行密钥认证</div>
+      <div class="image">./images/login-page/webauthn.png</div>
+      <div class="isRedirect">false</div>
+      <div
+        class="adapterIsAutoRedirect"
+      >true</div>
+      <div class="logoId"></div>
+    </div>
+    <div
+      style="display: none"
+      class="ruleList"
+    >
+      <div class="code">shuxiQr</div>
+      <div class="showName">i北理扫码</div>
+      <div class="image"></div>
+      <div class="isRedirect">false</div>
+      <div
+        class="adapterIsAutoRedirect"
+      >true</div>
+      <div class="logoId"></div>
+    </div>
+    <div
+      style="display: none"
+      class="ruleList"
+    >
+      <div class="code">mailLogin</div>
+      <div class="showName">邮件验证码</div>
+      <div class="image">./images/login-page/mailLogin.png</div>
+      <div class="isRedirect">false</div>
+      <div
+        class="adapterIsAutoRedirect"
+      >true</div>
+      <div class="logoId"></div>
+    </div>
+    <div style="display: none">
+      <p id="current-login-type">UsernamePassword</p>
+      <p id="login-croypto">ZSIeBjRGhPdJWqvamhupFg==</p>
+      <p id="sso-second"></p>
+      <p id="user-id"></p>
+      <p id="recaptchaVendor">system</p>
+      <p id="siteKey"></p>
+      <p id="captchaId"></p>
+      <p id="netEaseCaptchaId"></p>
+      <p id="user-object-id"></p>
+      <p id="phone-number"></p>
+      <p id="user-email-value"></p>
+      <p id="login-rule-type">normal</p>
+      <p id="login-page-flowkey">59a43320-2ff3-4fc7-b181-8d28bcacc4b2_ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5LmE1WGRhSytuRjVhRGUyNzllcXlyNm5CSzNmK1djbnFDazlpaTB1MEV6MCtUbDFKM2NvRUZKaGFiR0tZakNjalkxTG56TUdVZ3U2TEM4cTFUMTZtVm1oelUwamRqNFhuajZ3RTBzN3UvSzA3bTBidXV0MGxZUlczekEzTmpWRm1zcTJFamwyalE1cHFNZlVYNzRuaWtGUDE0MDJFSmR1MzBCOTZsYU1IVldYUXdaNW1WdDV4ZVcvQjBuVWplNzRJRmVWcnR2WFF1MlBjWWJCRzJaT3d2MnA3Q0Z4ZVhQRlo4dlFKR1hvUXJESit1a24wcGpISjhRMEFwS0hFazhzeHV2aERnL1VxL3NiUmpEa013ZS9XTDhaYm5jaTVPbnFRdjNSUHNJZmM3NVI1eHNSd1JEcjEvVG8xWWluQ002cHN1OFRZQ3htNUhFS2QwYUpObHhCYk0yNUNWMXdmTlV1OFFpelFnOTNGY2NDM1RPVkpWRndPcXRqWVMzRWdsL1I5Y01MbFpQemtWejdiVHk1VDZScGZPSDBXdGNsVEd2MzVwMW9mUjhXQ3M0YjcxamtSTFd3VEl0YllFeXQxQS9QN2RQdXBGMk0wbTVFOTJncmdMQ3V5SG5XWkZjVDVoV0R3VDZ1MndCbUVTTUk3dE1PcVJMU0Q0T1ZtR1hCcGlZKzlJNWxReVlPVU1PajNzQjV5cmVJRXhCUkVKVTRSOEovZWNMSElWTS9DdXFYV3I2ODNlVXNBM0p5R2NpMkUrY3dOVTdXU3RUaCtSRzZ3VUZoQzA1QnFYbEtIWlVZNk1lTXlaVXhTT2ZKZnhhWHo1MCtLM21RZVN3T1FYZm1zblZCVklYL2M0UFN6RXQwWFJwdzZBYlFDUFJHN2UwY0NjV2JMU29Ec0ZRRGxwSC83SUhFMEs5VzM2bXJCY2FKMjMwK0JXYXJxMU8rNTZuV3JKbCswZjJmazc2OEJFU1F1UTZiZzNTUzBwTGwzVE1BVGZWcEF4cFFvVmExREJlYVp6S2M3TU9FalFBVVVENFM5N3lRcitlSVNuT2U4aWk2ZTJUNEZOL3hsSHBBL282UmZkeElkWlZMS3RjR0FTdUZCdVhrTDM0NE5Bc1BRaW1tbDF1QkxZY0lXeE1TNlhVOUY3dnBwczJhck42TWE1T1lGMmduOEdlc3hYUFBIWHJuTlhJNGVPeXpHQ3kvSnl3dlpwd1ZKRUN4UGczMFdCQ3c3RUszc3BTMEFvYnBMRVQ3ZE5tU0F3L0RxSEpWRndxcEdlMlV0T1I5RzlQRkswV3RSL3g4bjZKWWsyK2lUdkNmVEVhd0FCMDdZTUNQSDdJdnNROTZYN3JJZ1Uzd0JsT3RKK001ck9uL1ZFdkxEbVFzUFAvTHBJU010ZCsrN3ZLTHh3RTR0RDhQaGpzNlZyZ09ZaFNwenlvcmRianpHa1RBY2ZrWENPcE5qb29wdXU5WFIvVXVCUGJwRUdsaldKTkNITVpjbnU3cVRyMXJ3L3RuOVF5L2ZkYlQ3NjMvem1rNStqdTVsTEVlV1YvUUNyVDdodVhjcmxyVmtUeEhCZTlHZlJuSmo4Y0tPbFMxS3EraEFXNnVRMVlSb2VSOVdnRjdjREdhakNsZTZTUTZpN1NYNkhxN0FVT1hRWENEUWk3cGRFRVZqZFo3SUpTRFFvbDBrczgzbXdNYm9JalkwSit1ZDlSQitObmkzbHNQY1VEOHJCaTNIRGJQL2pSenVUc1ZHWXZQUDBZbm1vbHEyZ285b3VDN3FNRlMxRmF3QURaZnlpRXBuamY2MGRLZXFIQVRVODRPVm1pa3c2M3R5SVgxV2dqMlhYSi8rRWpTTWFhMEN1bCtzaVJxZXNtVFFGVzFnNDQvVFoyb1pWaVkvOWhiZHVpc2N3b0N6MktWSm9aY2FpQlUvSTZUNDJzYXZMdFN1NkVZQ3k4SG41aEJZZXRvK05Nb3h0QlVuTmNkRUxZa1VJNElDbFI2aU41U1ZrbHJReU5WUjlBcS95MUM4bDZCcHcwWVBrMHM5RVFaTzlFK0YzZHJxTWs3ZUpOR0k2S0pCVVF6VDM2YjF4TFI1cEx4TEg2YzkxNENSaG9zTWVOK01DWU9kdmlJWVlFMmhyUTVwMjZTanN6MGFBVzh1bFdyUVBhUlBOTmNSZFVYZzIrOEhyRDdrTzgwK25PY2ozNjVac2doa2lyYWZmeEd5VEZoMFcrM00waFhEcTR4NENWWE81clEyUVlBc05mbHRRNEIyTFlNRHU5S1F2Sk0yNnRCY2VaMFZQTkxlUFhRWEpOQ3FMaFErWi9BU0dtUlJFVS84NUc1YTNBT2V2MTFRNkdKK3Jaa1lrM0g5UnpnNlp4bjJFNmlyZlNlRHFXU3J2ZzFTWGVlUGIzQXA2UyttcjU0eGZudEpXZHJQYnVobHFhR0hLZllBZ0J4cmRvb3dQYmUrQXhRL3RnNkUxRUJJVUxUVEU5ek1JNGtiRnBmZDhpR1k4NTlBclhBM0ExZzJOSnVJU0hmN2dFZm4wNXZicmFXL29hL3FvQll5VkJpaENjdm5TRndIcDJ0bmRvUXVpN3RUYTN5c3RNVVp0WkRzZFlBWTF4TXlJM3IzbSt1L2VTR3E2REF0bjFOZjk0ZmxHQWxSNGpuN2I3NnFFM0ljeWlQanVucjlra0hCM09KMkN6WGthMUJjUGEwdFE5VUpRaUZRZG1SSXNyNG45eXRMc1ErSTVjK1pZUzlnODRkRXN4RDdPSlYvVTNsZUpxWGRmYkl4d1hZTjRNdFZwS0dhMEx4d2xvWDJMVmRxQU9sd3NuTUYrMjYrV1N0eTlNOFVPbTZ0a0NBaGdIWWNocjIvb0o1OG1rN3ppUmtvVWVWQ0orWVR1SytOd283eWcvOUYxSXpGaEFEaXhIWTAzNlR0YWVKM3JLb1A3b0hna09zZm8rbmNDUWZRS0xSK0FVaVd2NFlNRGRzUmNvVnh5UU95bHJQUjRyOEh2SWN3QzNHcUtGcndSWm92VWRQazVqQTQyYlNIQUJXYUpUY3JpNk9qNDBIZ09vSmQ4MUp1eWMyQnFIYlAzUlpVanlvZktiUWo0ajMzSHRibk1EUHFXKzkyZFpTQlZXUTZQSTgrN2MyQ3AvT21xdkIwWUlyRE5NdEk4Vlk1ak15c0hUK2k3bmo5UHFDTDgxSVhNRzNJcnZYbloxdHB0REg1NTQvQ2FkTlloNWtSQWpRajVxZFVhSDRqaE9TRk4wQXRidGZHL1NldTgvVHhwemcrakNNTDJ2Zndsc2F6NXIwd0xmaXJ6bk42NElxRmJwODZIbStuenpSbmZDWXlHMTNuZU5VMXNnT1JPSkIzNktTYW9ZZlJ5U1N2ZXpRaTVWVGVoTkhOOU9RaHVVWlBoRy90ZEtOMjFDYXJPYTZUK3NybzNGb1diZFlsamYrc3JSZFFieldrTEhodGlFTEJqRW9qMVgrVlQ3WXZ6SkxPU2RkZ0NKZ2NOUWNwNXdnRUJVUmQzWmpwMzdoU2t3d1lzVUZkeERxNlN3anNZZDhaKzVyMWd2ZmUvMUtxTDlvQjZDOWhWOE1BMjA0Q0FlQjViRUxyRzhFdHIrU3I1cEdkRmVDREE5ZUN5ait4NUhzdmk0ZXZnOWVKSHN5OTVTZ1ZaMDRGZnpjdGdITWROSnBnUXNyb3h5Mmwwb1g4Vk5ITFBXR0RWVHJ1QkpnSFY0MnF3UTRUQWpQQVRyTWJubVhFelNUU2ExV3U3MXFLVUc4bUN2aVB1cUxUWGJ0TFFMYW90YjByWUdaZnJMWVREUS8xVkFwQU1LNlFQcW1xSUVRL2o2RDl6VFRRVHpXSy9JMndwRE1lV0RWSHFlYnhBY3o3Uy9tUE5RcWtNTDFKejdHT3NkWkIvSDQyZVUxcnFVS0FDeEc5TTRCaHRpVlVsck5OeXZCR0lKb1JOMlBBdTZHdTBLUXR6ellWa1JtVW45RjlQbHRCNTF4MU1KVEdjWXNtMlhzT3dWNnl3OEUrZVVaV1pPb2RHVXpqaXR1NENpZG95ZFlNZWtJYWkvQ3hHT0Zjdnh1RlZ5aDQ5ZDBrY0U4bm9raTE5VWRxZkVTZ01ucUVySTkydjczMG1JTG1pdzFwOXc3T3hPNEJqank4eEM1MUZIelZhODFGOElQM1pCZXFtWGpkQldEM2R1YzNVcDliUHBwam9KSHJYV1ZBQWRHemdyeE5SWXJkWGFpYXJFbTlwYi9YV1lMWHl2M2hnTWFpWm93ODZmcjl1aCtUVjVZZ3kwbzNscll5TStyNGk2L3c1dUgvd09kQ0ozQWtQMzhFMnV1V282am9Ueitvbi8rOU93OHJXVjRhK0pHb0VUS2xmTEIvNkdVMjI2eWI0cnpOekdOUU9hV245My9kVHN6WEJlNWY4MTdDcHliZlhTUW95ZDlKa2hISzBCZFQ3RjJ1cHF5N2hyYWliWHVaZXZ1MDBRK2lmZzVaMzlxRGorMzFrMnBkc0U3dzFTWno1bk9XaFZpT1FKVXdDRDBxN0QrN0lzK0VZU1QxMjhVN1pPbjkxM09sbkt0YXNNZXpWd3I0eTF4T0h0d0tuS3VMMGFXN1dkZ0owc0NKbWlLOFZZZllQdUFiNFNNM051NEJJRGxCNHJUSk93ZzJYY25CdlcwWjFsRDVvUXFzeG1YbHB6bFY5bEx1TXU1QlhKUGFDVzBwQklJcStYNGNWVWpEcXU2VUtrUUlWSHpVZWFmbWtoYUl5RnhMNkpQVW50c1Z6Y2FkL0gzRm5DUWZiR0xYNThoVkQzcWVIbWVtOTJQTFY4N0JZRVcxSE80a3MrNE9ZUElhVDROUWZqZmlNSXpQaWtqbXFucnhDaHh3V0M0TmNndWJQai9hR1dUbzVkRDdwK1QxUWd2QVlVRXZzNDVLVEZvL25IbU92cW9VL01LSDExUm5FanNTV0dkTEZvWEtDeXZ3aXFyblZJbk9CV2tVTmppZW0xc0IvY3R5LzNDRmFoYmVVbVdsUUNvT2t1K1FHY24rZmxCbnhNcWI5M3p2MkpJbDl2Ym1LLzdZQVlSY3pudzZIc1dvMnRCNXErUDBzdXE4OGc4UUNMUXE4aURxNHBGMUQvODRkK2NQM0o0U1FhQ2ZtdjhWZkF1MlBuL0owYnBuNjZYTXlYa0J6bENPSFdoc3A4bEMxZlJ5Tm9qMGxrb1RCVE4wNkJJSWNSZkp0S3ZyWklaWEdzekJLU08wMURQcGZ3RWtGM0dDSzc1T3JWWTc4ekQ5dGp3T1Q5K3Jja2VUZVd4a0cySWxDMlFlYXpMV2hhaEJqOUthT2gyTHB6RmVwb2pZMUYrWSszZ3Z0dUdXdkF1eVhHVnI5UitBbE4zeDZ1djQ1eHkzMVRmZzN0ZUxnY0NybWY0OXNVUTdWd1htRVBmV1FLVDRyM1FMdU1kUXY0bFl2aHFCVWEzSnh1QVoxSXYyelMyUmxLYWNMdnZBQnkzNkwwd3UwK1d5cVlRUCs1N0hIK1Y5OE9LZW9hRmdZWnd2bjlNKzRzS1hFQXpwdVUyMWVnUVVPdjVUMEtYSTRkWGNMSHJYUlRFSVpJa2dxMVcya1hLaVBJdUdRYU5hNDhlQVIzamNQTDlvU0V0VXlEVWxJa0VCV01HZ2lydm1xM1BvMHgzeXQvc0x2N0x4azRoRXUweEFnMFhRM3hhN1VJWUVFeGJlQXorbWNOUlRyV1ZMdnRyTXBqeHVReWlYUjBPK3IvMXd5a1ZVa0VCaXZtK2xudlZLVUpId3Q0ZGdML2g5VUY0b3hjdXFXTUQ1SDFDRWRGSkdQMy9uMWJaeEZYdkZTdG0ydjhzWkMwb0hwMGNpUEtKcVBRNXhPWlUvMHQwOXl6YW8wb1lNVmQ1ZGhsZGRBNW15VVF5c1BvRWdsZ3JmZjZFbFJiSzRRcC92TFp5bVZXMTk5dVNsczM2Z0g1a1JjWURkcDVLUmxYY29qdUhTYzJmZkkvOW0xdlZyRjR3ZlVjSHFxTWJLZnpxK0VNTlFiemVoTDVTZDJNTUMrWmhGdlVDenErWFlJUXZDWTE1SmZmS21INFBJOUlRckFrcllkQ29nVkdQSU8wcmx0aExUbkVPV25BUUUrSVZoRDVMelVSTkxlZnZ3RlBmeXNINU1JUTJQZEh4cTgvTnE3UHNqYmNVcDlHRGk4YnpkeE5JaEUrS3F5K3ZrN0EyVlM1a1M1S25xb1BOdzZzQ09PdnFrU3FEQ0RmTENFSnZ6bXRyUmNIdTZXRTB0Qnh2UGV5WjNuVXFiVW8vZVJwbExSVzJRUFVyb0hJV0FGMDhxZW1jSHBKc2o4eS9sQnc5eWpxYWN4eE9ZT215WmdDN25NYU1wMHg0OGw2SUkydmd2ZWxpWXlqdWJIdXBOODdYSWJxVGwxOEhKS2tlNmtweUZUeFNtanJKMzJnUlpFcHZOT1NNK3c4MGFTMFlUOFRXNUkwZXVITWtKNXptUUN1ZUpFTU9Jd1IvQ2xZUGVXZEI4a1VrUHFDMmJ5c1lPNHR2RjA5cG5hT1N2UVdYN1hHOWRocjc3T3NwaDg2ZGQ2TFNLTUtRQkdMaXdvZk83VURTNTU4a212cFU1NmtRa3lydk5qSVRHWGpDd0tDZWZKbE1ka3IycVU0VzczN2JpUTc2bm9kMGNqNUNyM2drS2xnWnROR3J5UTkzQVo4VmxKUEJKaElwV1FXemVhQlgxdldVMUczNlRSb2REL0RpZEpGSHdGUmhPSVlJQktBajJwaitxcVRZdktsQWdmNitoSHVDNENQbUowK3ZjeGd5UDdrWmt2ZklMVE00Uk4xbGNJbGczUWMzTVNOVlhJcFRNcVRNcHQ5UWdCeGxRYk1XYnJmNXJkbTZaWEZGTEtOUzFsY0tkZUtaVEhVeE1XK3dZYUk4ekF5UDlFQkFQM3F2MGhsU2tMOUU2ellEV0pRZFhUdisvZmx3STBDZ01BVkJrSW1xOW9sOC9RUTdUd2EzOG91SWdGRVlOV1h5UllrdytNc21QN2xyU0ozU3NWVEJuMmVEWEJCdGF5WDFaVFc3TnRVYXRTVzlreXdqMzBLdmVTVEliTHZvaVEwN0RjVHNXam5JcnQ2TVhrUTM4dGhuOU9Ic24xelFjSXNyNnZ4Tnh2UTlsQlFPZkE5Q0FmZ0lyT2YrSW5lZUEvTHJIM1VQampTbEs1LzNvOUNaRVpibFhCTlpaakpJZ3R2STRHRkVSczY4djVRalp5VkxLOXFteTNWWTFMYnVaWGhzQ0pLcStRQllFa0sxOFVhdG1ZSmpaTnpvM2tXa2prUWVodklIcndOaGNNWGhvNzB2QlBRa0lXNXpmTXRVZ0ZhblJYRllqSjE2OTBPTTVBYVpwdGdERUo2TTAwK2hwd3UwMGNieFdBNzZFMU94SVBReGFzdStFS3BVR2Ridk5zWWR3ZFdVdGJ3Nk1kWTc5dXhSL2M4ZjhPdVFjS25qa0tCRzVJd0lFSE9zd1cxakNtNFVSMm02dHZSOExKNytQeWFtcDg3dVAwNzFnYVBYdDRJL2ZFVWx6R0hTbEI3WkEzNmNNc3pxQWJhekZrczFqa2RkV2ovTjh6d1R0VGZuMjAvMlkzMFZQc296b2c4ZWt0em94NEV3WHJpWXkvY3FCaGlKRk1XRnEvVjdBTktlaHB3bEpoeHc1T2Z1bVNuckwzejR3WlR3RytUbWFFd0JUekVMTDdTclVGMnlrRHdoM1RiS0twUVBiYVFmUlhzeUFBaVRHL0JOZEU1TjlBWWFmL1czQytjL2JnK3ZCK3JDaXgwSld3Y1NDZUw0cG9paXNxZ2pZRzk2allhbkJrdHd0T0l4YkI0NWo1RWRBcHhXM2lwYXJUSnhwSXRReHJaK3RtaWw3ckxRcTFONU1vTE8zWExGYmViaXhnZUhyVUc2c0JwcWNiZ3MyNWFmdnhqYkcvN3lMa1piS0pwRDRjTkM5bFNncDBrZFlVRU1DUG95dkFDQVkvd2Nnb0dWMHVmaEZwU1k5SjNaeDQzaDVEQWo5NmFBRmg5K0VsWFRYaXVCNkRvOVl2TTRuWGdaVyt3SjcrZW1yVGlicHV6b0hwZ05KaVJjUFErWUt5UzBjVVNXK3NDN2xzeFJlZ3ZqNm5nKzlqQzlWNTNIQ3ZRem5mNHlsU0Fvc3RaY2Y2L045SGQwL0tudTlZSUp3cDFXdWY2b3pBcW4zNG5DWjdqc3cwVGllSlVMbVNFeGRYbDBaWGdEbzNjcmtpdGFwWDJBVFZ0YWl6MlNBTmZJSmV4UEdJMTFvb0wzNFgrOS9oNXBkVDRuUjY3ZGVPazJpbUY3U2cwVGFCVWpPV2liM3RnQmo2S1RFZ25XNlBtNWNaaXdQSmpRK1pzemxFdk1Ic3JvZXpFSjJHU3hXaENnaGJhemxlMVlZTjNNTXhyamZyQ1FNMHJOS2tOVHVoK2U4MHZyRGJBcTdaTEtFL01kNWlCSGQ4RC9IKzBKcEJwOWwra3lGLzQrL016YmtFSzJvVkx4VWFkRVlQQXJyREQ5MzNiQjBmVXJ2N1EySUw5ditjSmJJd1JkeEcrYnd3WlFBYUhPL2FKSFg0anZmTm83cm9hLzNaR0NOdXM4dXpxcjZwcmdRS3dIdjh0bUdtM1RYT1dqTlRpUXJxcnZRaWVRUDBBMEVCSEF6ZUdnNTVGSnM1b3VhcTdRTnNtVFp5SFlXZWg5ZmlKMk5hKzhLbmNDWS9STmxmVjQrRmxUK1FRR24rd0lrYlVFR3V2YXIvU01JekF5UVp2RkNqQUN1MngrR2FudDZOcnpQNlhSaWNzNmg0aTI1VjdyZGdCVGJDck9SQkprOG8vWTRqd3NhYmZnK1hPTnV2TW5EVndhTFFmRWVpVlpBOTFyNGEvSTdvS3F4TStkajI3REVsZEhnL0Q1cTI5V0JVYnBPWDhybFpCdzBqQmVMWDBtZ2NMOEd2Wk5lb0RQa2FjVWRKM1dtWjhPVFU4dGkrcVd6dmdMOVpRY1UxOERSS1l5MXVENHpUUnZ6MU9NcGl6ZDhqTnRxSFBzazVnYnhGaVdocmRINUxpcURiR01FUkVLT3FQQi90c09vanRqSm0zQUkxQlRyMitrQ09FbFpFelJCcCtOa2c4T01lYXBwdkY2Zy9reUs1dUJaYW93L2V4KzRJK3VNeTdrQ2kwRytyVVh3MXBGTXBEd3gzTUx3emlLbWZVU05pcmdJaHdqOFNwbE05VGJFUE5SMkVjN0ZrcUpGaXNWcGgyUkRZQ0hyNDNkUmdTd3B6Y1pKUDZpYjZneEpIVFJFblY1dmRKMFBrWXRKK2ZBZU9nckpxOGxQbVltOGVkZU1hV3U4VzUvbS80Mm1LSWRUYXorVWx3ekZNaE1oTkZ0a1NVbUl2UGdxNE9TUUdBNlZkb01rYnVNTGhldTZKM3B5Q25abGF0N1lmbEVTeUo3Z21kVVBSVFo3NXBzZXllY3l6UVQ5K2ZRNkNNWGFDVno5aHVsd0h2bC9qTGJrOHVmdkVWQ1NIeGRELzVxeERVN3MweEhrSHFGM3g3T2kybE84M25tSzdXQUhaQXgzNGp2RmVmTUpHZFNoWThKaHpXQS9CM05MdUZGMS82Z052Rm91cThjOTJYd3JwZlB6TzZaZU8wZi9GZjAyek5rT0NQSjVLZHRKd0dCS2krVVpOMUpwZE1SS3FsTXptT3JBOStjNUE3L2Y2MjYvZnJTWm5qemtVTkhrcVZHbzNvbCtPc0VnbC8xbXM2UGE1ekcvMm5GaitlTlFESEVJZm9LaGE3ZUh5WC94Y1pLL3BBZkF1a3VsUWZjVUwzVXk2U3dMa3ozNThBSTJ1azVnV0p5SGRMaVlWNnhOSmYvWXcrWVpRckN0Y3lpeEVkSmNJcldYaFdUMVhaUE4yaGZtejFUekVad294MDVKUnVUVmF6N0Y0WXorZm1PV2FhcHNBTG9PRHpjdW1Pc3Y2TzNZK0FMZ1Izb0MxbTBLRGxyN0xHbzJFUVVBVXdZdkE0YjM2NE8vZTdMcGVud1loTm9WWHFtREdSUTZQSWNsMDF2QnUvcVZVSnpIaCs2OE5FQzhEdWxkNkJySDdBVUFaTWRsR0o2V2FRU0NMMHR3ekQzZGF2KzhlTjNETUNheEFYdFNIajVhaHppUk9lR09GMkozSFptY2kwY0RKRXVaNy9hVDBCY3E1dXg0eDVwRHh1UHNycXlvTEY1K1Y0S2hSZGpMVXBDbzlmNXNOTStOZ3d5MDBseFIrekdrQThZUVJyWEdRNi9vcEdXTG5VaCtoWTBVQXZwY28yWjlka2RwcmxUNHZsaU5GelhGMFhYR0d5VjFvODA0cDR0MERPVTV4TWJ3QnJuelNlTzk2ZkpwalkvblBUUkl2akhZVi9UYlc1SkpiaVF1ZVk2YlFhc0hoWXNwellZSFZtMHlabmpXcWxCejExSStNVmd0VHpIVGdRZUhFUm5kQnRHdG4wY1JrNE0yamFGY21aQm9WTEVRT0dSdGpSaGo2Tk1XU2RqNUJ2QjhvK09Td0daSW9iVUU5UlV0ZHlrOVd5czVnYlV0dHJvQmhQbko4cUYwMjB4blhES3ZwQ1ZUTFVTNitKZythMlQxNzdvN05UYkxRWVhQazZubmx4NHJKTEQ1TEI5ZGJMeDdkc3BWYTljTzZwWlVGM0hiTjkzTmRYelRiUXBnUEs3SldDUWl2V0ozNVZERkFET0pWb0d5NURhMjFjNXpyVDdlK084VUZhdHRhbmR2WnB2L3NjS0w2NTN6VkZOVXR0NENqNGU5TXppZ0pmVjJpcjE2REluK0NrN0xON1YvYWFlZWJ2Z2dibVFSTUpwbzZOWmo5RzJTT3VSM3lUZDY3T2hFNXNISjNXaXJyYkdwNGpQQ0RMRkFFNndWb0UxdjhWOFJEMFBsMmdOTWRhRm9HZlJ4YmdicmhiZkJscThBY2N6YkdPUDNYbzlaZVBEczUzTWlKRzNhaVdFcjNlaXNOcHNkUER1OFcxYzlQcVlNSittaEl1SktDRDJ1cnlNTzBjVTV0c29sVXZvVHR1UStVUmkzNEhnVkFlQlV0eE04QkVzaXNnYWRLZU9DclNLL3pqbTBQemxYeUVxdnhLeVUycWRudUlGNXhydGIrdjNwRjRqaFpGeE4vRmthL21Id2VFb29NbG1NUlNNa3piazdPdlJpQW9tUUloT0cyMXV6T2xTMnBFZ0lUOUhFUFcwZGlzYXJ4VVp0YlRNblg1RldrQnVZbDJ1OEpJL0hzTTRxd1h6elpsdmRaeGZjUEQ0TEp4cEs1WVhGVGdkNWU4Z2NEcXNMc0g2cGhrS0dPVEt6VklUbFFnc3J5VWVXYlV0SU9QdXlyL0Y0cmgwVGh0QWxIU2hFRlBHT1BqVmxHNXE0QzhvckRaZ2dwRG01NlBHd1ZiNXd4RXdVQ1FhbjVkSDlKMWo3QUR5T2J4KzFOazhNdzd4YXpMeXAyakhBOGtMZzZUL3M4Tm5ZUkNrNUN2T3pWNWJlSHltUmxiK1pWd3JqYXRHbytITUdnY08zU1E5K0FOdWgxK09VWkozVHpKY093eWM2QUM4aE5JVDM2YmJDY0ZVTklVblZ1cU1kTmFaaVBDWTdJZHhrWFNONXBXdURZZ2cyTUJicjdUVkhucjBvTW1oVDQ1U0NSb0oxTmpDdm84SUxiZTVaajdlRng4WC9uWHRyUUlqVmZIN0diaCtHWEptZXE4d0l0aWt3eEJ0d1R2NjhhVExKZEszMW1hZWQ1b3pkK0JOTlhweFd5WDdzYlF1c3BldXZ0NUhDSllOeWpOUktrcnFEVmRCbTVBQks5cXJwOTJoUHRlRmZ0YUlEUTR5bzBMenpEbGtzdXhTaXRHQU03ZUd0SGVSdk5rbjNKQ0I3MFRFeVpLVU1nZjY4RHVTNzdGcHhtcXZpQU85TlF2UTh1QkZXQUhvZUFHTTdpQzBkWXNFaXJuTUNUNmpUa1FhRVF4dkNNNVVsOTBsRlN6enM0dHNaVTdWUXJOdnhvNGVqcmNpYlhtek8wT3NReEpvYzJ2dVB6TE1kM0prWVRpYTJTMHpWeHNGODdWeTVoNSt0VEZ2d3plSEQzdkNqVUdxbzVmUkFMVEcvdVBnUms1aU5kdjh5MTNOMTZLcm4xTG5LUFA0alF2VGk2dFppV2Q2a3RLaE5jTmVRQ2lZUDlSa1FDRjNWZVVzV0kyaUxIN0cyd2VrbHpwYWNFUjBlRTlGbUtseWpHcFpKNGVJWWNnS1BwejFRc2hoZDgyT20zZ1ZZa2FvYWVDZTlpZ3k4VDhGRT0uOVpUcXJjamQtTEpCSW5Ub2kwNVR0TTN2T0kyaTBJaTFROWxJNkJVYk83cWVhSHlCamNkNG8yRFlhblMxOUJsQlU4SjdnbFRSXzd4YjZCZEZ2Zks4NXc=</p>
+      <p id="riskSystemGroupId"></p>
+      <p id="riskSystemSwitch">USTC</p>
+      <p id="siteId">sourceId</p>
+      <p id="targetSystem">sso</p>
+      <p id="trustDevice"></p>
+      <p id="captcha-url"></p>
+      <p id="redirect-uri">service=https%3A%2F%2Fseatlib.bit.edu.cn%2Fapi%2Fcas%2Fcas</p>
+      <p id="login-back-uri">https%3A%2F%2Fseatlib.bit.edu.cn%2Fapi%2Fcas%2Fcas</p>
+      <p id="login-error-code"></p>
+      <p id="login-error-params">login.error.params.XH_GH/login.error.params.TEL</p>
+      <p id="caLoginFailTip"></p>
+      <p id="riskMessage"></p>
+      <p id="recaptcha-invisible"></p>
+      <form method="post">
+        <div id="login-type"></div>
+        <div id="login-username"></div>
+        </form>
+      <div
+        id="list-providers"
+        class="card d-sm-none d-md-block bg-light"
+      >
+        <div class="card-body">
+          <h3 class="card-title">外部身份提供者</h3>
+
+          <div class="card-text">
+            <ul>
+              <li>
+                <a
+                  class="btn btn-block btn-social btn-cas"
+                  href="clientredirect?client_name=adapter&amp;service=https://seatlib.bit.edu.cn/api/cas/cas"
+                  title="adapter" autoredirect="false"
+                >
+                  <span class="fa fa-sign-in-alt"></span>
+                  adapter
+                </a>
+              </li>
+              <li>
+                <a
+                  class="btn btn-block btn-social btn-cas"
+                  href="clientredirect?client_name=sidadapter&amp;service=https://seatlib.bit.edu.cn/api/cas/cas"
+                  title="sidadapter" autoredirect="false"
+                >
+                  <span class="fa fa-sign-in-alt"></span>
+                  sidadapter
+                </a>
+              </li>
+              <li>
+                <a
+                  class="btn btn-block btn-social btn-singlewechatoauth"
+                  href="clientredirect?client_name=singleWechatOauth&amp;service=https://seatlib.bit.edu.cn/api/cas/cas"
+                  title="singleWechatOauth" autoredirect="false"
+                >
+                  <span class="fa fa-sign-in-alt"></span>
+                  singleWechatOauth
+                </a>
+              </li>
+              <li>
+                <a
+                  class="btn btn-block btn-social btn-genericoauth20"
+                  href="clientredirect?client_name=ssoOauth&amp;service=https://seatlib.bit.edu.cn/api/cas/cas"
+                  title="ssoOauth" autoredirect="false"
+                >
+                  <span class="fa fa-sign-in-alt"></span>
+                  ssoOauth
+                </a>
+              </li>
+              <li>
+                <a
+                  class="btn btn-block btn-social btn-genericoauth20"
+                  href="clientredirect?client_name=corpWechatOauth2&amp;service=https://seatlib.bit.edu.cn/api/cas/cas"
+                  title="corpWechatOauth2" autoredirect="false"
+                >
+                  <span class="fa fa-sign-in-alt"></span>
+                  corpWechatOauth2
+                </a>
+              </li>
+              <li>
+                <a
+                  class="btn btn-block btn-social btn-saml2"
+                  href="clientredirect?client_name=saml&amp;service=https://seatlib.bit.edu.cn/api/cas/cas"
+                  title="saml" autoredirect="false"
+                >
+                  <span class="fa fa-lock saml"></span>
+                  
+                  saml
+                </a>
+              </li>
+              <li>
+                <a
+                  class="btn btn-block btn-social btn-saml2"
+                  href="clientredirect?client_name=office365&amp;service=https://seatlib.bit.edu.cn/api/cas/cas"
+                  title="office365" autoredirect="false"
+                >
+                  <span class="fa fa-lock office365"></span>
+                  
+                  office365
+                </a>
+              </li>
+              <li>
+                <a
+                  class="btn btn-block btn-social btn-ukeygeeragent"
+                  href="clientredirect?client_name=ukey&amp;service=https://seatlib.bit.edu.cn/api/cas/cas"
+                  title="ukey" autoredirect="false"
+                >
+                  <span class="fa fa-sign-in-alt"></span>
+                  ukey
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p
+      style="display: none"
+      id="frontend-addr"
+    >https://sso.bit.edu.cn/gate</p>
+
+    <!--[if lt IE 11]>
+      <div class="background-div">
+        <img id="low-img-bg" style="width: 100%; height: 100%" />
+      </div>
+      <div style="position: relative; top: 100px">
+        <table width="100%" cellspacing="0">
+          <tbody>
+            <tr>
+              <th width="15%"></th>
+              <th align="left" class="table-tr-th" colspan="2">
+                <h3 style="font-size: 18px; color: #1c1c1c; margin-top: 12px">
+                  你的浏览器版本过低，为保障正常使用网站功能，请使用以下推荐的浏览器
+                </h3>
+              </th>
+              <th width="15%"></th>
+            </tr>
+            <tr>
+              <th width="15%"></th>
+
+              <th align="left" valign="top" class="table-tr-th" width="35%">
+                <div style="height: 60px">
+                  <div style="font-size: 14px; color: #1c1c1c">
+                    1、请尝试切换至极速模式
+                  </div>
+                  <p style="font-size: 14px; color: #666; text-indet: 2em">
+                    (如果使用360、搜狗、QQ、百度、猎豹、傲游等双核浏览器)
+                  </p>
+                </div>
+                <div>
+                  <img id="switch-kernel-img" />
+                </div>
+              </th>
+
+              <th align="left" valign="top" class="table-tr-th">
+                <div style="height: 60px">
+                  <div style="font-size: 14px; color: #1c1c1c">
+                    2、使用以下推荐的浏览器
+                  </div>
+                </div>
+                <div style="height: 180px">
+                  <div class="browser-download-item">
+                    <img width="64" id="win7-google-img" />
+                    <p>谷歌浏览器</p>
+                    <a id="win7-google-a">点击下载</a>
+                  </div>
+                  <div class="browser-download-item">
+                    <img width="64" id="win7-ie11-img" />
+                    <p>IE 11浏览器</p>
+                    <a id="win7-ie11-a">点击下载</a>
+                  </div>
+                </div>
+
+                <div style="height: 40px">
+                  <div style="font-size: 14px; color: #1c1c1c">
+                    XP系统及Vista系统
+                  </div>
+                </div>
+                <div style="height: 160px">
+                  <div class="browser-download-item">
+                    <img
+                      width="64"
+                      src="./images/browser-google-icon.jpg"
+                      id="xp-google-img"
+                    />
+                    <p>谷歌浏览器</p>
+                    <a id="xp-google-a">点击下载</a>
+                  </div>
+                </div>
+              </th>
+
+              <th width="15%"></th>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <script>
+        var url = document.getElementById("frontend-addr").innerText;
+        document.getElementById("low-img-bg").src =
+          url + "/public/polyfills-page/images/bg.jpg";
+        document.getElementById("win7-google-img").src =
+          url + "/public/polyfills-page/images/browser-google-icon.jpg";
+        document.getElementById("win7-google-a").href =
+          url +
+          "/public/polyfills-page/install-package/70.0.3538.67_chrome_installer.exe";
+        document.getElementById("win7-ie11-img").src =
+          url + "/public/polyfills-page/images/browser-ie-icon.jpg";
+        document.getElementById("win7-ie11-a").href =
+          url +
+          "/public/polyfills-page/install-package/ie11_zh-cn_wol_win7.exe";
+        document.getElementById("xp-google-img").src =
+          url + "/public/polyfills-page/images/browser-google-icon.jpg";
+        document.getElementById("xp-google-a").href =
+          url +
+          "/public/polyfills-page/install-package/49.0.2623.112_chrome_installer.exe";
+        document.getElementById("switch-kernel-img").src =
+          url + "/public/polyfills-page/images/kernel-readme.jpg";
+      </script>
+    <![endif]--><div id="sso_redirect"></div>
+    <script>
+      var url = document.getElementById("frontend-addr").innerText;
+      document.getElementById("login_favicon").href =
+        url + "/linkid/api/image/download/login_favicon.png";
+    </script>
+    <script>
+      var list = document.getElementsByClassName("ruleList");
+      var isAdapterRedirect = false;
+      var adapterIsAutoRedirect = false;
+      var isAutoRedirect = false;
+      var isAutoRedirectClientName = null;
+      for (var i = 0; i < list.length; i++) {
+        var ele = list[i].getElementsByClassName("code")[0];
+        var code = ele.innerText;
+        var autoRedirect = list[i].getElementsByClassName("isRedirect")[0];
+        var autoRedirectCode = autoRedirect.innerText;
+        if (autoRedirectCode == "true") {
+          isAutoRedirect = true;
+          isAutoRedirectClientName = code;
+          break;
+        }
+        if (code == "adapter") {
+          var adapterAutoRedirectEle = list[i].getElementsByClassName(
+            "adapterIsAutoRedirect",
+          )[0];
+          adapterIsAutoRedirect = adapterAutoRedirectEle
+            ? adapterAutoRedirectEle.innerText
+            : "false";
+          isAdapterRedirect = true;
+        }
+      }
+
+      var paramArr = window.location.search.substring(1).split("&");
+      var url = "./clientredirect?client_name=#client_name";
+
+      if (paramArr.length > 0) {
+        for (var j = 0; j < paramArr.length; j++) {
+          if (paramArr[j].split("=")[0] == "service") {
+            url = url + "&" + paramArr[j];
+          }
+        }
+      }
+      var clientType = document.getElementById("current-login-type").innerText;
+      var errorCode = document.getElementById("login-error-code").innerText;
+      if (
+        errorCode === "1410041" &&
+        (clientType == "dingDingWlan" ||
+          clientType == "adapter" ||
+          clientType == "welinkOauth" ||
+          clientType == "feishuOauth" ||
+          clientType == "corpWechatOauth2" ||
+          clientType == "orcid" ||
+          clientType == "feishu" ||
+          clientType == "aliPay" ||
+          clientType == "qq" ||
+          clientType == "ssoOauth" ||
+          clientType == "" ||
+          clientType == "singleWechatOauth")
+      ) {
+        if (clientType == "") {
+          clientType = "appToken";
+        }
+        url =
+          document.getElementById("frontend-addr").innerText +
+          "/public/uc/client/bind/fail?clientname=#clientname";
+        url = url.replace("#clientname", clientType);
+        window.location.href = url;
+      }
+
+      if (
+        errorCode === "1030028" &&
+        (clientType == "dingDingWlan" ||
+          clientType == "adapter" ||
+          clientType == "welinkOauth" ||
+          clientType == "feishuOauth" ||
+          clientType == "corpWechatOauth2" ||
+          clientType == "orcid" ||
+          clientType == "feishu" ||
+          clientType == "aliPay" ||
+          clientType == "qq" ||
+          clientType == "ssoOauth" ||
+          clientType == "" ||
+          clientType == "singleWechatOauth")
+      ) {
+        if (clientType == "") {
+          clientType = "appToken";
+        }
+        url =
+          document.getElementById("frontend-addr").innerText +
+          "/public/uc/client/bind/error?clientname=#clientname";
+        url = url.replace("#clientname", clientType);
+        window.location.href = url;
+      }
+
+      if (isAutoRedirect) {
+        url = url.replace("#client_name", isAutoRedirectClientName);
+        window.location.href = url;
+      }
+
+      if (isAdapterRedirect) {
+        url = url.replace("#client_name", "adapter");
+        if (adapterIsAutoRedirect && adapterIsAutoRedirect == "true") {
+          window.location.href = url;
+        }
+      }
+
+      var sso = document.getElementById("sso_redirect");
+      document.body.removeChild(sso);
+    </script>
+    <app-root></app-root>
+
+    <script>
+      var url = document.getElementById("frontend-addr").innerText;
+      var scriptNewLogin = document.createElement("script");
+      scriptNewLogin.type = "text/javascript";
+      scriptNewLogin.src =
+        url + "/public/utils/loginNew.js?" + new Date().getTime();
+      scriptNewLogin.onerror = function (e) {
+        console.log(e);
+      };
+      document.body.appendChild(scriptNewLogin);
+    </script>
+  </body>
+</html>
