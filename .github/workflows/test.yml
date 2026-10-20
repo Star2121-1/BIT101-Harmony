@@ -1,0 +1,54 @@
+name: unit-tests
+
+# 只跑纯逻辑单测 —— 不需要 HarmonyOS SDK，所以能在 GitHub 托管 runner 上跑。
+# 编译 HAP 不在这里做（需要 DEVECO_SDK_HOME + 2.7GB 工具链，公开 runner 上不现实）。
+#
+# 目的：保证「clone 下来测试是绿的」这件事由机器守着，而不是靠谁口头说。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 环境信息
+        run: |
+          node --version
+          echo "仓库文件数: $(git ls-files | wc -l)"
+
+      - name: 单测（4 个套件，共 150 条断言）
+        run: |
+          set -e
+          fail=0
+          for t in test-parser test-teaching test-edges test-shuttle; do
+            echo "──────── $t ────────"
+            if node --experimental-strip-types "tools/$t.mjs"; then
+              echo "✅ $t"
+            else
+              echo "❌ $t"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: 关键资源必须在仓库里
+        # 这两条是 .gitignore 最容易被写错的地方，用 CI 钉死：
+        # 1) TLS 中间证书被忽略 → 编译照样过，运行期 loadCaPem 静默降级（TLS 失败）
+        # 2) app 图标被全局 *.png 误伤 → 打包缺图
+        run: |
+          set -e
+          test -s entry/src/main/resources/rawfile/seatlib_tls_intermediate.pem \
+            || { echo "❌ 缺 TLS 中间证书（运行期会静默降级）"; exit 1; }
+          test -s entry/src/main/resources/base/media/startIcon.png \
+            || { echo "❌ 缺启动图"; exit 1; }
+          echo "✅ pem 与 media 资源都在"
