@@ -30,6 +30,8 @@ build-*.log
 *.cer
 *.p7b
 signature/
+# 本地签名配置（含本机路径/凭证，只在本机生效）
+build-profile.local.json5
 
 # ⚠️ 注意：**不要**忽略 *.pem。
 # entry/src/main/resources/rawfile/seatlib_tls_intermediate.pem 是运行必需的 TLS 中间证书，

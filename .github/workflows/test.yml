@@ -28,20 +28,10 @@ jobs:
           node --version
           echo "仓库文件数: $(git ls-files | wc -l)"
 
-      - name: 单测（4 个套件，共 150 条断言）
-        run: |
-          set -e
-          fail=0
-          for t in test-parser test-teaching test-edges test-shuttle; do
-            echo "──────── $t ────────"
-            if node --experimental-strip-types "tools/$t.mjs"; then
-              echo "✅ $t"
-            else
-              echo "❌ $t"
-              fail=1
-            fi
-          done
-          exit $fail
+      - name: 单测（4 个套件，共 151 条断言）
+        # 用与本地完全相同的入口，别在 CI 里再抄一份循环 ——
+        # 两套实现迟早会不一致（谁是准的说不清），断言条数也会变成两处手抄。
+        run: bash tools/run-tests.sh
 
       - name: 关键资源必须在仓库里
         # 这两条是 .gitignore 最容易被写错的地方，用 CI 钉死：
