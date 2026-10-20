@@ -7,7 +7,9 @@ name: unit-tests
 
 on:
   push:
-    branches: [main]
+    # 所有分支都跑，不只是 main —— 否则在功能分支上推了坏代码不会有人拦。
+    # （2026-10-20 栽过：配成 [main] 后，自检分支的推送压根没触发 CI，白等一轮。）
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 
