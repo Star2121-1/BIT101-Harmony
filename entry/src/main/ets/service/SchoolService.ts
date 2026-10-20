@@ -12,6 +12,7 @@
  * `datas` 缺失 ⇒ 抛 `SchoolAuthError`，调用方据此引导重新登录（**不静默当成"没课"**）。
  */
 
+import { JAR_SCHOOL } from '../core/net/CookieJars.ts';
 import { rcp } from '@kit.RemoteCommunicationKit';
 import { Context } from '@kit.AbilityKit';
 import { RcpFactory } from '../core/net/RcpFactory.ts';
@@ -73,7 +74,6 @@ function navHeaders(): rcp.RequestHeaders {
   };
 }
 
-const JAR_SCHOOL: string = 'bit_school';
 
 export class SchoolService {
   /**

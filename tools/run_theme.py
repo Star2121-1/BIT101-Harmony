@@ -243,6 +243,10 @@ def main():
 
     if do_logout:
         print("[8] 登出")
+        # 先回首页：上一步停在空教室页
+        cur = dump_named("pre-logout-check")
+        tap_back(cur)
+        time.sleep(2)
         home4 = dump_named("home-dark3")
         tap_label(home4, "设置")
         time.sleep(2)

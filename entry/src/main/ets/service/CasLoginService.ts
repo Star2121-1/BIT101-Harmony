@@ -17,6 +17,7 @@
  * - 密码只在本次调用的栈上，不写日志、不落盘、不返回到 UI。
  */
 
+import { JAR_LOGIN, JAR_CAS } from '../core/net/CookieJars.ts';
 import { rcp } from '@kit.RemoteCommunicationKit';
 import { Context } from '@kit.AbilityKit';
 import { CasCrypto } from '../core/crypto/CasCrypto.ts';
@@ -48,8 +49,6 @@ const MAC_UA: string =
 const MAX_CAS_HOPS: number = 8;
 
 /** cookie 罐标识（只允许字母+下划线）。 */
-const JAR_LOGIN: string = 'bit_login';   // 登录页 / 风控 / POST / 教务授权链（SESSION 在这里）
-const JAR_CAS: string = 'bit_cas';       // phpCAS 票据链（隔离，对照 Android IsolatedCookieJar）
 
 /** 登录结果状态。 */
 export type LoginStatus =

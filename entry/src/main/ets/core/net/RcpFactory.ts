@@ -16,7 +16,7 @@
 import { rcp } from '@kit.RemoteCommunicationKit';
 import { Context } from '@kit.AbilityKit';
 import util from '@ohos.util';
-import { error, warn } from '../log/BitLog.ts';
+import { error, info, warn } from '../log/BitLog.ts';
 
 /** sso / seatlib 同族，复用同一张 Thawte TLS RSA CA G1 中间证书。 */
 export const CA_RAWFILE: string = 'seatlib_tls_intermediate.pem';
@@ -82,6 +82,42 @@ export class RcpFactory {
       cookieRepository: repo
     };
     return rcp.createSession(sessionConfig);
+  }
+
+  /**
+   * 清空一个 cookie 罐。
+   *
+   * ⚠️ `CookieRepository.create(id)` 是**进程级单例**：只删 Prefs 里的持久化数据，
+   * 内存罐里的会话仍然有效 —— 表现是「界面显示已登出，教务接口照样能访问」。
+   * 这里没有 delete API，只能把每条 cookie 覆盖成 `maxAge: 0`（立即过期）。
+   *
+   * @returns 实际作废的 cookie 条数（0 = 罐本来就是空的）
+   */
+  static async clearRepoCookies(repoId: string): Promise<number> {
+    try {
+      const repo: rcp.CookieRepository = rcp.CookieRepository.create(repoId);
+      const all: rcp.ResponseCookie[] = await repo.getAllCookies();
+      if (all.length === 0) {
+        return 0;
+      }
+      const dead: rcp.ResponseCookie[] = [];
+      for (let i = 0; i < all.length; i++) {
+        const c: rcp.ResponseCookie = all[i];
+        dead.push({
+          name: c.name ?? '',
+          value: '',
+          domain: c.domain,
+          path: c.path,
+          maxAge: 0
+        });
+      }
+      await repo.setCookies(dead);
+      info('clearRepoCookies ' + repoId + ' killed=' + dead.length);
+      return dead.length;
+    } catch (e) {
+      warn('clearRepoCookies ' + repoId + ' fail: ' + JSON.stringify(e));
+      return 0;
+    }
   }
 
   /** 取指定罐的 cookie 仓库句柄（登录流程要往里写 device cookie）。 */

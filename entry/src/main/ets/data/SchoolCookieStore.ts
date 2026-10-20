@@ -7,6 +7,7 @@
  * 只存 cookie 本身（name/value/domain/path），不存任何密码。
  */
 
+import { ALL_JARS } from '../core/net/CookieJars.ts';
 import { PersistedCookie, RcpFactory } from '../core/net/RcpFactory.ts';
 import { rcp } from '@kit.RemoteCommunicationKit';
 import { Prefs } from './Prefs.ts';
@@ -53,9 +54,19 @@ export class SchoolCookieStore {
     return cookies.length;
   }
 
+  /**
+   * 登出：清持久化 **和** 内存罐。
+   *
+   * ⚠️ 2026-10-20 真机验出：只清 Prefs 时，设置页显示「未登录」，
+   * 但自习卡照样查出 `20 栋楼 / 231 间 / 14.6 秒` —— 内存罐里的会话还在用。
+   */
   static async clear(): Promise<void> {
     await Prefs.remove(KEY_COOKIES);
-    info('SchoolCookieStore cleared');
+    let killed: number = 0;
+    for (let i = 0; i < ALL_JARS.length; i++) {
+      killed += await RcpFactory.clearRepoCookies(ALL_JARS[i]);
+    }
+    info('SchoolCookieStore cleared (prefs + jars killed=' + killed + ')');
   }
 
   /** 有没有可用的学校会话（判据 = 至少一条 cookie；空列表 = 没登录过）。 */
