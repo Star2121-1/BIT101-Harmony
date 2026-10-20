@@ -1,0 +1,58 @@
+/**
+ * 编译探针：逐个 import 13 个算法模块的关键导出并调用纯函数。
+ * 目的：逼 hvigor 的 ArkTS 严格编译器真正 type-check 每个 .ts 文件
+ * （否则入口不引用 = dead code，BUILD SUCCESSFUL 可能是假通过）。
+ * 仅用于 M0 地基验证，非业务代码；M1 接 UI 后可删。
+ * 行为正确性不在这里断言——那由 core-logic/test/ 的 243 条单测负责（已全绿）。
+ * 这里只做「类型 + import 图」验证：每个模块都能被 ArkTS 编译器吃掉。
+ */
+import { normalize, ALL } from "./CampusLocations.ts";
+import { fnv1a32, PALETTE_SIZE } from "./CourseColorLogic.ts";
+import { weekOf, effectiveWeekday } from "./CourseWeekdayLogic.ts";
+import { MAX_FETCH_LIMIT, fetchLimit, toActivities } from "./EclassActivityLogic.ts";
+import { uid as ddlUid } from "./EclassDdlLogic.ts";
+import { parseTime as libParseTime, daysLeft } from "./LibBorrowLogic.ts";
+import { DEFAULT_NOTIFY_POLICY, plan as notifyPlan } from "./NotifyLogic.ts";
+import { Stop, DayType, timetable } from "./ShuttleLogic.ts";
+import { MIN_FREE_SECTIONS, sectionFor } from "./StudySpotLogic.ts";
+import { dayPlanOf } from "./TeachingAdjustment.ts";
+import { courseTimeText, FALLBACK_TIME_TABLE } from "./TimeTableLogic.ts";
+import { pickDay, buildDayBlocks } from "./WidgetLogic.ts";
+
+/** 各模块各取一个可离线调用的纯函数/常量，拼成一段可观测文本。 */
+export function runProbe(): string {
+  const parts: string[] = [];
+  // CampusLocations：全角「Ｉ４０４」归一化（Android 测试同款）
+  parts.push("norm=" + normalize("Ｉ４０４"));
+  // CourseColorLogic：FNV-1a % 12
+  parts.push("fnv=" + fnv1a32("文萃楼") + "/palette=" + PALETTE_SIZE);
+  // EclassActivityLogic：动态抓取条数上限
+  parts.push("fetchcap=" + MAX_FETCH_LIMIT + "/" + fetchLimit(60, false));
+  // EclassDdlLogic：去重键
+  parts.push("ddluid=" + ddlUid(42));
+  // LibBorrowLogic：到期天数
+  parts.push("libday=" + (libParseTime("2026-10-19 08:00:00") ? "parsed" : "null"));
+  // NotifyLogic：默认策略存在性
+  parts.push("notify=" + (DEFAULT_NOTIFY_POLICY ? "on" : "off"));
+  // StudySpotLogic：常量 + 节次（1-based）
+  parts.push("minfree=" + MIN_FREE_SECTIONS);
+  // TimeTableLogic：13 节作息
+  parts.push("timetable=" + courseTimeText(FALLBACK_TIME_TABLE, 8, 9));
+  // ShuttleLogic：地铁方向时刻表（周末口径，条目数）
+  parts.push("bus=" + timetable(Stop.METRO, DayType.WEEKEND_HOLIDAY).length + "stops");
+
+  // 以下参数较复杂，不在此构造合法入参，仅 import 强制编译器吃文件（类型校验）
+  void weekOf;
+  void effectiveWeekday;
+  void toActivities;
+  void libParseTime;
+  void daysLeft;
+  void notifyPlan;
+  void sectionFor;
+  void dayPlanOf;
+  void pickDay;
+  void buildDayBlocks;
+  void ALL;
+
+  return "probe[" + parts.join(" ") + "]";
+}

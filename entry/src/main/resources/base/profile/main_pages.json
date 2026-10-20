@@ -1,0 +1,12 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/LoginPage",
+    "pages/SchedulePage",
+    "pages/ClassroomPage",
+    "pages/ExamPage",
+    "pages/ShuttlePage",
+    "pages/CasLoginProbe",
+    "pages/CasProbePage"
+  ]
+}

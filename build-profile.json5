@@ -1,0 +1,56 @@
+{
+  app: {
+    signingConfigs: [
+      {
+        name: 'default',
+        type: 'HarmonyOS',
+        material: {
+          certpath: 'C:\\Users\\asus\\.ohos\\config\\default_BIT101-harmony_S6cgYgt9AHeb0uBFacmvzas7FohRRAA8Spl87b2f8=.cer',
+          keyAlias: 'debugKey',
+          keyPassword: '0000001b3c6fdf29f235c68f643f7ff93cc4b37df8a1ed13a8313da37846424953a3b88fcad8775cf133bd',
+          profile: 'C:\\Users\\asus\\.ohos\\config\\default_BIT101-harmony_S6cgYgt9AHeb0uBFacmvzas7FohRRAA8Spl87b2f8=.p7b',
+          signAlg: 'SHA256withECDSA',
+          storeFile: 'C:\\Users\\asus\\.ohos\\config\\default_BIT101-harmony_S6cgYgt9AHeb0uBFacmvzas7FohRRAA8Spl87b2f8=.p12',
+          storePassword: '0000001b3c6fdf29f235c68f643f7ff93cc4b37df8a1ed13a8313da37846424953a3b88fcad8775cf133bd',
+        },
+      },
+    ],
+    products: [
+      {
+        name: 'default',
+        signingConfig: 'default',
+        targetSdkVersion: '26.0.0',
+        compatibleSdkVersion: '26.0.0',
+        runtimeOS: 'HarmonyOS',
+        buildOption: {
+          strictMode: {
+            caseSensitiveCheck: true,
+            useNormalizedOHMUrl: true,
+          },
+        },
+      },
+    ],
+    buildModeSet: [
+      {
+        name: 'debug',
+      },
+      {
+        name: 'release',
+      },
+    ],
+  },
+  modules: [
+    {
+      name: 'entry',
+      srcPath: './entry',
+      targets: [
+        {
+          name: 'default',
+          applyToProducts: [
+            'default',
+          ],
+        },
+      ],
+    },
+  ],
+}

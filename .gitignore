@@ -1,0 +1,37 @@
+/node_modules
+/oh_modules
+/local.properties
+/.idea
+**/build
+/.hvigor
+.cxx
+/.clangd
+/.clang-format
+/.clang-tidy
+**/.test
+/.appanalyzer
+/.cache
+
+# 构建日志（临时产物，只在排查当次有效）
+build-*.log
+*.hap
+*.hsp
+
+# 真机取证快照（只忽略项目**根目录**的临时产物；
+# entry/src/main/resources/base/media/*.png 是 app 图标与启动图，必须入库，别用全局 *.png）
+/*.jpeg
+/*.jpg
+/*.png
+/dump*.json
+/layout*.json
+
+# 签名材料（绝不入库）
+*.p12
+*.cer
+*.p7b
+signature/
+
+# ⚠️ 注意：**不要**忽略 *.pem。
+# entry/src/main/resources/rawfile/seatlib_tls_intermediate.pem 是运行必需的 TLS 中间证书，
+# 被忽略后能编译通过、但运行期 loadCaPem 静默降级为空串（TLS 握手失败）——典型的「降级后看起来也正常」。
+# 它是公开的中间证书，不含任何私钥，入库无风险。
