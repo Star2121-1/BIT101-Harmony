@@ -20,6 +20,10 @@ struct Index {
   @State spotMeta: string = '';
   @State spotLoading: boolean = false;
   @State spotIdx: number = 0;
+  /** 错误类别（'none'|'nologin'|'network'|...），决定给什么处置入口。 */
+  @State spotErrorKind: string = 'none';
+  /** true = 用的是上次的课表缓存（当前学期没确认），必须标注周次可能不准。 */
+  @State spotStale: boolean = false;
   private service: SeatTreeService = new SeatTreeService();
 
   /** type → 中文层级标签（对齐 Android 实测：0=校区/楼层，1=区域）。 */
@@ -42,10 +46,14 @@ struct Index {
       this.spotPlan = r.plan;
       this.spotCard = r.card;
       this.spotError = r.error;
+      this.spotErrorKind = r.errorKind;
+      this.spotStale = r.staleTerm;
       this.spotMeta = r.meta;
       this.spotIdx = 0;
     } catch (e) {
       this.spotError = '算不出来：' + (e as Error).message;
+      this.spotErrorKind = 'other';
+      this.spotStale = false;
     }
     this.spotLoading = false;
   }
@@ -117,19 +125,34 @@ struct Index {
         }
         .width('100%')
 
+        // 用的是上次的课表缓存 ⇒ 必须标注，不许当正常结果展示
+        if (this.spotStale && !this.spotLoading) {
+          Text('没确认到当前学期，下面按上次的课表算，周次可能不准')
+            .fontSize(10).fontColor('#B45309').width('100%').margin({ top: 4 })
+        }
+
         if (this.spotLoading) {
           Text('正在逐栋查空教室（约 20 秒）…')
             .fontSize(12).fontColor('#888888').width('100%').margin({ top: 6 })
-        } else if (this.spotError.length > 0) {
-          Text(this.spotError)
-            .fontSize(12).fontColor('#C62828').width('100%').margin({ top: 6 })
         } else if (this.spotCard !== null) {
+          // ⚠️ 卡片优先于错误：降级时 card 里装的是**本地课表算出来的信息**，
+          // 不该因为「查不了空教室」就整块消失（M3-5）。
           Text(this.spotCard.title)
             .fontSize(15).fontWeight(FontWeight.Medium).width('100%').margin({ top: 6 })
           if (this.spotCard.detail !== null) {
             Text(this.spotCard.detail)
               .fontSize(12).fontColor('#666666').width('100%').margin({ top: 2 })
           }
+          // 有 card 又有 error ⇒ 是降级：如实说清缺了什么，不装作一切正常。
+          // ⚠️ 去重：降级时 card.detail 本身就是原因文案，再渲染一次 error 会变成
+          // 「网络不通…」连着出现两遍（2026-10-20 真机看到）。
+          if (this.spotError.length > 0 && this.spotError !== this.spotCard.detail) {
+            Text(this.spotError)
+              .fontSize(10).fontColor('#B45309').width('100%').margin({ top: 4 })
+          }
+        } else if (this.spotError.length > 0) {
+          Text(this.spotError)
+            .fontSize(12).fontColor('#C62828').width('100%').margin({ top: 6 })
         } else {
           Text('点「算一下」看看现在能去哪个教室')
             .fontSize(12).fontColor('#888888').width('100%').margin({ top: 6 })
@@ -148,6 +171,28 @@ struct Index {
               .margin({ left: 8 })
               .onClick(() => {
                 this.nextSpot();
+              })
+          }
+          // 卡片只显示一个候选；排名全貌在详情页（M3-4）
+          if (this.spotPlan !== null && this.spotPlan.options.length > 0) {
+            Button('全部 ' + this.spotPlan.options.length + ' 个')
+              .height(30).fontSize(12)
+              .margin({ left: 8 })
+              .onClick(() => {
+                router.pushUrl({ url: 'pages/SpotDetailPage' }).catch((e: Error) => {
+                  this.detail = '跳转详情失败：' + JSON.stringify(e);
+                });
+              })
+          }
+          // 会话失效 ⇒ 直接把登录入口给到手，别让用户自己去找
+          if (this.spotErrorKind === 'nologin') {
+            Button('去登录')
+              .height(30).fontSize(12)
+              .margin({ left: 8 })
+              .onClick(() => {
+                router.pushUrl({ url: 'pages/LoginPage' }).catch((e: Error) => {
+                  this.detail = '跳转登录失败：' + JSON.stringify(e);
+                });
               })
           }
         }

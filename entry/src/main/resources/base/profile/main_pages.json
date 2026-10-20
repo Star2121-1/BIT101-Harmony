@@ -7,6 +7,7 @@
     "pages/ExamPage",
     "pages/ShuttlePage",
     "pages/CasLoginProbe",
-    "pages/CasProbePage"
+    "pages/CasProbePage",
+    "pages/SpotDetailPage"
   ]
 }
