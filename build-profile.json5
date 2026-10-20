@@ -1,24 +1,19 @@
 {
   app: {
-    signingConfigs: [
-      {
-        name: 'default',
-        type: 'HarmonyOS',
-        material: {
-          certpath: 'C:\\Users\\asus\\.ohos\\config\\default_BIT101-harmony_S6cgYgt9AHeb0uBFacmvzas7FohRRAA8Spl87b2f8=.cer',
-          keyAlias: 'debugKey',
-          keyPassword: '0000001b3c6fdf29f235c68f643f7ff93cc4b37df8a1ed13a8313da37846424953a3b88fcad8775cf133bd',
-          profile: 'C:\\Users\\asus\\.ohos\\config\\default_BIT101-harmony_S6cgYgt9AHeb0uBFacmvzas7FohRRAA8Spl87b2f8=.p7b',
-          signAlg: 'SHA256withECDSA',
-          storeFile: 'C:\\Users\\asus\\.ohos\\config\\default_BIT101-harmony_S6cgYgt9AHeb0uBFacmvzas7FohRRAA8Spl87b2f8=.p12',
-          storePassword: '0000001b3c6fdf29f235c68f643f7ff93cc4b37df8a1ed13a8313da37846424953a3b88fcad8775cf133bd',
-        },
-      },
-    ],
+    // ⚠️ 签名配置**故意不写在这里**（2026-10-20 清理）。
+    // 原内容含本机绝对路径（C:\Users\...\.ohos\config\*.p12）与签名口令，
+    // 入库有两个后果：① 别人 clone 后构建直接失败（找不到证书）；② 凭证材料进公开仓库。
+    //
+    // 需要签名（装真机 / 出包）时，二选一：
+    //   • DevEco Studio: File > Project Structure > Signing Configs，勾 Automatic signing
+    //   • 或本地加回 signingConfigs 并在 products[].signingConfig 指回 'default'
+    //
+    // 不加签名的构建照样能过，产出 unsigned hap（可用于验证代码可编译）。
+    signingConfigs: [],
     products: [
       {
         name: 'default',
-        signingConfig: 'default',
+        // 注意：这里**不指定** signingConfig。指了但 signingConfigs 为空会直接构建失败。
         targetSdkVersion: '26.0.0',
         compatibleSdkVersion: '26.0.0',
         runtimeOS: 'HarmonyOS',
