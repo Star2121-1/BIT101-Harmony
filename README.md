@@ -82,7 +82,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version          # 需要 22.6+（支持 --experimental-strip-types）
-bash tools/run-tests.sh # 4 个套件，151 条断言
+bash tools/run-tests.sh # 5 个套件，234 条断言
 ```
 
 | 套件 | 断言数 | 测什么 |
@@ -91,6 +91,7 @@ bash tools/run-tests.sh # 4 个套件，151 条断言
 | `test-teaching` | 50 | 教学调整通知解析（表格 + 四种句式） |
 | `test-edges` | 40 | 节次 / 周次 / 日期边界 |
 | `test-shuttle` | 30 | 班车时刻表 |
+| `test-colors` | 83 | 深浅两套配色的 WCAG 对比度（含 24 个课程色组合） |
 
 CI（`.github/workflows/test.yml`）每次 push 自动跑这些，外加一条**关键资源存在性检查** —— 它守的是两个真实踩过的坑：TLS 中间证书被 `.gitignore` 误伤（编译能过、运行期静默降级）、app 图标被全局 `*.png` 误删。
 

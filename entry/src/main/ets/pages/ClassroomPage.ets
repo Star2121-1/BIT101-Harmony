@@ -11,11 +11,14 @@
  */
 
 import { router } from '@kit.ArkUI';
+import { palette, Palette } from '../core/theme/AppColors.ts';
+import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { SchoolService, SchoolAuthError } from '../service/SchoolService.ts';
 import { ClassroomService } from '../service/ClassroomService.ts';
 import { BuildingInfo, CampusInfo, ClassroomRow } from '../core/model/SchoolModels.ts';
 import { CourseCache, CachedSchedule } from '../data/CourseCache.ts';
+import { Prefs } from '../data/Prefs.ts';
 import { SessionStore, SessionSnapshot } from '../data/SessionStore.ts';
 import { weeksContains, weekOf } from '../corelogic/CourseWeekdayLogic.ts';
 import { parseISODate } from '../corelogic/timeutil.ts';
@@ -27,6 +30,8 @@ const SECTIONS: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 @Entry
 @Component
 struct ClassroomPage {
+  /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
+  @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @State loading: boolean = true;
   @State errorText: string = '';
   @State needLogin: boolean = false;
@@ -82,12 +87,28 @@ struct ClassroomPage {
       const list: CampusInfo[] = await SchoolService.getCampuses(ctx);
       this.campuses = list;
       if (list.length > 0) {
-        // 默认良乡（课程都在这边）；找不到才退回第一个。改默认值属 M6-5 设置项。
-        let pick: string = list[0].code;
+        // 优先用设置页里选的默认校区（M6-5）；
+        // 没设过才回退「良乡」（课程都在这边），再找不到就用第一个。
+        let pick: string = '';
+        try {
+          pick = await Prefs.getString('default_campus_code', '');
+        } catch (e) {
+          pick = '';
+        }
+        let found: boolean = false;
         for (let i = 0; i < list.length; i++) {
-          if (list[i].displayName.indexOf('良乡') >= 0) {
-            pick = list[i].code;
+          if (pick.length > 0 && list[i].code === pick) {
+            found = true;
             break;
+          }
+        }
+        if (!found) {
+          pick = list[0].code;
+          for (let i = 0; i < list.length; i++) {
+            if (list[i].displayName.indexOf('良乡') >= 0) {
+              pick = list[i].code;
+              break;
+            }
           }
         }
         await this.selectCampus(pick);
@@ -212,6 +233,11 @@ struct ClassroomPage {
     return parts.join(', ') + ' 节占用';
   }
 
+  /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
+  private p(): Palette {
+    return palette(this.isDark);
+  }
+
   build() {
     Column() {
       Row() {
@@ -223,7 +249,7 @@ struct ClassroomPage {
           Text('第 ' + this.week + ' 周 · 周' + DAY_LABELS[this.dayOfWeek - 1] +
             (this.dateStr.length > 0 ? ' · ' + this.dateStr : '') +
             (this.term.length > 0 ? ' · ' + this.term : ''))
-            .fontSize(11).fontColor('#888888')
+            .fontSize(11).fontColor(this.p().textMuted)
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
@@ -236,7 +262,7 @@ struct ClassroomPage {
 
       if (this.errorText.length > 0) {
         Column() {
-          Text(this.errorText).fontSize(13).fontColor('#C62828').width('100%')
+          Text(this.errorText).fontSize(13).fontColor(this.p().error).width('100%')
           if (this.needLogin) {
             Button('去登录').height(40).margin({ top: 12 }).onClick(() => {
               router.pushUrl({ url: 'pages/LoginPage' });
@@ -253,8 +279,8 @@ struct ClassroomPage {
             ForEach(this.campuses, (c: CampusInfo) => {
               Text(c.displayName.length > 0 ? c.displayName : c.code)
                 .fontSize(12)
-                .fontColor(c.code === this.campusCode ? '#FFFFFF' : '#666666')
-                .backgroundColor(c.code === this.campusCode ? '#4A6FD4' : '#F0F0F3')
+                .fontColor(c.code === this.campusCode ? this.p().textOnAccent : this.p().textMuted)
+                .backgroundColor(c.code === this.campusCode ? this.p().accent : this.p().bgAlt)
                 .padding({ left: 12, right: 12, top: 5, bottom: 5 })
                 .borderRadius(13)
                 .margin({ right: 6 })
@@ -272,9 +298,9 @@ struct ClassroomPage {
       }
 
       if (this.loading) {
-        Text('正在读校区与教学楼…').fontSize(13).fontColor('#888888').width('100%').padding(16)
+        Text('正在读校区与教学楼…').fontSize(13).fontColor(this.p().textMuted).width('100%').padding(16)
       } else if (this.buildingsLoading) {
-        Text('正在读教学楼…').fontSize(13).fontColor('#888888').width('100%').padding(16)
+        Text('正在读教学楼…').fontSize(13).fontColor(this.p().textMuted).width('100%').padding(16)
       } else {
         List() {
           ForEach(this.buildings, (b: BuildingInfo) => {
@@ -284,7 +310,7 @@ struct ClassroomPage {
                   Text(b.buildingName.length > 0 ? b.buildingName : b.buildingIndex)
                     .fontSize(14).fontWeight(FontWeight.Medium).layoutWeight(1)
                   Text(this.openBuilding === b.buildingIndex ? '收起' : '展开')
-                    .fontSize(11).fontColor('#4A6FD4')
+                    .fontSize(11).fontColor(this.p().accent)
                 }
                 .width('100%')
                 .onClick(() => {
@@ -294,13 +320,13 @@ struct ClassroomPage {
                 if (this.openBuilding === b.buildingIndex) {
                   if (this.roomsLoading) {
                     Text('正在查这栋楼的教室（约 2~5 秒）…')
-                      .fontSize(12).fontColor('#888888').width('100%').margin({ top: 6 })
+                      .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
                   } else if (this.roomsError.length > 0) {
                     Text(this.roomsError)
-                      .fontSize(12).fontColor('#C62828').width('100%').margin({ top: 6 })
+                      .fontSize(12).fontColor(this.p().error).width('100%').margin({ top: 6 })
                   } else {
                     Text('共 ' + this.rooms.length + ' 间教室 · 现在空闲 ' + this.freeCount() + ' 间')
-                      .fontSize(11).fontColor('#888888').width('100%').margin({ top: 6, bottom: 4 })
+                      .fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 6, bottom: 4 })
                     ForEach(this.rooms, (r: ClassroomRow) => {
                       Row() {
                         Column() {
@@ -308,14 +334,14 @@ struct ClassroomPage {
                             .fontSize(12).width('100%')
                           Text((r.JASLXDM_DISPLAY.length > 0 ? r.JASLXDM_DISPLAY : '教室') +
                             (r.SKZWS.length > 0 ? ' · ' + r.SKZWS + ' 座' : ''))
-                            .fontSize(10).fontColor('#999999').width('100%')
+                            .fontSize(10).fontColor(this.p().textMuted).width('100%')
                         }
                         .alignItems(HorizontalAlign.Start)
                         .layoutWeight(1)
                         Text(this.busySummary(r))
                           .fontSize(10)
-                          .fontColor(r.busySections.length === 0 ? '#1A7F37'
-                            : (r.busySections.length >= SECTIONS.length ? '#B42318' : '#B45309'))
+                          .fontColor(r.busySections.length === 0 ? this.p().success
+                            : (r.busySections.length >= SECTIONS.length ? this.p().error : this.p().warn))
                           .maxLines(1)
                           .textOverflow({ overflow: TextOverflow.Ellipsis })
                           .width('46%')
@@ -323,16 +349,16 @@ struct ClassroomPage {
                       }
                       .width('100%')
                       .padding({ top: 5, bottom: 5 })
-                      .border({ width: { bottom: 0.5 }, color: '#F0F0F0' })
+                      .border({ width: { bottom: 0.5 }, color: this.p().bgAlt })
                     }, (r: ClassroomRow) => 'r_' + b.buildingIndex + '_' + r.JASMC)
                   }
                 }
               }
               .width('100%')
               .padding(12)
-              .backgroundColor('#FFFFFF')
+              .backgroundColor(this.p().bgCard)
               .borderRadius(8)
-              .border({ width: 0.5, color: '#ECECEC' })
+              .border({ width: 0.5, color: this.p().bgAlt })
             }
             .margin({ bottom: 8 })
           }, (b: BuildingInfo) => 'b_' + b.campusCode + '_' + b.buildingIndex)
@@ -344,11 +370,11 @@ struct ClassroomPage {
       }
 
       Text(this.weekKnown ? '空教室结果对应上面这一天' : '开学日未知，结果可能不准')
-        .fontSize(11).fontColor('#888888')
+        .fontSize(11).fontColor(this.p().textMuted)
         .width('100%')
         .padding({ left: 12, right: 12, top: 4, bottom: 8 })
     }
     .width('100%').height('100%')
-    .backgroundColor('#F5F6F8')
+    .backgroundColor(this.p().bgAlt)
   }
 }

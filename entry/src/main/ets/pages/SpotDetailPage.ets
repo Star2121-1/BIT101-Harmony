@@ -14,6 +14,8 @@
  */
 
 import { router } from '@kit.ArkUI';
+import { palette, Palette } from '../core/theme/AppColors.ts';
+import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { StudySpotService, SpotResult } from '../service/StudySpotService.ts';
 import {
   Plan, SpotOption, spotOptionTitle, spotOptionDetail
@@ -30,6 +32,8 @@ interface DetailRow {
 @Entry
 @Component
 struct SpotDetailPage {
+  /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
+  @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @State metaText: string = '';
   @State errorText: string = '';
   @State errorKind: string = 'none';
@@ -74,12 +78,17 @@ struct SpotDetailPage {
       (this.stale ? ' staleTerm=yes' : ''));
   }
 
+  /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
+  private p(): Palette {
+    return palette(this.isDark);
+  }
+
   build() {
     Column() {
       // 顶部
       Row() {
         Text('‹ 返回')
-          .fontSize(14).fontColor('#4A6FD4')
+          .fontSize(14).fontColor(this.p().accent)
           .onClick(() => {
             router.back();
           })
@@ -97,7 +106,7 @@ struct SpotDetailPage {
           Text('还没有算过')
             .fontSize(15).fontWeight(FontWeight.Medium).margin({ top: 40 })
           Text('请回首页点「算一下」，那里会逐栋查空教室（约 20 秒）')
-            .fontSize(12).fontColor('#888888').margin({ top: 6 })
+            .fontSize(12).fontColor(this.p().textMuted).margin({ top: 6 })
         }
         .width('100%').layoutWeight(1).justifyContent(FlexAlign.Start)
       } else {
@@ -106,20 +115,20 @@ struct SpotDetailPage {
             // 统计（栋数/间数/耗时），用来确认并发真的生效
             if (this.metaText.length > 0) {
               Text(this.metaText)
-                .fontSize(10).fontColor('#AAAAAA').width('100%').margin({ bottom: 6 })
+                .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ bottom: 6 })
             }
 
             // 用的是上次课表缓存 ⇒ 必须标注
             if (this.stale) {
               Text('没确认到当前学期，下面按上次的课表算，周次可能不准')
-                .fontSize(11).fontColor('#B45309').width('100%').margin({ bottom: 6 })
+                .fontSize(11).fontColor(this.p().warn).width('100%').margin({ bottom: 6 })
             }
 
             // 降级/失败原因：如实说，不装作数据完整
             if (this.errorText.length > 0) {
               Text(this.errorText)
                 .fontSize(11)
-                .fontColor(this.errorKind === 'none' ? '#B45309' : '#C62828')
+                .fontColor(this.errorKind === 'none' ? this.p().warn : this.p().error)
                 .width('100%').margin({ bottom: 8 })
             }
 
@@ -131,12 +140,12 @@ struct SpotDetailPage {
                 if (this.coursePlace.length > 0) {
                   Text('在 ' + this.coursePlace +
                     (this.courseEndsAt.length > 0 ? ' · ' + this.courseEndsAt + ' 下课' : ''))
-                    .fontSize(12).fontColor('#666666').width('100%').margin({ top: 2 })
+                    .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 2 })
                 }
               }
               .width('100%')
               .padding(12)
-              .backgroundColor('#F1F4FF')
+              .backgroundColor(this.p().bgSubtle)
               .borderRadius(8)
               .margin({ bottom: 10 })
             }
@@ -146,27 +155,27 @@ struct SpotDetailPage {
               // 原因已经在上面渲染过时不要重复说一遍
               if (this.errorText.length === 0) {
                 Text('暂时没有符合条件（连续空 2 节以上）的教室')
-                  .fontSize(12).fontColor('#888888').width('100%').margin({ top: 4 })
+                  .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 4 })
               } else {
                 Text('所以这次没有候选')
-                  .fontSize(12).fontColor('#888888').width('100%').margin({ top: 4 })
+                  .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 4 })
               }
             } else {
               ForEach(this.rows, (row: DetailRow) => {
                 Row() {
                   // 排名：卡片默认显示第 1 个，这里说明其余的顺序
                   Text(String(row.rank))
-                    .fontSize(11).fontColor('#FFFFFF')
+                    .fontSize(11).fontColor(this.p().textOnAccent)
                     .width(18).height(18)
                     .textAlign(TextAlign.Center)
-                    .backgroundColor(row.rank === 1 ? '#4A6FD4' : '#B9C4DC')
+                    .backgroundColor(row.rank === 1 ? this.p().accent : this.p().textMuted)
                     .borderRadius(9)
                   Column() {
                     Text(row.title)
-                      .fontSize(14).fontColor('#222222').width('100%')
+                      .fontSize(14).fontColor(this.p().textPrimary).width('100%')
                     if (row.detail.length > 0) {
                       Text(row.detail)
-                        .fontSize(11).fontColor('#888888').width('100%').margin({ top: 2 })
+                        .fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 2 })
                     }
                   }
                   .layoutWeight(1)
@@ -175,13 +184,13 @@ struct SpotDetailPage {
                 }
                 .width('100%')
                 .padding({ top: 10, bottom: 10 })
-                .border({ width: { bottom: 0.5 }, color: '#EFEFEF' })
+                .border({ width: { bottom: 0.5 }, color: this.p().divider })
               }, (row: DetailRow) => 'r_' + row.rank + '_' + row.title)
             }
 
             // 口径说明：候选是怎么筛出来的（避免用户以为这是全部空教室）
             Text('口径：只看连续空闲 ≥ 2 节的教室，每栋楼最多取 2 间、总数最多 8 个，按「能坐多久」排序。')
-              .fontSize(10).fontColor('#AAAAAA').width('100%').margin({ top: 14, bottom: 20 })
+              .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 14, bottom: 20 })
           }
           .width('100%')
           .padding({ left: 12, right: 12 })
@@ -195,6 +204,6 @@ struct SpotDetailPage {
       }
     }
     .width('100%').height('100%')
-    .backgroundColor('#FFFFFF')
+    .backgroundColor(this.p().bgPage)
   }
 }

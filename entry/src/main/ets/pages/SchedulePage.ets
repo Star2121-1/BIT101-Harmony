@@ -12,6 +12,8 @@
  * - 「取不到」绝不显示成「没课」：错误态单独一屏，空课表另说。
  */
 import { router } from '@kit.ArkUI';
+import { palette, Palette } from '../core/theme/AppColors.ts';
+import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { SchoolService, SchoolAuthError } from '../service/SchoolService.ts';
 import { SessionStore, SessionSnapshot } from '../data/SessionStore.ts';
@@ -71,6 +73,8 @@ interface ColumnResult {
 @Entry
 @Component
 struct SchedulePage {
+  /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
+  @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @State loading: boolean = true;
   @State statusText: string = '正在读取课表…';
   @State errorText: string = '';
@@ -399,16 +403,16 @@ struct SchedulePage {
   /** 列背景：放假列给浅灰，补课列给浅黄（与「今日」高亮叠加时以今日为准）。 */
   private columnBg(dayIndex: number): string {
     if (this.isToday(dayIndex)) {
-      return '#F6F8FF';
+      return this.p().bgSubtle;
     }
     const plan: DayPlan | null = this.planOn(dayIndex);
     if (plan === null) {
       return '#00000000';
     }
     if (plan.kind === 'NoClass') {
-      return '#F5F5F5';
+      return this.p().bgAlt;
     }
-    return '#FFFBF0';
+    return this.p().bgWarnSubtle;
   }
 
   private goWeek(delta: number): void {
@@ -486,19 +490,19 @@ struct SchedulePage {
       Text(label)
         .fontSize(12)
         .fontWeight(this.isToday(day) ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor(this.isToday(day) ? '#FFFFFF' : '#555555')
+        .fontColor(this.isToday(day) ? this.p().textOnAccent : this.p().textSecondary)
         .textAlign(TextAlign.Center)
         .width('100%')
       Text(this.headerDate(day))
         .fontSize(8)
-        .fontColor(this.isToday(day) ? '#E8EEFF' : '#AAAAAA')
+        .fontColor(this.isToday(day) ? this.p().bgSubtle : this.p().textFaint)
         .textAlign(TextAlign.Center)
         .width('100%')
       // 教学调整角标：放假 / 按周四。空白时不留占位（不渲染）
       if (this.headerBadge(day).length > 0) {
         Text(this.headerBadge(day))
           .fontSize(8)
-          .fontColor(this.isToday(day) ? '#FFFFFF' : '#C77700')
+          .fontColor(this.isToday(day) ? this.p().textOnAccent : this.p().warn)
           .textAlign(TextAlign.Center)
           .maxLines(1)
           .width('100%')
@@ -507,19 +511,32 @@ struct SchedulePage {
     .width('100%')
     .height(44)
     .justifyContent(FlexAlign.Center)
-    .backgroundColor(this.isToday(day) ? '#4A6FD4' : Color.Transparent)
+    .backgroundColor(this.isToday(day) ? this.p().accent : Color.Transparent)
+  }
+
+  /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
+  private p(): Palette {
+    return palette(this.isDark);
   }
 
   build() {
     Column() {
-      // 顶部：学期 + 刷新 + 重登
+      // 顶部：返回 + 学期 + 考试/刷新/重登
       Row() {
+        // ⚠️ 原本没有返回入口（只能靠系统手势），真机上一个页面进得去出不来。
+        Text('‹')
+          .fontSize(24).fontColor(this.p().accent)
+          .padding({ left: 2, right: 8 })
+          .onClick(() => {
+            router.back();
+          })
         Column() {
           Text(this.term.length > 0 ? this.term : '课表')
             .fontSize(16).fontWeight(FontWeight.Bold)
+            .fontColor(this.p().textPrimary)
           Text('第 ' + this.week + ' 周' +
             (this.firstDay.length > 0 ? ' · 开学 ' + this.firstDay : ' · 开学日未知'))
-            .fontSize(11).fontColor('#888888')
+            .fontSize(11).fontColor(this.p().textMuted)
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Button('考试')
           .height(32).fontSize(12)
@@ -549,8 +566,8 @@ struct SchedulePage {
             ForEach(this.terms, (t: string) => {
               Text(t)
                 .fontSize(12)
-                .fontColor(t === this.term ? '#FFFFFF' : '#666666')
-                .backgroundColor(t === this.term ? '#4A6FD4' : '#F0F0F3')
+                .fontColor(t === this.term ? this.p().textOnAccent : this.p().textMuted)
+                .backgroundColor(t === this.term ? this.p().accent : this.p().bgAlt)
                 .padding({ left: 10, right: 10, top: 5, bottom: 5 })
                 .borderRadius(13)
                 .margin({ right: 6 })
@@ -596,7 +613,7 @@ struct SchedulePage {
       if (this.needLogin || this.errorText.length > 0) {
         Column() {
           Text(this.errorText)
-            .fontSize(13).fontColor('#C62828')
+            .fontSize(13).fontColor(this.p().error)
             .width('100%')
           if (this.needLogin) {
             Button('去登录')
@@ -629,12 +646,12 @@ struct SchedulePage {
             ForEach(SECTIONS,
               (sec: number) => {
                 Column() {
-                  Text(String(sec)).fontSize(12).fontColor('#333333')
-                  Text(this.timeText(sec)).fontSize(8).fontColor('#999999')
+                  Text(String(sec)).fontSize(12).fontColor(this.p().textPrimary)
+                  Text(this.timeText(sec)).fontSize(8).fontColor(this.p().textMuted)
                 }
                 .width('100%').height(CELL_H)
                 .justifyContent(FlexAlign.Center)
-                .border({ width: { bottom: 0.5 }, color: '#EFEFEF' })
+                .border({ width: { bottom: 0.5 }, color: this.p().divider })
               }, (sec: number) => 'sec_' + sec)
           }
           .width(40)
@@ -647,7 +664,7 @@ struct SchedulePage {
                   if (b.course === null) {
                     Row()
                       .width('100%').height(CELL_H * b.span)
-                      .border({ width: { bottom: 0.5, right: 0.5 }, color: '#EFEFEF' })
+                      .border({ width: { bottom: 0.5, right: 0.5 }, color: this.p().divider })
                   } else {
                     this.courseBlock(b, i + 1)
                   }
@@ -659,9 +676,9 @@ struct SchedulePage {
               if (this.headerBadge(i + 1) === '放假') {
                 Column() {
                   Text('放假')
-                    .fontSize(11).fontColor('#8A8A8A')
+                    .fontSize(11).fontColor(this.p().textMuted)
                   Text('无教学安排')
-                    .fontSize(9).fontColor('#B5B5B5').margin({ top: 2 })
+                    .fontSize(9).fontColor(this.p().textFaint).margin({ top: 2 })
                 }
               }
             }
@@ -683,7 +700,7 @@ struct SchedulePage {
             (this.conflictCount > 0 ? ' · 同格冲突 ' + this.conflictCount : '') +
             (this.refreshNote.length > 0 ? ' · ' + this.refreshNote
               : (this.cacheNote.length > 0 ? ' · ' + this.cacheNote : ''))))
-          .fontSize(11).fontColor('#888888').layoutWeight(1)
+          .fontSize(11).fontColor(this.p().textMuted).layoutWeight(1)
       }
       .width('100%').padding({ left: 12, right: 12, top: 4, bottom: 8 })
 
@@ -700,45 +717,45 @@ struct SchedulePage {
           Text('时间：周' + DAY_LABELS[this.selected!.SKXQ - 1] + ' 第 ' + this.selected!.KSJC +
             '-' + this.selected!.JSJC + ' 节（' +
             courseTimeText(FALLBACK_TIME_TABLE, this.selected!.KSJC, this.selected!.JSJC) + '）')
-            .fontSize(12).fontColor('#555555').width('100%').margin({ top: 4 })
+            .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 4 })
           Text('地点：' + (this.selected!.JASMC.length > 0 ? this.selected!.JASMC : '未标注') +
             (this.selected!.XXXQMC.length > 0 ? '（' + this.selected!.XXXQMC + '）' : ''))
-            .fontSize(12).fontColor('#555555').width('100%').margin({ top: 2 })
+            .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 2 })
           Text('教师：' + (this.selected!.SKJS.length > 0 ? this.selected!.SKJS : '未标注'))
-            .fontSize(12).fontColor('#555555').width('100%').margin({ top: 2 })
+            .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 2 })
           Text('周次：' + (skzcToWeeks(this.selected!.SKZC).length > 0
             ? skzcToWeeks(this.selected!.SKZC) : '未标注') +
             (this.selected!.KCH.length > 0 ? ' · 课号 ' + this.selected!.KCH : ''))
-            .fontSize(12).fontColor('#555555').width('100%').margin({ top: 2 })
+            .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 2 })
           // 教学调整标记：补课日必须点明，否则用户会以为是这天的课
           if (this.selectedPlanNote.length > 0) {
             Text('本日' + this.selectedPlanNote + '课表上课（教学安排调整）')
-              .fontSize(12).fontColor('#C77700').width('100%').margin({ top: 2 })
+              .fontSize(12).fontColor(this.p().warn).width('100%').margin({ top: 2 })
           }
           // 学分 / 学时（取不到就整行不显示，不留空行）
           if (this.detailCredits().length > 0) {
             Text(this.detailCredits())
-              .fontSize(12).fontColor('#555555').width('100%').margin({ top: 2 })
+              .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 2 })
           }
           // 性质 / 类别 / 开课单位
           if (this.detailCategory().length > 0) {
             Text(this.detailCategory())
-              .fontSize(12).fontColor('#555555').width('100%').margin({ top: 2 })
+              .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 2 })
           }
           // 原始安排串（教务给的，偶尔含额外信息）
           if (this.selected!.YPSJDD.length > 0) {
             Text('安排：' + this.selected!.YPSJDD)
-              .fontSize(12).fontColor('#555555').width('100%').margin({ top: 2 })
+              .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 2 })
           }
         }
         .width('100%')
         .padding(12)
-        .backgroundColor('#F7F7F9')
-        .border({ width: { top: 0.5 }, color: '#E0E0E0' })
+        .backgroundColor(this.p().bgAlt)
+        .border({ width: { top: 0.5 }, color: this.p().divider })
       }
     }
     .width('100%').height('100%')
-    .backgroundColor('#FFFFFF')
+    .backgroundColor(this.p().bgPage)
   }
 
   @Builder
@@ -810,7 +827,9 @@ struct SchedulePage {
   }
 
   private colorsOf(index: number): CourseColors {
-    return courseColors(index, false);
+    // ⚠️ 原来写死 false（永远用浅色板）：深色模式下课程块仍是浅底，
+    // 而 ink 是这套板里配好的深色字 —— 深底页面里冒出一片浅色块，很突兀。
+    return courseColors(index, this.isDark);
   }
 
   /**

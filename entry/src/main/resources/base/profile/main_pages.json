@@ -8,6 +8,7 @@
     "pages/ShuttlePage",
     "pages/CasLoginProbe",
     "pages/CasProbePage",
-    "pages/SpotDetailPage"
+    "pages/SpotDetailPage",
+    "pages/SettingsPage"
   ]
 }

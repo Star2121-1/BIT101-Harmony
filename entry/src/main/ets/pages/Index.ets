@@ -1,18 +1,25 @@
+/**
+ * 首页：业务入口 + 「现在去哪儿自习」
+ *
+ * M1/M2 阶段的调试入口（座位树只读探针、教务接口诊断、R1 风险闸、裸协议探针）
+ * 已移到**设置页 → 开发者选项**（默认收起）。
+ * 理由：那是验证件，不是功能；留在首页会让 App 看起来像半成品。
+ * 相关 service 文件都保留，随时能复跑。
+ */
+
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
-import { SeatTreeNode } from '../model/SeatTreeModel.ts';
-import { SeatTreeService } from '../service/SeatTreeService.ts';
-import { JxzxProbe } from '../service/JxzxProbe.ts';
+import { palette, Palette } from '../core/theme/AppColors.ts';
+import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { StudySpotService } from '../service/StudySpotService.ts';
 import { Plan, SpotCard, studySpotCardOf } from '../corelogic/StudySpotLogic.ts';
 
 @Entry
 @Component
 struct Index {
-  @State status: string = '尚未查询';
-  @State detail: string = '';
-  @State nodes: string[] = [];
-  @State loading: boolean = false;
+  /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
+  @StorageLink(STORAGE_DARK) isDark: boolean = false;
+
   // 「现在去哪儿自习」
   @State spotCard: SpotCard | null = null;
   @State spotPlan: Plan | null = null;
@@ -24,19 +31,13 @@ struct Index {
   @State spotErrorKind: string = 'none';
   /** true = 用的是上次的课表缓存（当前学期没确认），必须标注周次可能不准。 */
   @State spotStale: boolean = false;
-  private service: SeatTreeService = new SeatTreeService();
 
-  /** type → 中文层级标签（对齐 Android 实测：0=校区/楼层，1=区域）。 */
-  private typeLabel(type: number): string {
-    return type === 1 ? '区域' : '校区/楼层';
+  /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
+  private p(): Palette {
+    return palette(this.isDark);
   }
 
-  /** 冷启动自动查一次（免手点按钮，直接产 M1 验收证据）。 */
-  aboutToAppear(): void {
-    this.doQuery();
-  }
-
-  /** 算一次「现在去哪儿自习」（逐栋并发查空教室，约 20 秒）。 */
+  /** 算一次「现在去哪儿自习」（逐栋并发查空教室，约 15~20 秒）。 */
   private async computeSpot(): Promise<void> {
     this.spotLoading = true;
     this.spotError = '';
@@ -67,60 +68,53 @@ struct Index {
     this.spotCard = studySpotCardOf(this.spotPlan, this.spotIdx);
   }
 
+  private go(url: string, what: string): void {
+    router.pushUrl({ url: url }).catch((e: Error) => {
+      this.spotError = '跳转' + what + '失败：' + JSON.stringify(e);
+    });
+  }
+
   build() {
     Column() {
-      // M2 主入口：登录 + 课表（业务能力，不再是探针）
+      // 四个业务入口（登录入口在设置页「账号」区；未登录时自习卡也会给「去登录」）
       Row() {
-        Button('登录')
-          .height(38)
-          .fontSize(13)
-          .layoutWeight(1)
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/LoginPage' }).catch((e: Error) => {
-              this.detail = '跳转登录失败：' + JSON.stringify(e);
-            });
-          })
         Button('课表')
-          .height(38)
-          .fontSize(13)
-          .layoutWeight(1)
-          .margin({ left: 8 })
+          .height(38).fontSize(13).layoutWeight(1)
+          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
           .onClick(() => {
-            router.pushUrl({ url: 'pages/SchedulePage' }).catch((e: Error) => {
-              this.detail = '跳转课表失败：' + JSON.stringify(e);
-            });
+            this.go('pages/SchedulePage', '课表');
           })
         Button('空教室')
-          .height(38)
-          .fontSize(13)
-          .layoutWeight(1)
-          .margin({ left: 8 })
+          .height(38).fontSize(13).layoutWeight(1)
+          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
           .onClick(() => {
-            router.pushUrl({ url: 'pages/ClassroomPage' }).catch((e: Error) => {
-              this.detail = '跳转空教室失败：' + JSON.stringify(e);
-            });
+            this.go('pages/ClassroomPage', '空教室');
           })
         Button('班车')
-          .height(38)
-          .fontSize(13)
-          .layoutWeight(1)
-          .margin({ left: 8 })
+          .height(38).fontSize(13).layoutWeight(1)
+          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
           .onClick(() => {
-            router.pushUrl({ url: 'pages/ShuttlePage' }).catch((e: Error) => {
-              this.detail = '跳转班车失败：' + JSON.stringify(e);
-            });
+            this.go('pages/ShuttlePage', '班车');
+          })
+        Button('设置')
+          .height(38).fontSize(13).layoutWeight(1)
+          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
+          .onClick(() => {
+            this.go('pages/SettingsPage', '设置');
           })
       }
       .width('100%')
       .padding({ left: 12, right: 12, top: 12, bottom: 4 })
 
-      // 「现在去哪儿自习」卡片（M3-3）
+      // 「现在去哪儿自习」卡片
       Column() {
         Row() {
           Text('现在去哪儿自习')
-            .fontSize(14).fontWeight(FontWeight.Bold).layoutWeight(1)
+            .fontSize(14).fontWeight(FontWeight.Bold)
+            .fontColor(this.p().textPrimary)
+            .layoutWeight(1)
           if (this.spotMeta.length > 0) {
-            Text(this.spotMeta).fontSize(9).fontColor('#AAAAAA')
+            Text(this.spotMeta).fontSize(9).fontColor(this.p().textFaint)
           }
         }
         .width('100%')
@@ -128,39 +122,42 @@ struct Index {
         // 用的是上次的课表缓存 ⇒ 必须标注，不许当正常结果展示
         if (this.spotStale && !this.spotLoading) {
           Text('没确认到当前学期，下面按上次的课表算，周次可能不准')
-            .fontSize(10).fontColor('#B45309').width('100%').margin({ top: 4 })
+            .fontSize(10).fontColor(this.p().warn).width('100%').margin({ top: 4 })
         }
 
         if (this.spotLoading) {
           Text('正在逐栋查空教室（约 20 秒）…')
-            .fontSize(12).fontColor('#888888').width('100%').margin({ top: 6 })
+            .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
         } else if (this.spotCard !== null) {
           // ⚠️ 卡片优先于错误：降级时 card 里装的是**本地课表算出来的信息**，
           // 不该因为「查不了空教室」就整块消失（M3-5）。
           Text(this.spotCard.title)
-            .fontSize(15).fontWeight(FontWeight.Medium).width('100%').margin({ top: 6 })
+            .fontSize(15).fontWeight(FontWeight.Medium)
+            .fontColor(this.p().textPrimary)
+            .width('100%').margin({ top: 6 })
           if (this.spotCard.detail !== null) {
             Text(this.spotCard.detail)
-              .fontSize(12).fontColor('#666666').width('100%').margin({ top: 2 })
+              .fontSize(12).fontColor(this.p().textSecondary)
+              .width('100%').margin({ top: 2 })
           }
           // 有 card 又有 error ⇒ 是降级：如实说清缺了什么，不装作一切正常。
-          // ⚠️ 去重：降级时 card.detail 本身就是原因文案，再渲染一次 error 会变成
-          // 「网络不通…」连着出现两遍（2026-10-20 真机看到）。
+          // ⚠️ 去重：降级时 card.detail 本身就是原因文案，再渲染一次会连着出现两遍。
           if (this.spotError.length > 0 && this.spotError !== this.spotCard.detail) {
             Text(this.spotError)
-              .fontSize(10).fontColor('#B45309').width('100%').margin({ top: 4 })
+              .fontSize(10).fontColor(this.p().warn).width('100%').margin({ top: 4 })
           }
         } else if (this.spotError.length > 0) {
           Text(this.spotError)
-            .fontSize(12).fontColor('#C62828').width('100%').margin({ top: 6 })
+            .fontSize(12).fontColor(this.p().error).width('100%').margin({ top: 6 })
         } else {
           Text('点「算一下」看看现在能去哪个教室')
-            .fontSize(12).fontColor('#888888').width('100%').margin({ top: 6 })
+            .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
         }
 
         Row() {
           Button(this.spotCard === null ? '算一下' : '重新算')
             .height(30).fontSize(12)
+            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
             .enabled(!this.spotLoading)
             .onClick(() => {
               this.computeSpot();
@@ -168,7 +165,7 @@ struct Index {
           if (this.spotPlan !== null && this.spotPlan.options.length > 1) {
             Button('换一个')
               .height(30).fontSize(12)
-              .margin({ left: 8 })
+            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
               .onClick(() => {
                 this.nextSpot();
               })
@@ -177,22 +174,18 @@ struct Index {
           if (this.spotPlan !== null && this.spotPlan.options.length > 0) {
             Button('全部 ' + this.spotPlan.options.length + ' 个')
               .height(30).fontSize(12)
-              .margin({ left: 8 })
+            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
               .onClick(() => {
-                router.pushUrl({ url: 'pages/SpotDetailPage' }).catch((e: Error) => {
-                  this.detail = '跳转详情失败：' + JSON.stringify(e);
-                });
+                this.go('pages/SpotDetailPage', '详情');
               })
           }
           // 会话失效 ⇒ 直接把登录入口给到手，别让用户自己去找
           if (this.spotErrorKind === 'nologin') {
             Button('去登录')
               .height(30).fontSize(12)
-              .margin({ left: 8 })
+            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
               .onClick(() => {
-                router.pushUrl({ url: 'pages/LoginPage' }).catch((e: Error) => {
-                  this.detail = '跳转登录失败：' + JSON.stringify(e);
-                });
+                this.go('pages/LoginPage', '登录');
               })
           }
         }
@@ -201,149 +194,23 @@ struct Index {
       .width('100%')
       .padding(12)
       .margin({ left: 12, right: 12, top: 10 })
-      .backgroundColor('#FFFFFF')
+      .backgroundColor(this.p().bgCard)
       .borderRadius(10)
       .alignItems(HorizontalAlign.Start)
 
-      // 顶部：操作区
-      Row() {
-        Text('seatlib 座位树（M1 只读探针）')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .layoutWeight(1)
-        Button('查今天')
-          .onClick(() => {
-            this.doQuery();
-          })
-          .margin({ left: 8 })
+      // 底部留白 + 一句说明（首页内容还少，空着比堆调试入口好）
+      Column() {
+        Text('课表、空教室、班车都在上面。更多功能在推进中。')
+          .fontSize(11).fontColor(this.p().textMuted)
+          .width('100%').textAlign(TextAlign.Center)
       }
       .width('100%')
-      .padding(12)
-
-      // M2 诊断：教务接口 403 变体矩阵（结果写沙箱 jxzx_probe.txt）
-      Row() {
-        Text('教务接口诊断（403 变体矩阵）')
-          .fontSize(13).fontColor('#666666').layoutWeight(1)
-        Button('跑一遍')
-          .onClick(() => {
-            this.runJxzxProbe();
-          })
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .padding({ left: 12, right: 12, top: 4, bottom: 4 })
-
-      // M1 R1 风险闸入口：跳转 CAS 登录页探针（验证 Web 组件能否渲染表单，不碰凭据）
-      Row() {
-        Text('M1 · R1 风险闸：CAS 登录页 Web 组件渲染探测')
-          .fontSize(13)
-          .fontColor('#666666')
-          .layoutWeight(1)
-        Button('打开探针')
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/CasLoginProbe' }).catch((e: Error) => {
-              this.detail = '跳转探针失败：' + JSON.stringify(e);
-            });
-          })
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .padding({ left: 12, right: 12, top: 4, bottom: 4 })
-
-      // 裸协议探针入口：纯 HTTP 取 CAS 页 + 解析锚点 + AES 自证（零凭据、单发、可删）
-      Row() {
-        Text('裸协议探针（阶段A）：rcp 取页 + AES 向量自证')
-          .fontSize(13)
-          .fontColor('#666666')
-          .layoutWeight(1)
-        Button('跑阶段A')
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/CasProbePage' }).catch((e: Error) => {
-              this.detail = '跳转探针失败：' + JSON.stringify(e);
-            });
-          })
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .padding({ left: 12, right: 12, top: 4, bottom: 4 })
-
-      // 状态条
-      Row() {
-        Text(this.status)
-          .fontSize(14)
-          .layoutWeight(1)
-        if (this.loading) {
-          Text('…').fontSize(14)
-        }
-      }
-      .width('100%')
-      .padding({ left: 12, right: 12, top: 4, bottom: 4 })
-
-      // 结果明细
-      if (this.detail.length > 0) {
-        Text(this.detail)
-          .fontSize(12)
-          .fontColor('#666666')
-          .padding({ left: 12, right: 12 })
-      }
-
-      // 节点列表
-      List() {
-        ForEach(this.nodes, (line: string, index: number) => {
-          ListItem() {
-            Text(line)
-              .fontSize(14)
-              .width('100%')
-              .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-          }
-          .border({ width: { bottom: 0.5 }, color: '#EEEEEE' })
-        }, (line: string, index: number) => index.toString() + '_' + line)
-      }
       .layoutWeight(1)
+      .padding({ top: 24, left: 24, right: 24 })
+      .justifyContent(FlexAlign.Start)
     }
     .width('100%')
     .height('100%')
-  }
-
-  private async runJxzxProbe(): Promise<void> {
-    this.status = '教务诊断中…';
-    this.detail = '';
-    try {
-      const ctx: Context = getContext(this) as Context;
-      const report: string = await JxzxProbe.run(ctx);
-      this.status = '✅ 诊断完成（结果已写入 jxzx_probe.txt）';
-      this.detail = report;
-    } catch (e) {
-      this.status = '❌ 诊断失败';
-      this.detail = JSON.stringify(e);
-    }
-  }
-
-  private async doQuery(): Promise<void> {
-    this.loading = true;
-    this.status = '查询中…';
-    this.nodes = [];
-    this.detail = '';
-    try {
-      const ctx: Context = getContext(this) as Context;
-      const date: string = SeatTreeService.today();
-      const result: SeatTreeNode[] = await this.service.fetchTree(ctx, date);
-      // 取前 30 条展示（M1 探针只需证明「真机上能看到数据」）
-      const lines: string[] = [];
-      const cap: number = Math.min(result.length, 30);
-      for (let i = 0; i < cap; i++) {
-        const n: SeatTreeNode = result[i];
-        lines.push(n.name + '（' + n.id + ' / ' + this.typeLabel(n.type) +
-          (n.imageUrl !== null ? ' · 有图' : '') + '）');
-      }
-      this.nodes = lines;
-      this.detail = 'date=' + date + '  共 ' + result.length + ' 节点' +
-        (result.length > cap ? '（显示前 ' + cap + '）' : '');
-      this.status = '✅ 已验：seatlib Seat/tree 通';
-    } catch (e) {
-      this.status = '❌ 失败';
-      this.detail = 'date=' + SeatTreeService.today() + '  错误：' + JSON.stringify(e);
-    }
-    this.loading = false;
+    .backgroundColor(this.p().bgPage)
   }
 }

@@ -9,6 +9,8 @@
  */
 
 import { router } from '@kit.ArkUI';
+import { palette, Palette } from '../core/theme/AppColors.ts';
+import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import {
   Stop, DayType, Departure,
   stopLabel, dayTypeLabel, dayTypeOf, timetable, nextDeparture, countdownText, fmtDeparture
@@ -20,6 +22,8 @@ const DAY_LABELS: string[] = ['一', '二', '三', '四', '五', '六', '日'];
 @Entry
 @Component
 struct ShuttlePage {
+  /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
+  @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @State stop: string = Stop.LIBRARY;
   /** 自动按星期推出来的日类型（未手动覆盖时用）。 */
   @State autoDayType: string = DayType.WORKDAY;
@@ -77,6 +81,11 @@ struct ShuttlePage {
     this.refresh();
   }
 
+  /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
+  private p(): Palette {
+    return palette(this.isDark);
+  }
+
   build() {
     Column() {
       Row() {
@@ -88,7 +97,7 @@ struct ShuttlePage {
           Text('现在 ' + this.nowText + ' · ' + this.todayLabel +
             ' · ' + dayTypeLabel(this.effectiveDayType() === DayType.WORKDAY
               ? DayType.WORKDAY : DayType.WEEKEND_HOLIDAY))
-            .fontSize(11).fontColor('#888888')
+            .fontSize(11).fontColor(this.p().textMuted)
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
@@ -104,8 +113,8 @@ struct ShuttlePage {
         Button('图书馆 → 地铁站')
           .height(34).fontSize(12)
           .layoutWeight(1)
-          .backgroundColor(this.stop === Stop.LIBRARY ? '#4A6FD4' : '#E8EAF0')
-          .fontColor(this.stop === Stop.LIBRARY ? '#FFFFFF' : '#555555')
+          .backgroundColor(this.stop === Stop.LIBRARY ? this.p().accent : this.p().divider)
+          .fontColor(this.stop === Stop.LIBRARY ? this.p().textOnAccent : this.p().textSecondary)
           .onClick(() => {
             this.switchStop(Stop.LIBRARY);
           })
@@ -113,8 +122,8 @@ struct ShuttlePage {
           .height(34).fontSize(12)
           .layoutWeight(1)
           .margin({ left: 8 })
-          .backgroundColor(this.stop === Stop.METRO ? '#4A6FD4' : '#E8EAF0')
-          .fontColor(this.stop === Stop.METRO ? '#FFFFFF' : '#555555')
+          .backgroundColor(this.stop === Stop.METRO ? this.p().accent : this.p().divider)
+          .fontColor(this.stop === Stop.METRO ? this.p().textOnAccent : this.p().textSecondary)
           .onClick(() => {
             this.switchStop(Stop.METRO);
           })
@@ -122,32 +131,32 @@ struct ShuttlePage {
       .width('100%').padding({ left: 12, right: 12, bottom: 6 })
 
       Text('从「' + stopLabel(this.stop === Stop.METRO ? Stop.METRO : Stop.LIBRARY) + '」发车')
-        .fontSize(11).fontColor('#888888')
+        .fontSize(11).fontColor(this.p().textMuted)
         .width('100%').padding({ left: 12, right: 12, bottom: 6 })
 
       // 日类型（手动覆盖）
       Row() {
         Button('工作日')
           .height(28).fontSize(11)
-          .backgroundColor(this.effectiveDayType() === DayType.WORKDAY ? '#1A7F37' : '#E8EAF0')
-          .fontColor(this.effectiveDayType() === DayType.WORKDAY ? '#FFFFFF' : '#555555')
+          .backgroundColor(this.effectiveDayType() === DayType.WORKDAY ? this.p().success : this.p().divider)
+          .fontColor(this.effectiveDayType() === DayType.WORKDAY ? this.p().textOnAccent : this.p().textSecondary)
           .onClick(() => {
             this.switchDayType(DayType.WORKDAY);
           })
         Button('周末及节假日')
           .height(28).fontSize(11)
           .margin({ left: 8 })
-          .backgroundColor(this.effectiveDayType() === DayType.WEEKEND_HOLIDAY ? '#1A7F37' : '#E8EAF0')
-          .fontColor(this.effectiveDayType() === DayType.WEEKEND_HOLIDAY ? '#FFFFFF' : '#555555')
+          .backgroundColor(this.effectiveDayType() === DayType.WEEKEND_HOLIDAY ? this.p().success : this.p().divider)
+          .fontColor(this.effectiveDayType() === DayType.WEEKEND_HOLIDAY ? this.p().textOnAccent : this.p().textSecondary)
           .onClick(() => {
             this.switchDayType(DayType.WEEKEND_HOLIDAY);
           })
         if (this.manualDayType.length > 0) {
-          Text('（手动）').fontSize(10).fontColor('#C77700').margin({ left: 6 })
+          Text('（手动）').fontSize(10).fontColor(this.p().warn).margin({ left: 6 })
           Button('按星期')
             .height(26).fontSize(10)
             .margin({ left: 6 })
-            .backgroundColor('#F0F0F3').fontColor('#666666')
+            .backgroundColor(this.p().bgAlt).fontColor(this.p().textMuted)
             .onClick(() => {
               this.manualDayType = '';
               this.refresh();
@@ -158,27 +167,27 @@ struct ShuttlePage {
 
       // 下一班
       Column() {
-        Text('下一班').fontSize(11).fontColor('#888888').width('100%')
+        Text('下一班').fontSize(11).fontColor(this.p().textMuted).width('100%')
         Text(this.nextText)
-          .fontSize(30).fontWeight(FontWeight.Bold).fontColor('#4A6FD4')
+          .fontSize(30).fontWeight(FontWeight.Bold).fontColor(this.p().accent)
           .width('100%').margin({ top: 2 })
         Text(this.nextCountdown)
-          .fontSize(12).fontColor('#555555').width('100%').margin({ top: 4 })
+          .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 4 })
       }
       .width('100%')
       .padding(14)
       .margin({ left: 12, right: 12, top: 4 })
-      .backgroundColor('#FFFFFF')
+      .backgroundColor(this.p().bgCard)
       .borderRadius(10)
       .alignItems(HorizontalAlign.Start)
 
       Text('今天剩余班次（共 ' + this.remaining.length + ' 班）')
-        .fontSize(11).fontColor('#888888')
+        .fontSize(11).fontColor(this.p().textMuted)
         .width('100%').padding({ left: 12, right: 12, top: 12, bottom: 6 })
 
       if (this.remaining.length === 0) {
         Text('今天已经发完了')
-          .fontSize(13).fontColor('#888888').width('100%').padding(12)
+          .fontSize(13).fontColor(this.p().textMuted).width('100%').padding(12)
       } else {
         List() {
           ForEach(this.remaining, (t: number) => {
@@ -187,18 +196,18 @@ struct ShuttlePage {
                 Text(fmtDeparture(t))
                   .fontSize(14).fontWeight(FontWeight.Medium)
                 Text(t === this.remaining[0] ? '下一班' : '')
-                  .fontSize(10).fontColor('#FFFFFF')
-                  .backgroundColor('#4A6FD4')
+                  .fontSize(10).fontColor(this.p().textOnAccent)
+                  .backgroundColor(this.p().accent)
                   .padding({ left: 6, right: 6, top: 1, bottom: 1 })
                   .borderRadius(4)
                   .margin({ left: 8 })
                 Blank()
                 Text(this.remaining.indexOf(t) + 1 + ' / ' + this.remaining.length)
-                  .fontSize(10).fontColor('#AAAAAA')
+                  .fontSize(10).fontColor(this.p().textFaint)
               }
               .width('100%')
               .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-              .backgroundColor('#FFFFFF')
+              .backgroundColor(this.p().bgPage)
             }
             .margin({ bottom: 1 })
           }, (t: number) => 's_' + t)
@@ -210,10 +219,10 @@ struct ShuttlePage {
       }
 
       Text('时刻表抄自站牌；长假期间可能调整，以 i北理 通知为准')
-        .fontSize(10).fontColor('#AAAAAA')
+        .fontSize(10).fontColor(this.p().textFaint)
         .width('100%').padding({ left: 12, right: 12, top: 6, bottom: 8 })
     }
     .width('100%').height('100%')
-    .backgroundColor('#F5F6F8')
+    .backgroundColor(this.p().bgAlt)
   }
 }

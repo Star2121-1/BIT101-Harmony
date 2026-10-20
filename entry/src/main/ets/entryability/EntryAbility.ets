@@ -13,12 +13,13 @@
  * limitations under the License.
  */
 
-import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { runProbe } from '../corelogic/compile-probe.ts';
 import { setProbeCreds } from '../probe/CasProbe.ts';
 import { Prefs } from '../data/Prefs.ts';
+import { ThemeStore } from '../data/ThemeStore.ts';
 import { setDumpDir } from '../core/log/DebugDump.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
 
@@ -37,9 +38,12 @@ export default class EntryAbility extends UIAbility {
     // M0 编译探针：真正触发 13 个算法模块被 ArkTS 编译器吃一遍（防 dead-code 假通过）
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate; probe=' + runProbe());
     // M2：本地存储初始化（幂等；所有读写都会 await 同一个 promise，页面不会抢跑）
-    Prefs.init(this.context.getApplicationContext()).catch((e: Error) => {
-      hilog.error(DOMAIN, 'testTag', 'Prefs init failed: %{public}s', JSON.stringify(e));
-    });
+    // ⚠️ 主题初始化必须排在 Prefs 之后：它要读回用户上次选的三档模式。
+    Prefs.init(this.context.getApplicationContext())
+      .then(() => ThemeStore.init(this.context))
+      .catch((e: Error) => {
+        hilog.error(DOMAIN, 'testTag', 'Prefs/Theme init failed: %{public}s', JSON.stringify(e));
+      });
     // 诊断落盘目录（接口返回非 JSON 时把正文写这里，供 hdc 拉取；不含任何凭据）
     setDumpDir(this.context.filesDir);
     hilog.info(DOMAIN, 'testTag', 'dumpDir=%{public}s', this.context.filesDir);
@@ -65,6 +69,16 @@ export default class EntryAbility extends UIAbility {
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'probe param read failed: %{public}s', JSON.stringify(err));
     }
+  }
+
+  /**
+   * 系统深浅色切换（用户在系统设置里改、或定时深色生效时）。
+   * 只有 `auto` 模式才跟随；手动选了浅/深的用户不该被系统设置顶掉。
+   */
+  onConfigurationUpdate(newConfig: Configuration): void {
+    hilog.info(DOMAIN, 'testTag', 'onConfigurationUpdate colorMode=%{public}d',
+      newConfig.colorMode ?? -1);
+    ThemeStore.onSystemChange(this.context);
   }
 
   onDestroy(): void {
