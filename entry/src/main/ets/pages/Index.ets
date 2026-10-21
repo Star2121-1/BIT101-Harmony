@@ -13,6 +13,10 @@ import { palette, Palette } from '../core/theme/AppColors.ts';
 import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { StudySpotService } from '../service/StudySpotService.ts';
 import { Plan, SpotCard, studySpotCardOf } from '../corelogic/StudySpotLogic.ts';
+import { DdlStore } from '../data/DdlStore.ts';
+import type { DdlEntry } from '../corelogic/DdlRules.ts';
+import { deadlineShort, remainTime } from '../corelogic/DdlFormat.ts';
+import type { DateTime } from '../corelogic/timeutil.ts';
 
 @Entry
 @Component
@@ -31,6 +35,8 @@ struct Index {
   @State spotErrorKind: string = 'none';
   /** true = 用的是上次的课表缓存（当前学期没确认），必须标注周次可能不准。 */
   @State spotStale: boolean = false;
+  /** 未完成作业（M4-3 首页卡片用；从 DDLStore 读，杀进程不丢）。 */
+  @State ddlTodo: DdlEntry[] = [];
 
   /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
   private p(): Palette {
@@ -72,6 +78,26 @@ struct Index {
     router.pushUrl({ url: url }).catch((e: Error) => {
       this.spotError = '跳转' + what + '失败：' + JSON.stringify(e);
     });
+  }
+
+  /** 本地「现在」（展示层 impure 边界：截止文案现算，铁律 0.8）。 */
+  private nowDt(): DateTime {
+    const d: Date = new Date();
+    const offsetMs: number = d.getTimezoneOffset() * 60000;
+    return {
+      day: Math.floor((d.getTime() - offsetMs) / 86400000),
+      minutes: d.getHours() * 60 + d.getMinutes()
+    };
+  }
+
+  /** 重读未完成作业（进首页 + 从子页回来时都要刷）。 */
+  private async reloadDdl(): Promise<void> {
+    const all: DdlEntry[] = await DdlStore.load();
+    this.ddlTodo = all.filter((e: DdlEntry) => !e.done);
+  }
+
+  onPageShow(): void {
+    this.reloadDdl();
   }
 
   build() {
@@ -197,6 +223,47 @@ struct Index {
       .backgroundColor(this.p().bgCard)
       .borderRadius(10)
       .alignItems(HorizontalAlign.Start)
+
+      // 作业卡片（M4-3：最近一个未完成作业 + 计数；点整卡进 DDL 页）
+      if (this.ddlTodo.length > 0) {
+        Column() {
+          Row() {
+            Text('作业')
+              .fontSize(14).fontWeight(FontWeight.Bold)
+              .fontColor(this.p().textPrimary)
+              .layoutWeight(1)
+            Text(this.ddlTodo.length + ' 项未完成')
+              .fontSize(9).fontColor(this.p().textFaint)
+          }
+          .width('100%')
+
+          Text(this.ddlTodo[0].title)
+            .fontSize(15).fontWeight(FontWeight.Medium)
+            .fontColor(this.p().textPrimary)
+            .width('100%').margin({ top: 6 })
+          Text((this.ddlTodo[0].text.length > 0 ? this.ddlTodo[0].text + ' · ' : '') +
+            deadlineShort({ day: this.ddlTodo[0].day, minutes: this.ddlTodo[0].minutes }) +
+            ' · ' + remainTime({ day: this.ddlTodo[0].day, minutes: this.ddlTodo[0].minutes }, this.nowDt()))
+            .fontSize(12).fontColor(this.p().textSecondary)
+            .width('100%').margin({ top: 2 })
+
+          Button('看全部')
+            .height(30).fontSize(12).margin({ top: 8 })
+            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
+            .onClick(() => {
+              this.go('pages/DdlPage', '作业');
+            })
+        }
+        .width('100%')
+        .padding(12)
+        .margin({ left: 12, right: 12, top: 10 })
+        .backgroundColor(this.p().bgCard)
+        .borderRadius(10)
+        .alignItems(HorizontalAlign.Start)
+        .onClick(() => {
+          this.go('pages/DdlPage', '作业');
+        })
+      }
 
       // 底部留白 + 一句说明（首页内容还少，空着比堆调试入口好）
       Column() {

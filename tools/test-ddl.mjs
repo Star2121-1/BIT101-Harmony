@@ -9,6 +9,7 @@
 
 import { mergeDdl, sortDdl, toEntry, findDdl } from '../entry/src/main/ets/corelogic/DdlRules.ts';
 import { toDdlItems, GROUP } from '../entry/src/main/ets/corelogic/EclassDdlLogic.ts';
+import { remainTime, diffMinutes, deadlineShort, isOverdue } from '../entry/src/main/ets/corelogic/DdlFormat.ts';
 
 let passed = 0;
 let failed = 0;
@@ -120,6 +121,28 @@ eq(merged2.length, 2, '重同步不产生重复');
 console.log('\n=== 8. findDdl ===');
 eq(findDdl(merged, 'eclass:999'), null, '找不到返回 null');
 eq(findDdl(merged, 'eclass:3').title, '作业B', '找到返回条目');
+
+console.log('\n=== 9. remainTime 展示口径（1:1 Android）===');
+
+// diff = +3天5小时20分
+eq(remainTime({ day: 103, minutes: 320 }, { day: 100, minutes: 0 }), '剩余 3天 5小时 20分钟', '天时分档');
+// diff = +2小时10分
+eq(remainTime({ day: 100, minutes: 130 }, { day: 100, minutes: 0 }), '剩余 2小时 10分钟', '小时分档');
+// diff = +45分钟
+eq(remainTime({ day: 100, minutes: 45 }, { day: 100, minutes: 0 }), '剩余 45分钟', '分钟档');
+// 已过
+eq(remainTime({ day: 99, minutes: 0 }, { day: 100, minutes: 0 }), '已过 1天 0小时 0分钟', '已过用前缀');
+eq(remainTime({ day: 100, minutes: 0 }, { day: 100, minutes: 30 }), '已过 30分钟', '已过分钟档');
+// 恰好现在
+eq(remainTime({ day: 100, minutes: 0 }, { day: 100, minutes: 0 }), '剩余 0分钟', '差值 0 算剩余');
+eq(diffMinutes({ day: 100, minutes: 30 }, { day: 100, minutes: 0 }), 30, 'diffMinutes 同日同时');
+eq(diffMinutes({ day: 101, minutes: 0 }, { day: 100, minutes: 1439 }), 1, 'diffMinutes 跨天');
+
+console.log('\n=== 10. deadlineShort / isOverdue ===');
+eq(deadlineShort({ day: 20422, minutes: 1439 }), '11-30 23:59', 'MM-DD HH:mm（epoch 20422 = 2025-11-30）');
+eq(deadlineShort({ day: 20422, minutes: 65 }), '11-30 01:05', '分钟补零');
+eq(isOverdue({ day: 99, minutes: 0 }, { day: 100, minutes: 0 }), true, '昨天 = 已截止');
+eq(isOverdue({ day: 100, minutes: 1 }, { day: 100, minutes: 0 }), false, '还有 1 分钟不算截止');
 
 console.log('\n' + (failed === 0 ? 'ALL PASS' : 'FAILED') + '  pass=' + passed + ' fail=' + failed);
 process.exit(failed > 0 ? 1 : 0);

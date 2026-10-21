@@ -11,6 +11,7 @@
     "pages/SpotDetailPage",
     "pages/SettingsPage",
     "pages/TimeTablePage",
-    "pages/EclassLoginPage"
+    "pages/EclassLoginPage",
+    "pages/DdlPage"
   ]
 }
