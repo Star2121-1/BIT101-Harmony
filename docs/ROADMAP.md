@@ -122,7 +122,7 @@
 | 23 | 深色模式 | ✅ 已上线（语义色 + WCAG 单测） | M6-3 |
 | 24 | 通知中心（展示） | 🔄 代码完成，待数据 | M7-1 |
 | 25 | 代理提醒（7 类） | 🔄 排期器完成，待真机（R10 配额/考试时刻/通知开关三处未验） | M7-2 |
-| 26 | 出分提醒（异步挑战） | ⬜ 待做 | M7-3 |
+| 26 | 出分提醒（异步挑战） | 🔄 纯逻辑完成（解析/差分/隐私文案/限频），取数管道待 M10-2 | M7-3 |
 | 27 | 网费/流量提醒 | 🔄 判定逻辑完成，待发送 | M7-4 |
 | 28 | 桌面卡片（4 页） | ⬜ 逻辑已移植，Form Kit 未验 | M8 |
 | 29 | 座位登录 | ✅ JWT 已通（M1） | — |
@@ -209,7 +209,7 @@
 |---|---|---|---|---|
 | M7-1 | 通知落库 + 列表（含已发记录） | — | 列表能显示历史通知，分类型筛选 | 🔄 代码完成（`NotifyRecordLogic`/`NotifyRecordStore`/`NotifyListPage` + 32 条单测，assembleHap 过）：排期时写记录（title/text/at 快照 + firedMillis 回填）；**已发不回滚**（重排只改显示字段）；旧表独有 key 保留（删课不蒸发记录）；14 天双锚点清理（已发看 fired、未发看 at）。入口在「我」页。写入挂在 M7-2 排期器 |
 | M7-2 | **代理提醒排期（7 类）** | M2-7 · M5-2 · M7-1 | 设一个 2 分钟后的上课提醒，锁屏也弹；提前量改动生效 | 🔄 代码完成（`ReminderScheduler` + `NotifyAdapter` + `NotifyScheduleLogic` + 37 条单测，assembleHap 过）：本地离线取数（课表/DdlStore/ExamCache/教学调整缓存）→ `plan()` → 配额裁剪（≤30，R10）→ `reminderAgentManager` 日历提醒全量重建 → 落 M7-1 历史库。冷启动自动重排（对照 Android「每次开 App 重排」）。`PUBLISH_AGENT_REMINDER`（NORMAL+system_grant，三方可声明）+ 通知开关前置。⚠️ 三处 fail-closed 未验真机：通知开关没开整批不排 / 考试时刻解析不出跳过 / 教学调整拿不到按无调整排 |
-| M7-3 | 出分提醒（异步挑战三步） | M7-2 | 有出分时通知弹出，**且不含分数**（隐私边界） | ⬜ 待做 |
+| M7-3 | 出分提醒（异步挑战三步） | M7-2 | 有出分时通知弹出，**且不含分数**（隐私边界） | 🔄 **纯逻辑层完成**（`ScoreLogic` 解析+差分+隐私文案 / `ScoreQueryLogic` 轮询终止+12h限频 / `ScoreCheckLogic` 状态码+人话文案，82 条单测，经 compile-probe 过 assembleHap）：二维表按表头定位列（课程编号≠课程名）、首次只建基线不轰炸、**改分不重报**、文案**绝不含分数**（单测锁死）、AUTH_FAILED 不写「稍后重试」。**取数管道（异步挑战三步 start→poll→fetch 走学校 SSO）未做**——那与 M10-2 成绩查询同源，留 M10-2 一起接学校接口 |
 | M7-4 | 网费/流量提醒（270/300GB） | M5-2 | 造超限数据触发一次，文案与阈值对得上 | 🔄 判定逻辑与文案完成（`NetAlertLogic` 29 条单测 + `NotifySentStore` 已发记录去重，assembleHap 过）：流量 270/300 每周期各一次、越限不补发接近档；网费 <10 元按天去重；「请求失败≠没超」——判定时机挂在取数成功那一刻。发送/UI 在 M7-2 代理提醒 + M7-1 列表 |
 | M7-5 | 提醒设置页（开关 + 提前量） | M7-2 | 关掉某类后不再排期；改提前量后排期时间变 | 🔄 代码完成（`NotifySettingsLogic` 纯逻辑 + `NotifySettingsStore` Prefs 薄壳 + `NotifySettingsPage` 内联开关/chip + 50 条单测，assembleHap 过）：13 项 1:1 Android（总开关/5 类/3 组提前量）；**每次改动即 save+reschedule**（对照 Android write 块，改了提前量立即生效）；总开关关 → cancelAll；提前量固定选项不给自由输入；教学调整只有开关无提前量。入口「我」页「提醒设置」行 |
 
@@ -429,7 +429,7 @@ M9-1 JWT ✅ ──▶ M9-2 树 ──▶ M9-3 底图 ──▶ M9-4 预约 ─�
 - 推前跑一遍敏感词扫描（学号/密码/真实 JWT/`ST-` 票据/私钥）；假票据 `ST-123456-abc` 属测试样例，可留
 
 **CI（GitHub Actions，`.github/workflows/test.yml`）**：每次 push（**所有分支**，不只 main）跑两步：
-1. `bash tools/run-tests.sh` 全部套件（当前 17 个 / 802 条断言；断言条数由脚本自己统计，CI 不手抄）
+1. `bash tools/run-tests.sh` 全部套件（当前 18 个 / 884 条断言；断言条数由脚本自己统计，CI 不手抄）
    —— 不需要 HarmonyOS SDK，所以公开 runner 跑得动
 2. **关键资源存在性检查** —— 专钉 `.gitignore` 最易写错的两处：TLS 中间证书、app 图标
 

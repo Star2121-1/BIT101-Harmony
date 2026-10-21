@@ -16,6 +16,9 @@ import { DEFAULT_NOTIFY_POLICY, plan as notifyPlan } from "./NotifyLogic.ts";
 import { Stop, DayType, timetable } from "./ShuttleLogic.ts";
 import { MIN_FREE_SECTIONS, sectionFor } from "./StudySpotLogic.ts";
 import { dayPlanOf } from "./TeachingAdjustment.ts";
+import { parseTable, summaryText } from "./ScoreLogic.ts";
+import { isReady, shouldCheck } from "./ScoreQueryLogic.ts";
+import { statusText, ScoreCheckCode } from "./ScoreCheckLogic.ts";
 import { courseTimeText, FALLBACK_TIME_TABLE } from "./TimeTableLogic.ts";
 import { pickDay, buildDayBlocks } from "./WidgetLogic.ts";
 
@@ -40,6 +43,12 @@ export function runProbe(): string {
   parts.push("timetable=" + courseTimeText(FALLBACK_TIME_TABLE, 8, 9));
   // ShuttleLogic：地铁方向时刻表（周末口径，条目数）
   parts.push("bus=" + timetable(Stop.METRO, DayType.WEEKEND_HOLIDAY).length + "stops");
+  // ScoreLogic：解析 + 隐私文案（不含分数）
+  parts.push("score=" + parseTable(null).length + "/" + (summaryText([]).length === 0 ? "empty" : "nonempty"));
+  // ScoreQueryLogic：轮询就绪 + 12h 限频
+  parts.push("poll=" + (isReady(["jwb"]) ? "ready" : "no") + "/check=" + (shouldCheck(-1, 0) ? "due" : "hold"));
+  // ScoreCheckLogic：检查状态文案（AUTH_FAILED 绝不含「稍后重试」）
+  parts.push("chk=" + (statusText({ atMillis: 0, code: ScoreCheckCode.AUTH_FAILED, count: 0, detail: "用户名或密码错误" }).indexOf("稍后重试") < 0 ? "ok" : "bad"));
 
   // 以下参数较复杂，不在此构造合法入参，仅 import 强制编译器吃文件（类型校验）
   void weekOf;

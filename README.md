@@ -91,7 +91,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version          # 需要 22.6+（支持 --experimental-strip-types）
-bash tools/run-tests.sh # 17 个套件，802 条断言
+bash tools/run-tests.sh # 18 个套件，884 条断言
 ```
 
 | 套件 | 断言数 | 测什么 |
@@ -113,6 +113,8 @@ bash tools/run-tests.sh # 17 个套件，802 条断言
 | `test-notify` | 32 | 通知历史：合并三条纪律（**已发不回滚** / 独有 key 保留 / 同 key 覆盖显示）+ 14 天双锚点清理 + 分类型筛选 |
 | `test-schedule` | 37 | 提醒排期：课程周次 01 串→[n] 串（错则一条都排不出）、**考试时刻 fail-closed**（解析不出就整场跳过）、DateTime→本地年月日时分（时区陷阱）、30 条配额裁剪 |
 | `test-settings` | 50 | 提醒设置：默认值对齐 `DEFAULT_POLICY`、`toPolicy` 挑 10 项不串不漏、提前量钳制（越界回落最近档）、逐项归一不整块回退 |
+| `test-score` | 82 | 成绩（出分提醒/查询）：二维表按表头定位列（**课程编号≠课程名**）、首次只建基线不轰炸、改分不重报、**文案绝不含分数**、轮询终止 + 12h 限频、检查状态码（AUTH_FAILED 不写「稍后重试」） |
+
 
 
 
