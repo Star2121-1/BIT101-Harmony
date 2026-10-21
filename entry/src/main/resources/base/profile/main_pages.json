@@ -10,6 +10,7 @@
     "pages/CasProbePage",
     "pages/SpotDetailPage",
     "pages/SettingsPage",
-    "pages/TimeTablePage"
+    "pages/TimeTablePage",
+    "pages/EclassLoginPage"
   ]
 }

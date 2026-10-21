@@ -17,5 +17,12 @@ export const JAR_CAS: string = 'bit_cas';
 /** 教务应用会话（jxzxehall / jwapp） */
 export const JAR_SCHOOL: string = 'bit_school';
 
+/**
+ * 延河课堂 eclass 会话（zy-eclass.bit.edu.cn）。
+ * 纯 cookie 会话（Keycloak + CAS broker 登录后），与学校 SSO 罐隔离：
+ * eclass 的会话 cookie 域不同，混罐会让教务请求带上无关 cookie。
+ */
+export const JAR_ECLASS: string = 'bit_eclass';
+
 /** 登出时要清的全部罐。 */
-export const ALL_JARS: string[] = [JAR_LOGIN, JAR_CAS, JAR_SCHOOL];
+export const ALL_JARS: string[] = [JAR_LOGIN, JAR_CAS, JAR_SCHOOL, JAR_ECLASS];

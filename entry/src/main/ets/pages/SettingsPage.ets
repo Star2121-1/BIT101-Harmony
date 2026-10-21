@@ -22,6 +22,7 @@ import { palette, Palette } from '../core/theme/AppColors.ts';
 import { ThemeStore, STORAGE_DARK, MODE_AUTO, MODE_LIGHT, MODE_DARK } from '../data/ThemeStore.ts';
 import { SessionStore } from '../data/SessionStore.ts';
 import { SchoolCookieStore } from '../data/SchoolCookieStore.ts';
+import { EclassCookieStore } from '../data/EclassCookieStore.ts';
 import { Prefs } from '../data/Prefs.ts';
 import { SchoolService } from '../service/SchoolService.ts';
 import { CampusInfo } from '../core/model/SchoolModels.ts';
@@ -194,6 +195,9 @@ struct SettingsPage {
       // 只清会话，保留课表缓存（登出后仍可离线看课表）
       await SessionStore.clear();
       await SchoolCookieStore.clear();
+      // eclass 会话三处都清（Prefs + rcp 罐 + Web 组件存储）——
+      // 不清 Web 存储的话下次 syncFromWeb 会把旧会话同步回来
+      await EclassCookieStore.clear();
       this.loggedIn = false;
       this.studentId = '';
       this.campusList = [];
@@ -460,6 +464,19 @@ struct SettingsPage {
                   .height(28).fontSize(11)
                   .onClick(() => {
                     router.pushUrl({ url: 'pages/CasLoginProbe' }).catch((e: Error) => {
+                      this.toast = '跳转失败：' + JSON.stringify(e);
+                    });
+                  })
+              }
+              .width('100%').margin({ top: 8 })
+
+              Row() {
+                Text('延河课堂登录（M4-1：Web 登录 → 抽 cookie → 验接口）')
+                  .fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
+                Button('打开')
+                  .height(28).fontSize(11)
+                  .onClick(() => {
+                    router.pushUrl({ url: 'pages/EclassLoginPage' }).catch((e: Error) => {
                       this.toast = '跳转失败：' + JSON.stringify(e);
                     });
                   })
