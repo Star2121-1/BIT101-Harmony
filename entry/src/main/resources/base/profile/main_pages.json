@@ -22,6 +22,7 @@
     "pages/NetPage",
     "pages/MePage",
     "pages/OverlayPage",
-    "pages/NotifyListPage"
+    "pages/NotifyListPage",
+    "pages/NotifySettingsPage"
   ]
 }

@@ -28,7 +28,6 @@ import { notificationManager } from '@kit.NotificationKit';
 import { Context } from '@kit.AbilityKit';
 import {
   plan,
-  DEFAULT_NOTIFY_POLICY,
   type NotifyPolicy,
   type Reminder,
   type NotifyCourse,
@@ -46,6 +45,12 @@ import { ExamCache } from '../data/ExamCache.ts';
 import { TimeTableStore } from '../data/TimeTableStore.ts';
 import { NotifySentStore } from '../data/NotifySentStore.ts';
 import { NotifyRecordStore } from '../data/NotifyRecordStore.ts';
+import {
+  NotifySettingsStore,
+  type NotifySettings,
+  DEFAULT_NOTIFY_SETTINGS,
+  toPolicy
+} from '../data/NotifySettingsStore.ts';
 import { type NotifyRecord } from '../corelogic/NotifyRecordLogic.ts';
 import { TeachingAdjustmentService } from './TeachingAdjustmentService.ts';
 import { info, warn } from '../core/log/BitLog.ts';
@@ -81,17 +86,32 @@ function localMillisOf(s: AgentReminderSpec): number {
 
 export class ReminderScheduler {
   /**
-   * 重排全部代理提醒（每次开 App / 课表或设置变更时调）。
+   * 重排全部代理提醒（每次开 App / 课表或提醒设置变更时调）。
    *
    * 全程「宁可漏不发错」：任何取数失败都按空处理（提醒少发可接受，崩 App 不行），
-   * 通知开关没开则整批不排并回报。
+   * 系统通知开关没开 / 用户总开关关则整批不排并回报（关闭要 cancelAll 清旧）。
    *
-   * @param policy 提醒策略（M7-5 设置页出来前用默认；给了就按它排）
+   * 策略从 `NotifySettingsStore` 读（M7-5：总开关 + 各类开关 + 提前量；
+   * 设置页每次改动后调本方法即「改了立即重排」）。
    */
-  static async reschedule(context: Context, policy: NotifyPolicy = DEFAULT_NOTIFY_POLICY): Promise<ScheduleResult> {
+  static async reschedule(context: Context): Promise<ScheduleResult> {
     const result: ScheduleResult = { published: 0, quotaDropped: 0, pastDropped: 0, failed: 0, reason: '' };
 
-    // 前置：通知开关（reminderAgent publish 的硬前提，否则报 1700001）
+    // 用户总开关（M7-5）：关了就把已排的清掉、一条都不排
+    let settings: NotifySettings = DEFAULT_NOTIFY_SETTINGS;
+    try {
+      settings = await NotifySettingsStore.load();
+    } catch (e) {
+      warn('reminder settings load fail, use defaults: ' + JSON.stringify(e));
+    }
+    if (!settings.enabled) {
+      await ReminderScheduler.cancelAll();
+      result.reason = 'user_disabled';
+      return result;
+    }
+    const policy: NotifyPolicy = toPolicy(settings);
+
+    // 前置：系统通知开关（reminderAgent publish 的硬前提，否则报 1700001）
     let enabled: boolean = false;
     try {
       enabled = await notificationManager.isNotificationEnabled();

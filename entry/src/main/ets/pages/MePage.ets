@@ -326,6 +326,19 @@ struct MePage {
             })
 
             Row() {
+              Text('提醒设置')
+                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+              Text('开关 / 提前量').fontSize(13).fontColor(this.p().textMuted)
+              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+            }
+            .width('100%').padding({ top: 12 })
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/NotifySettingsPage' }).catch((e: Error) => {
+                warn('me -> notify settings fail: ' + JSON.stringify(e));
+              });
+            })
+
+            Row() {
               Text('设置')
                 .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
               Text(' ›').fontSize(13).fontColor(this.p().textMuted)
