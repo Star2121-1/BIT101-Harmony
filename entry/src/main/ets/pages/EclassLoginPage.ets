@@ -17,7 +17,9 @@
 import { webview } from '@kit.ArkWeb';
 import { router } from '@kit.ArkUI';
 import { ECLASS_HOME, EclassService } from '../service/EclassService.ts';
+import { EclassSyncService, SyncStats } from '../service/EclassSyncService.ts';
 import { EclassCookieStore } from '../data/EclassCookieStore.ts';
+import { DdlStore } from '../data/DdlStore.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 /** hop 轨迹最多保留条数（防无限增长）。 */
@@ -89,6 +91,31 @@ struct EclassLoginPage {
     this.controller.refresh();
   }
 
+  /** 同步作业（M4-2）：课程 → 动态 → DDL 落库。会话失效会抛错。 */
+  private async syncHomework(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    this.status = '正在同步作业…';
+    try {
+      const ctx = getContext(this) as Context;
+      const s: SyncStats = await EclassSyncService.sync(ctx);
+      this.status = '同步完成：' + s.courses + ' 门课 / ' + s.activities + ' 条动态 / ' +
+        s.items + ' 条作业（新 ' + s.added + ' · 更 ' + s.updated +
+        '，失败课程 ' + s.failedCourses + '）';
+      const all = await DdlStore.load();
+      this.result = '库内共 ' + all.length + ' 条，最近：' +
+        all.slice(0, 3).map((d) => d.title + '@' + d.text).join('；');
+      info('eclass homework sync ui ok total=' + all.length);
+    } catch (e) {
+      const msg: string = (e as Error).message;
+      warn('eclass homework sync ui fail: ' + msg);
+      this.status = '⚠️ 同步失败：' + msg;
+    }
+    this.busy = false;
+  }
+
   aboutToAppear(): void {
     info('eclass login page open');
   }
@@ -123,7 +150,12 @@ struct EclassLoginPage {
           .onClick(() => {
             this.syncAndVerify();
           })
-        Button('清除会话').fontSize(13).margin({ left: 8 })
+        Button('同步作业').fontSize(13).margin({ left: 8 })
+          .enabled(!this.busy)
+          .onClick(() => {
+            this.syncHomework();
+          })
+        Button('清除会话').fontSize(13).margin({ left: 8})
           .onClick(() => {
             this.clearSession();
           })
