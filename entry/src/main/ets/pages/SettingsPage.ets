@@ -23,6 +23,7 @@ import { ThemeStore, STORAGE_DARK, MODE_AUTO, MODE_LIGHT, MODE_DARK } from '../d
 import { SessionStore } from '../data/SessionStore.ts';
 import { SchoolCookieStore } from '../data/SchoolCookieStore.ts';
 import { EclassCookieStore } from '../data/EclassCookieStore.ts';
+import { LibCookieStore } from '../data/LibCookieStore.ts';
 import { Prefs } from '../data/Prefs.ts';
 import { SchoolService } from '../service/SchoolService.ts';
 import { CampusInfo } from '../core/model/SchoolModels.ts';
@@ -198,6 +199,8 @@ struct SettingsPage {
       // eclass 会话三处都清（Prefs + rcp 罐 + Web 组件存储）——
       // 不清 Web 存储的话下次 syncFromWeb 会把旧会话同步回来
       await EclassCookieStore.clear();
+      // 图书馆会话同款三处（Prefs + rcp 罐 + Web 组件存储）
+      await LibCookieStore.clear();
       this.loggedIn = false;
       this.studentId = '';
       this.campusList = [];
@@ -362,6 +365,19 @@ struct SettingsPage {
             .width('100%')
             .onClick(() => {
               router.pushUrl({ url: 'pages/EclassActivityPage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+
+            Row() {
+              Text('图书馆借阅')
+                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+              Text('我的借阅').fontSize(13).fontColor(this.p().textMuted)
+              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+            }
+            .width('100%').padding({ top: 10 })
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/LibBorrowPage' }).catch((e: Error) => {
                 this.toast = '跳转失败：' + JSON.stringify(e);
               });
             })

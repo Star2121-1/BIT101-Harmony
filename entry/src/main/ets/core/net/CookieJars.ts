@@ -24,5 +24,12 @@ export const JAR_SCHOOL: string = 'bit_school';
  */
 export const JAR_ECLASS: string = 'bit_eclass';
 
+/**
+ * 图书馆（mylib/lib.bit.edu.cn，超星智慧门户）会话。
+ * 与 eclass 同款：用户在 Web 组件里走 CAS 登录 lib 门户后，
+ * cookie 落在 lib 域，灌到这个罐里给借阅接口用（契约 lib-borrow-contract.md §2）。
+ */
+export const JAR_LIB: string = 'bit_lib';
+
 /** 登出时要清的全部罐。 */
-export const ALL_JARS: string[] = [JAR_LOGIN, JAR_CAS, JAR_SCHOOL, JAR_ECLASS];
+export const ALL_JARS: string[] = [JAR_LOGIN, JAR_CAS, JAR_SCHOOL, JAR_ECLASS, JAR_LIB];

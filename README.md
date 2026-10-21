@@ -38,8 +38,11 @@ Android 版是用 WebView 承载学校 CAS 登录页的，在 HarmonyOS 上这�
 | 班车时刻 | ✅ | 两站，末班判定「今天已发完」 |
 | 深色模式 | ✅ | 三档（跟随系统/浅色/深色），由 WCAG 对比度单测钉住 |
 | 作息自定义 | ✅ | 13 节可改，重叠/越界会被拦下并说明原因 |
+| **延河课堂作业（DDL）** | ✅ | App 内 Web 登录抽 cookie → 同步截止时间；未完成/已完成两栏，勾选杀进程不丢 |
+| **课程动态** | ✅ | 各课程最新活动流；点条目在 App 内 Web 壳带会话打开课程页 |
+| 图书馆借阅 | 🔄 | 代码与单测完成（当前在借/历史 + 到期倒数），待真机登录验证 |
 
-**还没做的**：座位预约的选座界面、延河课堂作业（DDL）、通知提醒、桌面卡片、深色模式、一卡通 / 校园网 / 图书馆、校园地图、成绩查询。
+**还没做的**：座位预约的选座界面、通知提醒、桌面卡片、一卡通 / 校园网、校园地图、成绩查询。
 
 **不做**：NFC 校园卡（设备与协议都不支持）、社区论坛。
 
@@ -84,7 +87,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version          # 需要 22.6+（支持 --experimental-strip-types）
-bash tools/run-tests.sh # 6 个套件，262 条断言
+bash tools/run-tests.sh # 9 个套件，409 条断言
 ```
 
 | 套件 | 断言数 | 测什么 |
@@ -95,6 +98,9 @@ bash tools/run-tests.sh # 6 个套件，262 条断言
 | `test-shuttle` | 30 | 班车时刻表 |
 | `test-colors` | 83 | 深浅两套配色的 WCAG 对比度（含 24 个课程色组合） |
 | `test-timetable` | 28 | 作息表校验（重叠/越界/往返）与「改时间→文案变」 |
+| `test-eclass` | 40 | eclass 契约字段解析 + 课程/动态模型 |
+| `test-ddl` | 39 | DDL 合并规则（保留 done）+ remainTime 口径 1:1 Android |
+| `test-libborrow` | 68 | 图书馆借阅解析（JSON 套 HTML 套 JS 数组）+ 到期判定 + 「通知不含书名」 |
 
 CI（`.github/workflows/test.yml`）每次 push 自动跑这些，外加一条**关键资源存在性检查** —— 它守的是两个真实踩过的坑：TLS 中间证书被 `.gitignore` 误伤（编译能过、运行期静默降级）、app 图标被全局 `*.png` 误删。
 

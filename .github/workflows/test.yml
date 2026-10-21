@@ -28,7 +28,7 @@ jobs:
           node --version
           echo "仓库文件数: $(git ls-files | wc -l)"
 
-      - name: 单测（4 个套件，共 151 条断言）
+      - name: 单测（全部套件，由 run-tests.sh 统计）
         # 用与本地完全相同的入口，别在 CI 里再抄一份循环 ——
         # 两套实现迟早会不一致（谁是准的说不清），断言条数也会变成两处手抄。
         run: bash tools/run-tests.sh
