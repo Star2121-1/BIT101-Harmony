@@ -45,5 +45,12 @@ export const JAR_CARD: string = 'bit_card';
  */
 export const JAR_NET: string = 'bit_net';
 
+/**
+ * 座位预约系统（seatlib.bit.edu.cn）会话。
+ * seatlib 使用 JWT Bearer 认证，cookie 罐主要存储 phpCAS 票据用于 JWT 换取。
+ * 与学校主罐隔离：seatlib JWT 失效不影响教务会话。
+ */
+export const JAR_SEAT: string = 'bit_seat';
+
 /** 登出时要清的全部罐。 */
-export const ALL_JARS: string[] = [JAR_LOGIN, JAR_CAS, JAR_SCHOOL, JAR_ECLASS, JAR_LIB, JAR_CARD];
+export const ALL_JARS: string[] = [JAR_LOGIN, JAR_CAS, JAR_SCHOOL, JAR_ECLASS, JAR_LIB, JAR_CARD, JAR_SEAT];
