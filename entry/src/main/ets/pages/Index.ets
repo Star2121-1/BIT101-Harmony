@@ -102,7 +102,7 @@ struct Index {
 
   build() {
     Column() {
-      // 四个业务入口（登录入口在设置页「账号」区；未登录时自习卡也会给「去登录」）
+      // 四个业务入口（「我」页里有账号状态、三卡摘要与设置入口；未登录时自习卡也会给「去登录」）
       Row() {
         Button('课表')
           .height(38).fontSize(13).layoutWeight(1)
@@ -122,11 +122,11 @@ struct Index {
           .onClick(() => {
             this.go('pages/ShuttlePage', '班车');
           })
-        Button('设置')
+        Button('我')
           .height(38).fontSize(13).layoutWeight(1)
           .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
           .onClick(() => {
-            this.go('pages/SettingsPage', '设置');
+            this.go('pages/MePage', '我');
           })
       }
       .width('100%')

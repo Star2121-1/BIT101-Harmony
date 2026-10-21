@@ -19,6 +19,7 @@
     "pages/LibLoginPage",
     "pages/CardPage",
     "pages/CardLoginPage",
-    "pages/NetPage"
+    "pages/NetPage",
+    "pages/MePage"
   ]
 }
