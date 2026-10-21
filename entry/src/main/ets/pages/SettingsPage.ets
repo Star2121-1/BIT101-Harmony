@@ -151,6 +151,26 @@ struct SettingsPage {
     }
   }
 
+  /**
+   * 恢复默认（清掉偏好，回到「未设置 = 良乡」）。
+   * ⚠️ 没有这个入口时，设过默认校区的用户永远改不回来——M6-5 真机点验时
+   * 发现该缺口后补上（2026-10-21，证据 harmony/evidence/m6-5-default-campus/）。
+   */
+  private async resetCampus(): Promise<void> {
+    this.campusCode = '';
+    this.campusName = '';
+    this.pickerOpen = false;
+    try {
+      await Prefs.remove(KEY_DEFAULT_CAMPUS);
+      await Prefs.remove(KEY_DEFAULT_CAMPUS_NAME);
+      this.toast = '已恢复默认（良乡）';
+      info('Settings campus reset to default');
+    } catch (e) {
+      this.toast = '恢复失败：' + (e as Error).message;
+      warn('Settings resetCampus fail: ' + JSON.stringify(e));
+    }
+  }
+
   /** 教务接口诊断（403 变体矩阵），结果写沙箱文件 jxzx_probe.txt。 */
   private async runDiag(): Promise<void> {
     this.busy = true;
@@ -338,6 +358,21 @@ struct SettingsPage {
             // 校区选择面板（内联，避免多引一个弹层组件）
             if (this.pickerOpen) {
               Column() {
+                // 恢复默认（设过才显示；没设过时「未设置」即默认，无需恢复）
+                if (this.campusCode.length > 0) {
+                  Row() {
+                    Text('恢复默认（良乡）')
+                      .fontSize(13)
+                      .fontColor(this.p().textMuted)
+                      .layoutWeight(1)
+                  }
+                  .width('100%')
+                  .padding({ top: 8, bottom: 8 })
+                  .border({ width: { bottom: 0.5 }, color: this.p().divider })
+                  .onClick(() => {
+                    this.resetCampus();
+                  })
+                }
                 ForEach(this.campusList, (c: CampusInfo) => {
                   Row() {
                     Text(c.displayName)
