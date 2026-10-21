@@ -10,7 +10,6 @@
 
 import { type DateTime } from './timeutil.ts';
 import { SeatStatus, type Seat } from '../model/SeatModel.ts';
-import { SeatMapEntry } from '../model/SeatMapData.ts';
 
 /**
  * 一条预约记录（来自服务端 /api/index/subscribe）。
