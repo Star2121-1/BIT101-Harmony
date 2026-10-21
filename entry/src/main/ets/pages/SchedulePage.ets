@@ -21,6 +21,8 @@ import { CourseCache, CachedSchedule } from '../data/CourseCache.ts';
 import {
   CourseRow, TermSchedule, isRenderableCourse, maxWeekOf, skzcToWeeks
 } from '../core/model/SchoolModels.ts';
+import { CourseOverlayStore } from '../data/CourseOverlayStore.ts';
+import { CourseOverlay, mergeOverlay } from '../corelogic/CourseOverlayLogic.ts';
 import { weeksContains, weekOf } from '../corelogic/CourseWeekdayLogic.ts';
 import { FALLBACK_TIME_TABLE, courseTimeText, sectionStart } from '../corelogic/TimeTableLogic.ts';
 import { TimeTableStore } from '../data/TimeTableStore.ts';
@@ -86,6 +88,10 @@ struct SchedulePage {
   @State terms: string[] = [];
   @State firstDay: string = '';
   @State courses: CourseRow[] = [];
+  /** 教务原始行（合并前）—— 覆盖层变化时以它为基准重算，避免「合并再合并」。 */
+  @State rawCourses: CourseRow[] = [];
+  /** 手动改课表的覆盖层（M2-8，读路径合并，见 CourseOverlayLogic）。 */
+  @State overlays: CourseOverlay[] = [];
   @State week: number = 1;
   @State maxWeek: number = 20;
   @State todayDow: number = 0;      // 1..7；0 = 未知
@@ -146,6 +152,16 @@ struct SchedulePage {
       this.table = await TimeTableStore.load();
     } catch (e) {
       warn('SchedulePage timetable load fail: ' + JSON.stringify(e));
+    }
+
+    // ⓪b 覆盖层（M2-8）：必须在第一次 applySchedule 之前读好，
+    //     否则缓存的课表会先按「教务原样」上屏再闪一下才变
+    try {
+      this.overlays = await CourseOverlayStore.load();
+      info('SchedulePage initial overlays=' + this.overlays.length);
+    } catch (e) {
+      warn('SchedulePage overlay load fail: ' + JSON.stringify(e));
+      this.overlays = [];
     }
 
     // ① 缓存先上屏
@@ -236,20 +252,12 @@ struct SchedulePage {
         dropped++;
       }
     }
-    this.courses = renderable;
-    this.totalCourseCount = renderable.length;
+    this.rawCourses = renderable;
     if (dropped > 0) {
       warn('SchedulePage dropped non-renderable rows=' + dropped);
     }
-    // 上界：SKZC 最长长度
-    let maxW: number = 0;
-    for (let i = 0; i < renderable.length; i++) {
-      const w: number = maxWeekOf(renderable[i].SKZC);
-      if (w > maxW) {
-        maxW = w;
-      }
-    }
-    this.maxWeek = maxW > 0 ? maxW : 20;
+    // 合并覆盖层（M2-8）：上屏的 = 教务原始行 + 用户的修改
+    this.applyMerged();
     // 当前周：开学日可知才算，否则停在 1 并提示
     const firstEpoch: number | null = parseISODate(schedule.firstDay);
     this.firstEpochDay = firstEpoch === null ? -1 : firstEpoch;
@@ -263,6 +271,48 @@ struct SchedulePage {
       this.week = 1;
     }
     this.recountWeek();
+  }
+
+  /**
+   * 教务原始行 + 覆盖层 → 上屏数据（**唯一合并入口**）。
+   *
+   * ⚠️ 以 `rawCourses` 为基准重算，不要在 `courses` 上再合并 ——
+   * 那会把「已隐藏的行」当成不存在、把「已改的行」再改一遍。
+   */
+  private applyMerged(): void {
+    this.courses = mergeOverlay(this.rawCourses, this.overlays);
+    this.totalCourseCount = this.courses.length;
+    // 上界：SKZC 最长长度（合并后的行才算数：新增的课可能周次更长）
+    let maxW: number = 0;
+    for (let i = 0; i < this.courses.length; i++) {
+      const w: number = maxWeekOf(this.courses[i].SKZC);
+      if (w > maxW) {
+        maxW = w;
+      }
+    }
+    this.maxWeek = maxW > 0 ? maxW : 20;
+  }
+
+  /** 从「手动改课表」页回来时重读覆盖层并重算（M2-8）。 */
+  onPageShow(): void {
+    this.reloadOverlaysAndRemerge();
+  }
+
+  private async reloadOverlaysAndRemerge(): Promise<void> {
+    try {
+      const list: CourseOverlay[] = await CourseOverlayStore.load();
+      const changed: boolean = list.length !== this.overlays.length;
+      this.overlays = list;
+      if (this.rawCourses.length > 0) {
+        this.applyMerged();
+        this.recountWeek();
+      }
+      if (changed) {
+        info('SchedulePage overlays=' + list.length);
+      }
+    } catch (e) {
+      warn('SchedulePage overlay reload fail: ' + JSON.stringify(e));
+    }
   }
 
   /** 本周节数 + 冲突数 + 教学调整天数（范围各自说清，不混算）。 */

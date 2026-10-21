@@ -20,6 +20,7 @@
     "pages/CardPage",
     "pages/CardLoginPage",
     "pages/NetPage",
-    "pages/MePage"
+    "pages/MePage",
+    "pages/OverlayPage"
   ]
 }
