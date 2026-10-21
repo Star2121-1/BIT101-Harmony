@@ -19,6 +19,7 @@ import { dayPlanOf } from "./TeachingAdjustment.ts";
 import { parseTable, summaryText } from "./ScoreLogic.ts";
 import { isReady, shouldCheck } from "./ScoreQueryLogic.ts";
 import { statusText, ScoreCheckCode } from "./ScoreCheckLogic.ts";
+import { coursesToSchedule, assembleWidgetPages, isSerializablePayload } from "./WidgetData.ts";
 import { courseTimeText, FALLBACK_TIME_TABLE } from "./TimeTableLogic.ts";
 import { pickDay, buildDayBlocks } from "./WidgetLogic.ts";
 
@@ -49,6 +50,17 @@ export function runProbe(): string {
   parts.push("poll=" + (isReady(["jwb"]) ? "ready" : "no") + "/check=" + (shouldCheck(-1, 0) ? "due" : "hold"));
   // ScoreCheckLogic：检查状态文案（AUTH_FAILED 绝不含「稍后重试」）
   parts.push("chk=" + (statusText({ atMillis: 0, code: ScoreCheckCode.AUTH_FAILED, count: 0, detail: "用户名或密码错误" }).indexOf("稍后重试") < 0 ? "ok" : "bad"));
+  // WidgetData：卡片数据装配（空源 ⇒ 5 页 + 可序列化，卡片独立进程前提）
+  const widgetPages: WidgetPage[] = assembleWidgetPages({
+    courses: coursesToSchedule([]),
+    ddls: [],
+    activities: [],
+    adjustments: [],
+    firstDay: "",
+    timeTable: FALLBACK_TIME_TABLE,
+    now: { day: 0, minutes: 0 }
+  });
+  parts.push("widget=" + widgetPages.length + "pages/" + (isSerializablePayload(widgetPages) ? "serializable" : "dirty"));
 
   // 以下参数较复杂，不在此构造合法入参，仅 import 强制编译器吃文件（类型校验）
   void weekOf;
