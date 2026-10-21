@@ -313,6 +313,19 @@ struct MePage {
             })
 
             Row() {
+              Text('通知')
+                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+              Text('提醒记录').fontSize(13).fontColor(this.p().textMuted)
+              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+            }
+            .width('100%').padding({ top: 12 })
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/NotifyListPage' }).catch((e: Error) => {
+                warn('me -> notify fail: ' + JSON.stringify(e));
+              });
+            })
+
+            Row() {
               Text('设置')
                 .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
               Text(' ›').fontSize(13).fontColor(this.p().textMuted)

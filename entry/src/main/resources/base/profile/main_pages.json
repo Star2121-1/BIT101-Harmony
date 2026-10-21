@@ -21,6 +21,7 @@
     "pages/CardLoginPage",
     "pages/NetPage",
     "pages/MePage",
-    "pages/OverlayPage"
+    "pages/OverlayPage",
+    "pages/NotifyListPage"
   ]
 }
