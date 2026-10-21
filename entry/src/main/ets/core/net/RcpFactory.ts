@@ -66,13 +66,16 @@ export class RcpFactory {
    *   - **true**：教务（jxzxehall）必须这样 —— 它的 `index.do` 首次访问就是
    *     「302 → CAS 换票 → 302 回应用 → 200」的正常链路（Android 用的 Ktor 默认跟跳）。
    *     ⚠️ 2026-10-20 栽过：拿 false 去请求教务，把**正常的第一步 302 判成了会话失效**。
+   * @param connectMs / @param readMs 超时（默认 15/30s）。**内网接口要显式给 5/5**
+   *   —— 内网要么秒回要么根本不通，等 30 秒只会让页面一直转圈（校园网 10.0.0.55 同款）。
    */
-  static async createSession(context: Context, repoId: string, autoRedirect: boolean = false): Promise<rcp.Session> {
+  static async createSession(context: Context, repoId: string, autoRedirect: boolean = false,
+    connectMs: number = CONNECT_MS, readMs: number = READ_MS): Promise<rcp.Session> {
     const caPem: string = await RcpFactory.loadCaPem(context);
     const repo: rcp.CookieRepository = rcp.CookieRepository.create(repoId);
     const transfer: rcp.TransferConfiguration = {
       autoRedirect: autoRedirect,
-      timeout: { connectMs: CONNECT_MS, transferMs: READ_MS }
+      timeout: { connectMs: connectMs, transferMs: readMs }
     };
     let security: rcp.SecurityConfiguration;
     if (caPem.length > 0) {

@@ -18,6 +18,7 @@
     "pages/LibBorrowPage",
     "pages/LibLoginPage",
     "pages/CardPage",
-    "pages/CardLoginPage"
+    "pages/CardLoginPage",
+    "pages/NetPage"
   ]
 }

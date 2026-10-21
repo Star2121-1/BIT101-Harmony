@@ -38,5 +38,12 @@ export const JAR_LIB: string = 'bit_lib';
  */
 export const JAR_CARD: string = 'bit_card';
 
+/**
+ * 校园网（10.0.0.55 内网）请求用的罐。
+ * ⚠️ **不放进 ALL_JARS**：该接口免登录、不设 cookie，罐永远是空的 ——
+ * 登出时没有东西要清（放进去只会让人误以为它有会话）。
+ */
+export const JAR_NET: string = 'bit_net';
+
 /** 登出时要清的全部罐。 */
 export const ALL_JARS: string[] = [JAR_LOGIN, JAR_CAS, JAR_SCHOOL, JAR_ECLASS, JAR_LIB, JAR_CARD];
