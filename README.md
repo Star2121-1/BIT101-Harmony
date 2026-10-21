@@ -91,7 +91,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version          # 需要 22.6+（支持 --experimental-strip-types）
-bash tools/run-tests.sh # 13 个套件，650 条断言
+bash tools/run-tests.sh # 14 个套件，679 条断言
 ```
 
 | 套件 | 断言数 | 测什么 |
@@ -109,6 +109,8 @@ bash tools/run-tests.sh # 13 个套件，650 条断言
 | `test-card` | 70 | 一卡通解析（最终 URL 判登录、余额字段去重）+ 趋势口径（7 天窗口、样本不足如实降级、残差按无变化） |
 | `test-net` | 77 | 校园网 CSV 解析 + 三类结果 + **计费周期重置**（累计变小 ⇒ 旧采样全废）+ 月末预测 |
 | `test-overlay` | 51 | 改课表覆盖层：改/藏/加、HIDE 优先、**锚点与显示值分离**（改时间仍匹配原课）、脏数据跳过 |
+| `test-netalert` | 29 | 校园网提醒判定：流量 270/300 每周期各一次、越限不补发接近档；网费 <10 元按天去重；文案逐字对照 Android |
+
 
 CI（`.github/workflows/test.yml`）每次 push 自动跑这些，外加一条**关键资源存在性检查** —— 它守的是两个真实踩过的坑：TLS 中间证书被 `.gitignore` 误伤（编译能过、运行期静默降级）、app 图标被全局 `*.png` 误删。
 
