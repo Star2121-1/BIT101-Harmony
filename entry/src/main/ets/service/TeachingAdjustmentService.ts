@@ -159,6 +159,19 @@ export class TeachingAdjustmentService {
 
   // ── 缓存（Preferences，JSON）────────────────────────────────────────
 
+  /**
+   * 只读缓存、不联网（M7-2 排期器用）。
+   *
+   * 排期器在 App 启动时离线重跑，不能触发网络请求；教学调整是「放假不排、
+   * 补课按指定那天排」的依据 —— 有缓存就用，没有就按「无调整」排（宁可漏补课提醒，
+   * 也比联网拖慢启动好）。返回 TeachingEntry[]（排期器直接当 AdjustmentEntry[] 用，
+   * 二者字段同源，见 TeachingEntry extends AdjustmentEntry）。
+   */
+  static async readCacheOnly(): Promise<TeachingEntry[]> {
+    const cached: CachedTa | null = await TeachingAdjustmentService.readCache();
+    return cached === null ? [] : cached.entries;
+  }
+
   private static async readCache(): Promise<CachedTa | null> {
     try {
       const raw: string = await Prefs.getString(CACHE_KEY, '');

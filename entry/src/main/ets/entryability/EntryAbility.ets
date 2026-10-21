@@ -20,6 +20,7 @@ import { runProbe } from '../corelogic/compile-probe.ts';
 import { setProbeCreds } from '../probe/CasProbe.ts';
 import { Prefs } from '../data/Prefs.ts';
 import { ThemeStore } from '../data/ThemeStore.ts';
+import { ReminderScheduler } from '../service/ReminderScheduler.ts';
 import { setDumpDir } from '../core/log/DebugDump.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
 
@@ -41,8 +42,18 @@ export default class EntryAbility extends UIAbility {
     // ⚠️ 主题初始化必须排在 Prefs 之后：它要读回用户上次选的三档模式。
     Prefs.init(this.context.getApplicationContext())
       .then(() => ThemeStore.init(this.context))
+      .then(() => {
+        // M7-2：冷启动重排代理提醒（对照 Android「每次开 App 重排」）。
+        // reminderAgent 是系统托管：排好即弹，App 退不退都弹 ⇒ 满足「锁屏/App 退出也弹」。
+        // 全程不抛：通知开关没开会回报原因，由「我」页/通知列表引导开启。
+        return ReminderScheduler.reschedule(this.context);
+      })
+      .then((r) => {
+        hilog.info(DOMAIN, 'testTag', 'reminder rescheduled published=%{public}d reason=%{public}s',
+          r.published, r.reason);
+      })
       .catch((e: Error) => {
-        hilog.error(DOMAIN, 'testTag', 'Prefs/Theme init failed: %{public}s', JSON.stringify(e));
+        hilog.error(DOMAIN, 'testTag', 'Prefs/Theme/reminder init failed: %{public}s', JSON.stringify(e));
       });
     // 诊断落盘目录（接口返回非 JSON 时把正文写这里，供 hdc 拉取；不含任何凭据）
     setDumpDir(this.context.filesDir);

@@ -15,6 +15,7 @@ import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { SchoolService, SchoolAuthError } from '../service/SchoolService.ts';
 import { ExamRow } from '../core/model/SchoolModels.ts';
+import { ExamCache } from '../data/ExamCache.ts';
 import { SessionStore, SessionSnapshot } from '../data/SessionStore.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
@@ -67,6 +68,7 @@ struct ExamPage {
       this.term = term;
       const list: ExamRow[] = await SchoolService.getExams(ctx, term);
       this.exams = list;
+      await ExamCache.save(term, list); // M7-2：落地供离线排期
       info('ExamPage loaded term=' + term + ' rows=' + list.length);
     } catch (e) {
       if (e instanceof SchoolAuthError) {

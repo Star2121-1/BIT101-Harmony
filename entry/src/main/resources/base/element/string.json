@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "label"
+    },
+    {
+      "name": "permission_agent_reminder_reason",
+      "value": "用于在指定时刻弹出上课 / 作业 / 考试等提醒（锁屏、App 退出后仍生效）"
     }
   ]
 }
