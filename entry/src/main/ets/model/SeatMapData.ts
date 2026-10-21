@@ -4,8 +4,6 @@
  * 负责将 /api/seat/map 返回的原始数据转换为可用于渲染和交互的数据结构。
  */
 
-import { SeatMapPosition } from './SeatMapModel.ts';
-
 /**
  * 来自 /api/seat/map 的单个座位数据（含坐标）。
  */
@@ -23,6 +21,16 @@ export interface SeatMapEntry {
   height: number;
   /** 当前状态码（与 /api/seat/status 的 status 字段一致）。 */
   status: number;
+}
+
+/**
+ * 座位在地图上的坐标（百分比）。
+ */
+export interface SeatMapPosition {
+  pointX: number;
+  pointY: number;
+  width: number;
+  height: number;
 }
 
 /**
