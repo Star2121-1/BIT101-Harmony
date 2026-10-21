@@ -1,0 +1,18 @@
+{
+  "form": {
+    "name": "form_metadata",
+    "description": "桌面卡片元数据配置"
+  },
+  "forms": [
+    {
+      "defaultValue": {
+        "src": "pages/WidgetPage",
+        "name": "bit101_widget",
+        "colorMode": "default",
+        "dimension": 2,
+        "updateEnabled": true,
+        "nextUpdateTime": 0
+      }
+    }
+  ]
+}

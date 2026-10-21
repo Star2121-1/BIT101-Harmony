@@ -53,6 +53,26 @@
             "resource": "$profile:backup_config"
           }
         ],
+      },
+      {
+        "name": "FormExtension",
+        "srcEntry": "./ets/extensionability/FormExtension.ets",
+        "type": "form",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
+          }
+        ],
+        "abilities": [
+          {
+            "name": "WidgetPage",
+            "srcEntry": "./ets/pages/WidgetPage.ets",
+            "type": "page",
+            "visible": true
+          }
+        ]
       }
     ]
   }

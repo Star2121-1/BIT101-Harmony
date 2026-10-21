@@ -1,0 +1,16 @@
+{
+  "formConfig": [
+    {
+      "name": "bit101_widget",
+      "displayName": "BIT101 桌面卡片",
+      "description": "显示当天课程、DDL 和动态信息",
+      "src": "pages/WidgetPage",
+      "colorMode": "default",
+      "isAlwaysUpdateable": true,
+      "updateDuration": 0,
+      "dimension": 2,
+      "supportDimensions": [2, 4],
+      "formConfigPath": "form_metadata.json"
+    }
+  ]
+}
