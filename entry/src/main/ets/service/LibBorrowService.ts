@@ -53,7 +53,8 @@ const LIB_UA: string =
  */
 const FALLBACK_SVERSION: string = '20260928388';
 
-/** API 请求头（照搬 Android：Accept */* + X-Requested-With，门户按 XHR 对待）。 */
+/** API 请求头（照搬 Android：Accept 通配 + X-Requested-With，门户按 XHR 对待）。
+ *  ⚠️ 注释里不许出现星号斜杠星连写（会被当成注释结束符，后半截中文按代码解析炸一堆错）。 */
 function apiHeaders(): rcp.RequestHeaders {
   return {
     'Accept': '*/*',
@@ -72,94 +73,98 @@ export type LibBorrowResult =
   | { kind: 'loggedOut' }
   | { kind: 'failed'; reason: string };
 
-/** 当前在借（appId=1715437）。 */
-export const fetchCurrent = async (context: Context): Promise<LibBorrowResult> =>
-  fetch(context, APP_ID_CURRENT);
+export class LibBorrowService {
+  /** 当前在借（appId=1715437）。 */
+  static async fetchCurrent(context: Context): Promise<LibBorrowResult> {
+    return await fetch(context, APP_ID_CURRENT);
+  }
 
-/** 历史借阅（appId=1697337，纯展示，失败不影响当前借阅）。 */
-export const fetchHistory = async (context: Context): Promise<LibBorrowResult> =>
-  fetch(context, APP_ID_HISTORY);
+  /** 历史借阅（appId=1697337，纯展示，失败不影响当前借阅）。 */
+  static async fetchHistory(context: Context): Promise<LibBorrowResult> {
+    return await fetch(context, APP_ID_HISTORY);
+  }
 
-/**
- * 从 Web 组件抽 cookie，灌进 JAR_LIB 并落盘。
- *
- * 抽两个主机（与 Android WebViewCookieSync.sync 同款名单）：
- * - `PAGE_URL`（mylib 个人空间，数据接口所在主机）
- * - `LOGIN_URL`（lib 门户，CAS 登录后会话 cookie 的落点）
- *
- * @returns 灌入的 cookie 条数（0 = Web 里没有图书馆会话，用户还没登录）
- */
-export async function syncFromWeb(): Promise<number> {
-  const targets: { url: string; domain: string }[] = [
-    { url: PAGE_URL, domain: 'mylib.bit.edu.cn' },
-    { url: LOGIN_URL, domain: 'lib.bit.edu.cn' }
-  ];
-  const cookies: PersistedCookie[] = [];
-  const seen: Set<string> = new Set<string>();
-  for (let i = 0; i < targets.length; i++) {
-    const t = targets[i];
-    let raw: string = '';
-    try {
-      raw = await webview.WebCookieManager.fetchCookie(t.url);
-    } catch (e) {
-      // 该 URL 没有 cookie（未登录）——正常分支不是错误
-      warn('lib fetchCookie none ' + t.url + ': ' + JSON.stringify(e));
-      continue;
-    }
-    if (raw.length === 0) {
-      continue;
-    }
-    const parts: string[] = raw.split(';');
-    for (let j = 0; j < parts.length; j++) {
-      const p: string = parts[j].trim();
-      if (p.length === 0) {
+  /**
+   * 从 Web 组件抽 cookie，灌进 JAR_LIB 并落盘。
+   *
+   * 抽两个主机（与 Android WebViewCookieSync.sync 同款名单）：
+   * - `PAGE_URL`（mylib 个人空间，数据接口所在主机）
+   * - `LOGIN_URL`（lib 门户，CAS 登录后会话 cookie 的落点）
+   *
+   * @returns 灌入的 cookie 条数（0 = Web 里没有图书馆会话，用户还没登录）
+   */
+  static async syncFromWeb(): Promise<number> {
+    const targets: { url: string; domain: string }[] = [
+      { url: PAGE_URL, domain: 'mylib.bit.edu.cn' },
+      { url: LOGIN_URL, domain: 'lib.bit.edu.cn' }
+    ];
+    const cookies: PersistedCookie[] = [];
+    const seen: Set<string> = new Set<string>();
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      let raw: string = '';
+      try {
+        raw = await webview.WebCookieManager.fetchCookie(t.url);
+      } catch (e) {
+        // 该 URL 没有 cookie（未登录）——正常分支不是错误
+        warn('lib fetchCookie none ' + t.url + ': ' + JSON.stringify(e));
         continue;
       }
-      const eq: number = p.indexOf('=');
-      if (eq <= 0) {
-        continue; // 没有 '=' 或名字为空——不是 cookie，跳过
+      if (raw.length === 0) {
+        continue;
       }
-      const name: string = p.substring(0, eq).trim();
-      const dedupeKey: string = name + '@' + t.domain;
-      if (seen.has(dedupeKey)) {
-        continue; // 同名同域后写覆盖先写，保留第一个即可（顺序固定，行为确定）
+      const parts: string[] = raw.split(';');
+      for (let j = 0; j < parts.length; j++) {
+        const p: string = parts[j].trim();
+        if (p.length === 0) {
+          continue;
+        }
+        const eq: number = p.indexOf('=');
+        if (eq <= 0) {
+          continue; // 没有 '=' 或名字为空——不是 cookie，跳过
+        }
+        const name: string = p.substring(0, eq).trim();
+        const dedupeKey: string = name + '@' + t.domain;
+        if (seen.has(dedupeKey)) {
+          continue; // 同名同域后写覆盖先写，保留第一个即可（顺序固定，行为确定）
+        }
+        seen.add(dedupeKey);
+        cookies.push({
+          name: name,
+          value: p.substring(eq + 1).trim(),
+          domain: t.domain,
+          path: '/'
+        });
       }
-      seen.add(dedupeKey);
-      cookies.push({
-        name: name,
-        value: p.substring(eq + 1).trim(),
-        domain: t.domain,
-        path: '/'
-      });
     }
+    if (cookies.length === 0) {
+      return 0;
+    }
+    const repo: rcp.CookieRepository = RcpFactory.cookieRepo(JAR_LIB);
+    await repo.setCookies(cookies);
+    await LibCookieStore.snapshotAndSave(repo);
+    info('lib syncFromWeb ok count=' + cookies.length);
+    return cookies.length;
   }
-  if (cookies.length === 0) {
-    return 0;
+
+  /** 建图书馆 session（先恢复落盘 cookie，再建 rcp 会话）。 */
+  static async session(context: Context): Promise<rcp.Session> {
+    const repo: rcp.CookieRepository = RcpFactory.cookieRepo(JAR_LIB);
+    await LibCookieStore.restoreInto(repo);
+    // autoRedirect=false：user-info 未登录也返 200（uid 为空），本就不会跳；
+    // 真出现 302（会话失效回登录页）时看得见，才判得出「失效」而不是「0 本」。
+    return await RcpFactory.createSession(context, JAR_LIB, false);
   }
-  const repo: rcp.CookieRepository = RcpFactory.cookieRepo(JAR_LIB);
-  await repo.setCookies(cookies);
-  await LibCookieStore.snapshotAndSave(repo);
-  info('lib syncFromWeb ok count=' + cookies.length);
-  return cookies.length;
-}
 
-/** 建图书馆 session（先恢复落盘 cookie，再建 rcp 会话）。 */
-export async function session(context: Context): Promise<rcp.Session> {
-  const repo: rcp.CookieRepository = RcpFactory.cookieRepo(JAR_LIB);
-  await LibCookieStore.restoreInto(repo);
-  // autoRedirect=false：user-info 未登录也返 200（uid 为空），本就不会跳；
-  // 真出现 302（会话失效回登录页）时看得见，才判得出「失效」而不是「0 本」。
-  return await RcpFactory.createSession(context, JAR_LIB, false);
-}
-
-/** 有没有可用的图书馆会话（判据 = 落盘快照非空）。 */
-export async function hasSession(): Promise<boolean> {
-  return await LibCookieStore.hasSession();
+  /** 有没有可用的图书馆会话（判据 = 落盘快照非空）。 */
+  static async hasSession(): Promise<boolean> {
+    return await LibCookieStore.hasSession();
+  }
 }
 
 async function fetch(context: Context, appId: string): Promise<LibBorrowResult> {
   try {
-    const s: rcp.Session = await session(context);
+    const s: rcp.Session = await LibBorrowService.session(context);
 
     // ② 登录态检查（uid 为空 = 未登录；响应不认识 = 失败，都不许当成「0 本」）
     const who = await RcpFactory.getText(s, USER_INFO_URL, apiHeaders());

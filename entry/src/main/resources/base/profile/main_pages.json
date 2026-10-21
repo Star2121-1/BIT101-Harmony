@@ -14,6 +14,8 @@
     "pages/EclassLoginPage",
     "pages/DdlPage",
     "pages/EclassActivityPage",
-    "pages/WebShellPage"
+    "pages/WebShellPage",
+    "pages/LibBorrowPage",
+    "pages/LibLoginPage"
   ]
 }

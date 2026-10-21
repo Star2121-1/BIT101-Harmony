@@ -18,6 +18,7 @@
  */
 
 import { parseDateTime, fmtShowDay, daysBetween, type DateTime } from "./timeutil.ts";
+import type { JsonValue } from "../core/model/SchoolModels.ts";
 
 // ── 常量（契约文档 lib-borrow-contract.md 实测值）────────────────────────
 
@@ -95,9 +96,9 @@ export function isLoggedIn(body: string): boolean | null {
   if (root === null) return null;
   const data = obj(root, "data");
   if (data === null) return null;
-  if (!("uid" in data)) return false;
-  const uid = (data as Record<string, unknown>).uid;
-  if (uid === null) return false;
+  // uid 缺失（undefined）或为 null 都算未登录；空串也是未登录
+  const uid = data["uid"];
+  if (uid === undefined || uid === null) return false;
   return strOf(uid).trim().length > 0;
 }
 
@@ -118,10 +119,10 @@ export function parseSversion(html: string): string | null {
 export function parseRecords(body: string): BorrowRecord[] | null {
   const root = parseObj(body);
   if (root === null) return null;
-  if (strOf((root as Record<string, unknown>).code) !== "1") return null;
+  if (strOf(root["code"]) !== "1") return null;
   const data = obj(root, "data");
   if (data === null) return null;
-  const div = strOf((data as Record<string, unknown>).div);
+  const div = strOf(data["div"]);
   if (div.length === 0) return null;
 
   const array = extractEmbeddedArray(div);
@@ -138,7 +139,7 @@ export function parseRecords(body: string): BorrowRecord[] | null {
  * 把内嵌在 checkHasData( ... ) 里的数组抠出来。
  * null = 锚点都没有（门户改版）；空数组 = 锚点在、确实是 []。两者语义不同，别合并。
  */
-function extractEmbeddedArray(div: string): unknown[] | null {
+function extractEmbeddedArray(div: string): JsonValue[] | null {
   const marker = div.indexOf(ARRAY_MARKER);
   if (marker < 0) return null;
   const start = div.indexOf("[", marker);
@@ -146,7 +147,7 @@ function extractEmbeddedArray(div: string): unknown[] | null {
   const end = matchBracket(div, start);
   if (end === null) return null;
   try {
-    const parsed = JSON.parse(div.substring(start, end + 1));
+    const parsed = JSON.parse(div.substring(start, end + 1)) as JsonValue[];
     return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
@@ -177,13 +178,14 @@ function matchBracket(s: string, start: number): number | null {
 }
 
 /** 一行 → BorrowRecord。按字段名取值，取不到的字段留空、不丢整条。 */
-function toRecord(row: Record<string, unknown>): BorrowRecord {
+function toRecord(row: Record<string, JsonValue>): BorrowRecord {
   const cells = new Map<string, string>();
-  for (const v of Object.values(row)) {
-    const cell = asObject(v);
+  const keys: string[] = Object.keys(row);
+  for (const k of keys) {
+    const cell = asObject(row[k]);
     if (cell === null) continue;
-    const key = strOf(cell.key);
-    if (key.length > 0) cells.set(key, strOf(cell.value));
+    const key = strOf(cell["key"]);
+    if (key.length > 0) cells.set(key, strOf(cell["value"]));
   }
   const dueRaw = cells.get(KEY_DUE) ?? "";
   return new BorrowRecord(
@@ -292,21 +294,22 @@ export function noticeTitle(alerts: BorrowRecord[], now: DateTime): string {
 
 // ── gson 语义小工具 ─────────────────────────────────────────────────────
 
-/** JSON null / 非对象 / 空对象 → null（对齐 asJsonObjectOrNull：size>0 才算）。 */
-function asObject(v: unknown): Record<string, unknown> | null {
-  if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
-  const o = v as Record<string, unknown>;
+/** JSON null / 非对象 / 空对象 → null（对齐 asJsonObjectOrNull：size>0 才算）。
+ *  窄化顺序照 SchoolModels.objOf（项目里唯一编译得过的写法）。 */
+function asObject(v: JsonValue | undefined): Record<string, JsonValue> | null {
+  if (v === undefined || v === null || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v as Record<string, JsonValue>;
   return Object.keys(o).length > 0 ? o : null;
 }
 
 /** 取子对象；不是对象（含 JSON null）返回 null。 */
-function obj(root: Record<string, unknown>, name: string): Record<string, unknown> | null {
+function obj(root: Record<string, JsonValue>, name: string): Record<string, JsonValue> | null {
   return asObject(root[name]);
 }
 
-function parseObj(body: string): Record<string, unknown> | null {
+function parseObj(body: string): Record<string, JsonValue> | null {
   try {
-    const v = JSON.parse(body);
+    const v = JSON.parse(body) as JsonValue;
     return asObject(v);
   } catch {
     return null;
@@ -314,8 +317,8 @@ function parseObj(body: string): Record<string, unknown> | null {
 }
 
 /** 对齐 gson str()：primitive → 字符串；**字符串 "null" 当空**（接口把没有返回成 "null"）。 */
-function strOf(v: unknown): string {
-  if (v === null || v === undefined) return "";
+function strOf(v: JsonValue | undefined): string {
+  if (v === undefined || v === null) return "";
   if (typeof v === "string") return v === "null" ? "" : v;
   if (typeof v === "number" || typeof v === "boolean") return String(v);
   return "";

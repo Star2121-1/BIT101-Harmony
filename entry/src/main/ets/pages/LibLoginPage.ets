@@ -14,7 +14,7 @@
 import { webview } from '@kit.ArkWeb';
 import { router } from '@kit.ArkUI';
 import { Context } from '@kit.AbilityKit';
-import { LOGIN_URL, PAGE_URL, LibBorrowService, syncFromWeb } from '../service/LibBorrowService.ts';
+import { LOGIN_URL, PAGE_URL, LibBorrowService, LibBorrowResult } from '../service/LibBorrowService.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 @Entry
@@ -35,7 +35,7 @@ struct LibLoginPage {
     this.busy = true;
     this.status = '正在同步 cookie…';
     try {
-      const n: number = await syncFromWeb();
+      const n: number = await LibBorrowService.syncFromWeb();
       if (n === 0) {
         this.status = 'Web 里还没有图书馆会话（未登录或登录未完成）';
         this.busy = false;
@@ -43,7 +43,7 @@ struct LibLoginPage {
       }
       this.status = '已抽到 ' + n + ' 条 cookie，正在验证…';
       const ctx: Context = getContext(this) as Context;
-      const r = await LibBorrowService.fetchCurrent(ctx);
+      const r: LibBorrowResult = await LibBorrowService.fetchCurrent(ctx);
       if (r.kind === 'loggedOut') {
         // 抽到了 cookie 但 uid 仍空 ⇒ 会话没真正建立（域不匹配/未完成登录）
         this.status = '⚠️ 已抽到 cookie 但服务端认为未登录（会话可能未完成）';

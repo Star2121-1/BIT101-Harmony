@@ -54,6 +54,23 @@ struct LibBorrowPage {
     return r !== null && r.kind === 'ok' ? r.records : [];
   }
 
+  /**
+   * 当前栏状态码（'none' | 'ok' | 'loggedOut' | 'failed'）。
+   * ⚠️ 之所以绕这一层：UI 构建树里**不许声明局部变量**（本编译器直接拒
+   * 「Only UI component syntax can be written here」），而多次调 this.shown()
+   * 又没法做类型窄化 ⇒ 用字符串状态码绕开，判据仍然挂在同一个对象上。
+   */
+  private stateKind(): string {
+    const r: LibBorrowResult | null = this.shown();
+    return r === null ? 'none' : r.kind;
+  }
+
+  /** failed 态的原因文案。 */
+  private failReason(): string {
+    const r: LibBorrowResult | null = this.shown();
+    return r !== null && r.kind === 'failed' ? r.reason : '';
+  }
+
   /** 摘要行（当前栏才有意义；历史栏只报条数）。 */
   private summaryText(): string {
     if (this.tab === 'history') {
@@ -144,41 +161,42 @@ struct LibBorrowPage {
       }
 
       // ── 列表 / 三态 ──
+      // ⚠️ 整棵树里不声明任何局部变量（见 stateKind 注释）；分支判据用取值方法
       Scroll() {
         Column() {
           if (this.busy && !this.loaded) {
             Text('正在查借阅…')
               .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+          } else if (this.stateKind() === 'none') {
+            Text('还没有数据，点右上角刷新。')
+              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+          } else if (this.stateKind() === 'loggedOut') {
+            // 未登录：可处置状态 —— 给登录入口，**不是**「0 本」
+            Text('图书馆会话未建立。登录后即可查看在借图书。')
+              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+            Button('去图书馆登录')
+              .fontSize(13).margin({ top: 8 })
+              .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
+              .onClick(() => {
+                router.pushUrl({ url: 'pages/LibLoginPage' }).catch((e: Error) => {
+                  warn('lib -> login fail: ' + JSON.stringify(e));
+                });
+              })
+          } else if (this.stateKind() === 'failed') {
+            // 取不到：如实说取不到，给重试 —— **绝不显示成「0 本」**
+            Text('⚠️ 暂时取不到借阅数据：' + this.failReason())
+              .fontSize(12).fontColor(this.p().error).width('100%').padding(16)
+            Button('重试').fontSize(13).margin({ top: 8 })
+              .onClick(() => {
+                this.refresh();
+              })
+          } else if (this.shownRecords().length === 0) {
+            Text(this.tab === 'current' ? '当前没有在借的书。' : '没有历史借阅记录。')
+              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
           } else {
-            const r: LibBorrowResult | null = this.shown();
-            if (r === null) {
-              Text('还没有数据，点右上角刷新。')
-                .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
-            } else if (r.kind === 'loggedOut') {
-              // 未登录：可处置状态 —— 给登录入口，**不是**「0 本」
-              Text('图书馆会话未建立。登录后即可查看在借图书。')
-                .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
-              Button('去图书馆登录')
-                .fontSize(13).margin({ top: 8 })
-                .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
-                .onClick(() => {
-                  router.pushUrl({ url: 'pages/LibLoginPage' }).catch((e: Error) => {
-                    warn('lib -> login fail: ' + JSON.stringify(e));
-                  });
-                })
-            } else if (r.kind === 'failed') {
-              // 取不到：如实说取不到，给重试 —— **绝不显示成「0 本」**
-              Text('⚠️ 暂时取不到借阅数据：' + r.reason)
-                .fontSize(12).fontColor(this.p().error).width('100%').padding(16)
-              Button('重试').fontSize(13).margin({ top: 8 })
-                .onClick(() => {
-                  this.refresh();
-                })
-            } else if (r.records.length === 0) {
-              Text(this.tab === 'current' ? '当前没有在借的书。' : '没有历史借阅记录。')
-                .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
-            } else {
-              ForEach(this.shownRecords(), (rec: BorrowRecord, idx?: number) => {
+            // keyGenerator 单参（与 DdlPage 唯一编译得过的写法一致；
+            // 双参 + 可选参在这个编译器下会连环报错）
+            ForEach(this.shownRecords(), (rec: BorrowRecord) => {
                 Column() {
                   Text(rec.title.length > 0 ? rec.title : '（无题名）')
                     .fontSize(14).fontWeight(FontWeight.Medium).layoutWeight(1)
@@ -199,14 +217,13 @@ struct LibBorrowPage {
                 .width('100%').padding(12).margin({ top: 8 })
                 .backgroundColor(this.p().bgCard)
                 .borderRadius(10)
-                // 键内容派生 + 下标兜底（同书同应还日时 key 会撞，下标保证唯一）
-              }, (rec: BorrowRecord, idx?: number) => rec.key + '#' + (idx ?? 0))
+                // 键内容派生：书名 + ISBN + 应还日（接口不给 id）
+              }, (rec: BorrowRecord) => rec.key)
             }
-          }
         }
         .width('100%').padding({ left: 12, right: 12 })
         .align(Alignment.Top)
-      })
+      }
       .layoutWeight(1)
     }
     .width('100%').height('100%')

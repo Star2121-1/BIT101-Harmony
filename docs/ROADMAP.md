@@ -365,6 +365,23 @@ M9-1 JWT ✅ ──▶ M9-2 树 ──▶ M9-3 底图 ──▶ M9-4 预约 ─�
     要用 `aa force-stop <bundle-name>`；重启用 `aa start -a EntryAbility -b <bundle-name>`。
 21. **[10-21] tap 后立刻 dump 可能还是旧页面**（切换动画 ~1-2s）⇒ dump 与点击放同一次调用序列，
     且每步 tap 后重新 dump 验证再点下一步；设置页开合面板时 Scroll 会位移，跨调用点必漂。
+22. **[10-21] ⚠️⚠️ 没注册进 `main_pages.json` 的页面根本不参与编译 ⇒ `BUILD SUCCESSFUL` 是假绿**：
+    M5-3 五个新文件（service/data/corelogic/两个 page）写完跑 `assembleHap` 报成功，实际 rollup
+    只编译从入口可达的文件——页面没注册 = 不可达 = 一行都没编译过。装到真机点入口没反应，
+    才发现 `router.pushUrl` 目标漏注册。⇒ ① **新增 .ets 页面必须同步注册并重新构建**；
+    ② `tools/test-routes.mjs` 守卫（扫全部 pushUrl/replaceUrl 目标对照注册表 + 反向查文件存在），
+    已注册进 run-tests.sh；③ **「构建成功」不等于「新代码被编译过」**，判据是守卫 + 真机点一遍。
+23. **[10-21] 注释里不许出现 `*/*` 连写**：`Accept */*` 写在块注释里，`*/` 被当成注释结束符，
+    后半截中文按代码解析，炸出一串 `Cannot find name 'X'` / `Unterminated regular expression`
+    假错误（报错行号就在注释行）。字符串字面量里的 `*/*` 无害，只有注释里会中招。
+24. **[10-21] ArkTS 的 JSON 处理只能走项目既有模式**：`unknown` 类型被禁（arkts-no-any-unknown），
+    要用 `JsonValue`（SchoolModels.ts）+ `str/num/objOf/arrOf`；`Object.values` 没人用过（返回
+    any[] 有风险），遍历 Record 用 `Object.keys` + 下标；`catch (e)` 后 `(e as Error).message`
+    是既有写法；`in` 操作符项目里零使用，判字段存在用 `obj[k] === undefined`。
+    **Node 单测（strip-types）证明不了这些**——测试照跑 68 条全绿，ArkTS 编译器照样拒。
+25. **[10-21] ForEach 的 keyGenerator 只能单参**：`(rec, idx?) => …` 双参写法在本编译器下
+    连环报 `';' expected`（报错位置还漂到几十行外的容器闭合处）。照 DdlPage 的
+    `(e: DdlEntry) => e.uid` 单参写法即可。
 
 ---
 
