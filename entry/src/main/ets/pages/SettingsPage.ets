@@ -339,6 +339,32 @@ struct SettingsPage {
                 this.toast = '跳转失败：' + JSON.stringify(e);
               });
             })
+
+            Row() {
+              Text('作业（DDL）')
+                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+              Text('延河课堂').fontSize(13).fontColor(this.p().textMuted)
+              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+            }
+            .width('100%').padding({ bottom: 10 })
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/DdlPage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+
+            Row() {
+              Text('课程动态')
+                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+              Text('延河课堂').fontSize(13).fontColor(this.p().textMuted)
+              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+            }
+            .width('100%')
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/EclassActivityPage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
           }
           .width('100%').padding(12)
           .backgroundColor(this.p().bgCard)

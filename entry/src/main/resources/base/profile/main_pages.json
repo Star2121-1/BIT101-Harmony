@@ -12,6 +12,8 @@
     "pages/SettingsPage",
     "pages/TimeTablePage",
     "pages/EclassLoginPage",
-    "pages/DdlPage"
+    "pages/DdlPage",
+    "pages/EclassActivityPage",
+    "pages/WebShellPage"
   ]
 }

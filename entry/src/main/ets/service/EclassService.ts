@@ -26,6 +26,8 @@ import { RcpFactory, PersistedCookie } from '../core/net/RcpFactory.ts';
 import { webview } from '@kit.ArkWeb';
 import { EclassCookieStore } from '../data/EclassCookieStore.ts';
 import { EclassCourse, RawActivity, parseCourses, parseActivities } from '../core/model/EclassModels.ts';
+import { toActivities, recent } from '../corelogic/EclassActivityLogic.ts';
+import type { EclassActivity } from '../corelogic/EclassActivityLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 export const ECLASS_BASE: string = 'https://zy-eclass.bit.edu.cn';
@@ -150,5 +152,49 @@ export class EclassService {
     }
     const parsed = parseActivities(resp.body);
     return parsed.activities;
+  }
+
+  /**
+   * 全部课程的动态（M4-4 动态页用）：课程 → 逐课程 activities → toActivities。
+   * 单门课失败只丢它自己（与 M4-2 同步同款纪律）。
+   *
+   * @returns { list, failedCourses }——list 已按时间倒序截断到 limit
+   */
+  static async fetchAllActivities(context: Context, limit: number = 60):
+    Promise<{ list: EclassActivity[]; failedCourses: number }> {
+    const courses: EclassCourse[] = await EclassService.getVisitedCourses(context);
+    const all: EclassActivity[] = [];
+    let failedCourses: number = 0;
+    for (let i = 0; i < courses.length; i++) {
+      const course: EclassCourse = courses[i];
+      try {
+        const acts: RawActivity[] = await EclassService.getActivities(context, course.id);
+        const mapped: EclassActivity[] = toActivities(
+          acts.map((a: RawActivity) => ({
+            id: a.id,
+            title: a.title,
+            type: a.type,
+            courseId: a.courseId,
+            startTime: a.startTime,
+            endTime: a.endTime,
+            visibleEndAt: a.visibleEndAt,
+            isClosed: a.isClosed,
+            submitTimes: a.submitTimes,
+            lateSubmissionCount: a.lateSubmissionCount,
+            isReviewHomework: a.isReviewHomework
+          })),
+          course.id,
+          course.name,
+          course.url.length > 0 ? course.url : null
+        );
+        for (let j = 0; j < mapped.length; j++) {
+          all.push(mapped[j]);
+        }
+      } catch (e) {
+        failedCourses++;
+        warn('eclass activities course fail id=' + course.id + ': ' + (e as Error).message);
+      }
+    }
+    return { list: recent(all, limit), failedCourses: failedCourses };
   }
 }
