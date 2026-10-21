@@ -31,5 +31,12 @@ export const JAR_ECLASS: string = 'bit_eclass';
  */
 export const JAR_LIB: string = 'bit_lib';
 
+/**
+ * 一卡通（dkykt.info.bit.edu.cn）会话。
+ * 用户在 Web 组件里走 CAS 登录一卡通首页后，cookie 落在 dkykt 域，
+ * 灌到这个罐里给首页抓取用（对照 Android DefaultCampusCardRepo）。
+ */
+export const JAR_CARD: string = 'bit_card';
+
 /** 登出时要清的全部罐。 */
-export const ALL_JARS: string[] = [JAR_LOGIN, JAR_CAS, JAR_SCHOOL, JAR_ECLASS, JAR_LIB];
+export const ALL_JARS: string[] = [JAR_LOGIN, JAR_CAS, JAR_SCHOOL, JAR_ECLASS, JAR_LIB, JAR_CARD];

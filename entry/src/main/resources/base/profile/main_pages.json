@@ -16,6 +16,8 @@
     "pages/EclassActivityPage",
     "pages/WebShellPage",
     "pages/LibBorrowPage",
-    "pages/LibLoginPage"
+    "pages/LibLoginPage",
+    "pages/CardPage",
+    "pages/CardLoginPage"
   ]
 }

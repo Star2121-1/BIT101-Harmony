@@ -24,6 +24,8 @@ import { SessionStore } from '../data/SessionStore.ts';
 import { SchoolCookieStore } from '../data/SchoolCookieStore.ts';
 import { EclassCookieStore } from '../data/EclassCookieStore.ts';
 import { LibCookieStore } from '../data/LibCookieStore.ts';
+import { CardCookieStore } from '../data/CardCookieStore.ts';
+import { CampusCardStore } from '../data/CampusCardStore.ts';
 import { Prefs } from '../data/Prefs.ts';
 import { SchoolService } from '../service/SchoolService.ts';
 import { CampusInfo } from '../core/model/SchoolModels.ts';
@@ -201,6 +203,9 @@ struct SettingsPage {
       await EclassCookieStore.clear();
       // 图书馆会话同款三处（Prefs + rcp 罐 + Web 组件存储）
       await LibCookieStore.clear();
+      // 一卡通会话同款三处 + 余额趋势历史（换账号不串趋势）
+      await CardCookieStore.clear();
+      await CampusCardStore.clear();
       this.loggedIn = false;
       this.studentId = '';
       this.campusList = [];
@@ -378,6 +383,19 @@ struct SettingsPage {
             .width('100%').padding({ top: 10 })
             .onClick(() => {
               router.pushUrl({ url: 'pages/LibBorrowPage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+
+            Row() {
+              Text('一卡通')
+                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+              Text('余额与趋势').fontSize(13).fontColor(this.p().textMuted)
+              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+            }
+            .width('100%').padding({ top: 10 })
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/CardPage' }).catch((e: Error) => {
                 this.toast = '跳转失败：' + JSON.stringify(e);
               });
             })

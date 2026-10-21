@@ -41,8 +41,9 @@ Android 版是用 WebView 承载学校 CAS 登录页的，在 HarmonyOS 上这�
 | **延河课堂作业（DDL）** | ✅ | App 内 Web 登录抽 cookie → 同步截止时间；未完成/已完成两栏，勾选杀进程不丢 |
 | **课程动态** | ✅ | 各课程最新活动流；点条目在 App 内 Web 壳带会话打开课程页 |
 | 图书馆借阅 | 🔄 | 代码与单测完成（当前在借/历史 + 到期倒数），待真机登录验证 |
+| **一卡通余额** | 🔄 | 代码与单测完成（余额 + 近 N 天趋势，「请求失败≠未登录」三态分离），待真机登录验证 |
 
-**还没做的**：座位预约的选座界面、通知提醒、桌面卡片、一卡通 / 校园网、校园地图、成绩查询。
+**还没做的**：座位预约的选座界面、通知提醒、桌面卡片、校园网流量、校园地图、成绩查询。
 
 **不做**：NFC 校园卡（设备与协议都不支持）、社区论坛。
 
@@ -87,7 +88,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version          # 需要 22.6+（支持 --experimental-strip-types）
-bash tools/run-tests.sh # 9 个套件，409 条断言
+bash tools/run-tests.sh # 11 个套件，516 条断言
 ```
 
 | 套件 | 断言数 | 测什么 |
@@ -101,6 +102,8 @@ bash tools/run-tests.sh # 9 个套件，409 条断言
 | `test-eclass` | 40 | eclass 契约字段解析 + 课程/动态模型 |
 | `test-ddl` | 39 | DDL 合并规则（保留 done）+ remainTime 口径 1:1 Android |
 | `test-libborrow` | 68 | 图书馆借阅解析（JSON 套 HTML 套 JS 数组）+ 到期判定 + 「通知不含书名」 |
+| `test-routes` | 33 | 路由守卫：所有 `router.pushUrl` 目标都必须在 `main_pages.json` 里（漏了 = 页面不进编译器，构建假绿） |
+| `test-card` | 70 | 一卡通解析（最终 URL 判登录、余额字段去重）+ 趋势口径（7 天窗口、样本不足如实降级、残差按无变化） |
 
 CI（`.github/workflows/test.yml`）每次 push 自动跑这些，外加一条**关键资源存在性检查** —— 它守的是两个真实踩过的坑：TLS 中间证书被 `.gitignore` 误伤（编译能过、运行期静默降级）、app 图标被全局 `*.png` 误删。
 

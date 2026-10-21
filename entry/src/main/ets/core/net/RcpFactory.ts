@@ -29,6 +29,12 @@ export interface HttpTextResult {
   status: number;
   headers: Record<string, string>;
   body: string;
+  /**
+   * **跟随重定向之后的最终 URL**（`resp.effectiveUrl`；无重定向时 = 请求 URL）。
+   * 对齐 OkHttp 的 `resp.request.url` —— 一卡通「未登录」判定就看它
+   * （落在 sso.bit.edu.cn = 被踢去 CAS 了），见 CampusCardLogic.parse。
+   */
+  finalUrl: string;
 }
 
 export class RcpFactory {
@@ -198,10 +204,20 @@ export class RcpFactory {
       error('rcp GET transport error: ' + JSON.stringify(err));
       throw new Error('rcp 传输错误（TLS/网络/证书）: ' + JSON.stringify(err));
     }
+    // effectiveUrl 仅在发生过重定向时有值；取不到就退回请求 URL（与 OkHttp request.url 同语义）
+    let finalUrl: string = url;
+    try {
+      if (resp.effectiveUrl !== undefined) {
+        finalUrl = resp.effectiveUrl.toString();
+      }
+    } catch (e) {
+      warn('effectiveUrl read fail: ' + JSON.stringify(e));
+    }
     return {
       status: resp.statusCode,
       headers: RcpFactory.normalizeHeaders(resp.headers),
-      body: RcpFactory.decodeBody(resp.body)
+      body: RcpFactory.decodeBody(resp.body),
+      finalUrl: finalUrl
     };
   }
 
@@ -215,10 +231,19 @@ export class RcpFactory {
       error('rcp POST transport error: ' + JSON.stringify(err));
       throw new Error('rcp 传输错误（TLS/网络/证书）: ' + JSON.stringify(err));
     }
+    let finalUrl: string = url;
+    try {
+      if (resp.effectiveUrl !== undefined) {
+        finalUrl = resp.effectiveUrl.toString();
+      }
+    } catch (e) {
+      warn('effectiveUrl read fail: ' + JSON.stringify(e));
+    }
     return {
       status: resp.statusCode,
       headers: RcpFactory.normalizeHeaders(resp.headers),
-      body: RcpFactory.decodeBody(resp.body)
+      body: RcpFactory.decodeBody(resp.body),
+      finalUrl: finalUrl
     };
   }
 
