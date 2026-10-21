@@ -10,6 +10,7 @@
 
 import { type DateTime } from './timeutil.ts';
 import { SeatStatus, type Seat } from '../model/SeatModel.ts';
+import { SeatStatus as LogicSeatStatus } from './SeatLogic.ts';
 
 /**
  * 一条预约记录（来自服务端 /api/index/subscribe）。
@@ -53,11 +54,11 @@ export function getReservationStatus(record: ReservationRecord, now: DateTime): 
 
   let status: SeatStatus;
   if (record.isCheckedIn) {
-    status = SeatStatus.CHECKED_IN;
+    status = LogicSeatStatus.CHECKED_IN;
   } else if (isExpired) {
-    status = SeatStatus.EXPIRED;
+    status = LogicSeatStatus.EXPIRED;
   } else {
-    status = SeatStatus.RESERVED_YOURS;
+    status = LogicSeatStatus.RESERVED_YOURS;
   }
 
   return {

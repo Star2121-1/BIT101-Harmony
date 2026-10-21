@@ -44,7 +44,7 @@ function makeRecord(overrides = {}) {
     segmentId: 'seg_001',
     startTime: { day: 0, minutes: 480 }, // 08:00
     endTime: { day: 0, minutes: 540 },   // 09:00
-    signInDeadline: { day: 0, minutes: 465 }, // 07:45
+    signInDeadline: { day: 0, minutes: 540 }, // 09:00（开始时间 + 60分钟）
     status: 2,
     isCheckedIn: false,
     ...overrides,
@@ -74,9 +74,9 @@ function makeRecord(overrides = {}) {
   eq(result.isExpired, true, "isExpired = true");
 }
 {
-  // 即将截止（< 10 分钟）
+  // 即将截止（< 10 分钟）- 签到截止 09:00，现在是 08:55
   const record = makeRecord();
-  const result = getReservationStatus(record, { day: 0, minutes: 456 }); // 07:36
+  const result = getReservationStatus(record, { day: 0, minutes: 535 }); // 08:55
   ok(result.isSignInUrgent, "剩余 < 10 分钟 → isSignInUrgent");
 }
 
