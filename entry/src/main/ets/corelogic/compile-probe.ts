@@ -28,7 +28,7 @@ import {
 import { SeatTreeNode } from "../model/SeatTreeModel.ts";
 import {
   ENDPOINTS, seatStatusOf, isFree, parseSeats, buildConfirmBody, bizResult,
-  signInDeadline, seatNumberEquals,
+  signInDeadline, seatNumberEquals, wireStatusText, wireStatusColor,
 } from "./SeatApiLogic.ts";
 import { courseTimeText, FALLBACK_TIME_TABLE } from "./TimeTableLogic.ts";
 import { pickDay, buildDayBlocks } from "./WidgetLogic.ts";
@@ -98,7 +98,9 @@ export function runProbe(): string {
     (bizResult({ code: 1 }).ok ? "biz-ok" : "biz-bad") + "/" +
     (JSON.stringify(signInDeadline(100, 480, 100)) === '{"day":100,"minutes":540}' ? "dl-ok" : "dl-bad") + "/" +
     (seatNumberEquals("001", "1") ? "eq-ok" : "eq-bad") + "/" +
-    (parseSeats([{ id: "1", no: "001", status: "1" }], "a").length === 1 ? "ps-ok" : "ps-bad"));
+    (parseSeats([{ id: "1", no: "001", status: "1" }], "a").length === 1 ? "ps-ok" : "ps-bad") + "/" +
+    (wireStatusText("AVAILABLE") === "空闲" ? "wst-ok" : "wst-bad") + "/" +
+    (wireStatusColor("LEAVE", false) === "#B45309" ? "wsc-ok" : "wsc-bad"));
 
   // 以下参数较复杂，不在此构造合法入参，仅 import 强制编译器吃文件（类型校验）
   void weekOf;
