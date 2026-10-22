@@ -26,6 +26,10 @@ import {
   buildViolationVM, seminarVMs,
 } from "./SeatViewLogic.ts";
 import { SeatTreeNode } from "../model/SeatTreeModel.ts";
+import {
+  ENDPOINTS, seatStatusOf, isFree, parseSeats, buildConfirmBody, bizResult,
+  signInDeadline, seatNumberEquals,
+} from "./SeatApiLogic.ts";
 import { courseTimeText, FALLBACK_TIME_TABLE } from "./TimeTableLogic.ts";
 import { pickDay, buildDayBlocks } from "./WidgetLogic.ts";
 
@@ -84,6 +88,17 @@ export function runProbe(): string {
       otherName: null, timeRange: null, kind: "SINGLE", signInKind: "NFC_QR",
       signInDeadlineMinutes: null, isCheckedIn: false }).reservable ? "resv" : "resbad") +
     "/" + (myReservations([], { day: 0, minutes: 0 }).length === 0 ? "mineok" : "minebad"));
+
+  // SeatApiLogic：座位接口契约（端点/body/解析/状态映射，铁律0.9 对齐 Android 实测）
+  parts.push("seatapi=" +
+    (ENDPOINTS.confirm === "/api/Seat/confirm" ? "ep-ok" : "ep-bad") + "/" +
+    (seatStatusOf("2") === "RESERVED" ? "st-ok" : "st-bad") + "/" +
+    (isFree("AVAILABLE") ? "free-ok" : "free-bad") + "/" +
+    (JSON.stringify(buildConfirmBody("007", "")) === '{"seat_id":7,"segment":"1"}' ? "body-ok" : "body-bad") + "/" +
+    (bizResult({ code: 1 }).ok ? "biz-ok" : "biz-bad") + "/" +
+    (JSON.stringify(signInDeadline(100, 480, 100)) === '{"day":100,"minutes":540}' ? "dl-ok" : "dl-bad") + "/" +
+    (seatNumberEquals("001", "1") ? "eq-ok" : "eq-bad") + "/" +
+    (parseSeats([{ id: "1", no: "001", status: "1" }], "a").length === 1 ? "ps-ok" : "ps-bad"));
 
   // 以下参数较复杂，不在此构造合法入参，仅 import 强制编译器吃文件（类型校验）
   void weekOf;
