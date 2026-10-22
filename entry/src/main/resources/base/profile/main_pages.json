@@ -23,6 +23,7 @@
     "pages/MePage",
     "pages/OverlayPage",
     "pages/NotifyListPage",
-    "pages/NotifySettingsPage"
+    "pages/NotifySettingsPage",
+    "pages/SeatPage"
   ]
 }

@@ -231,13 +231,13 @@
 | ID | 任务 | 依赖 | 验收判据 | 状态 |
 |---|---|---|---|---|
 | M9-1 | 座位 JWT 换取 | — | seatlib 业务接口 `code=1`（M1 已证） | ✅ 完成 |
-| M9-2 | 座位树/楼层/区域 | M9-1 | 能列出校区→楼→楼层→区域 | 🔄 逻辑层完成（SeatTreeModel + SeatTreeService + SeatLogic 规则引擎 + 75 条单测）；UI 树/楼层选择页待实现 |
-| M9-3 | 房间底图选座（5 张底图 + 百分比坐标） | M9-2 | 底图上座位点位与真实布局对得上，点选有反馈 | 🔄 坐标映射纯逻辑完成（SeatMapLogic + SeatMapModel + SeatMapData + 28 条单测）；UI 底图渲染/点位/点击反馈待实现 |
-| M9-4 | 预约提交（单次模式） | M9-3 | 真机提交后服务端「我的预约」里出现该记录 | 🔄 逻辑层完成（SeatReserveLogic + 21 条单测，参数校验/请求体构建/响应解析/签到截止）；UI 表单 + 服务端真提交待实现 ⚠️有对外副作用 |
-| M9-5 | 我的预约 / 取消 | M9-4 | 取消后列表消失，服务端也消失 | 🔄 逻辑层完成（SeatReservationLogic + 22 条单测，对齐 Android signInDeadline=开始+60min）；UI 列表/取消按钮待实现 |
-| M9-6 | 违约计数（N/5 + 明细） | M9-1 | 显示「违约 N/5」，与图书馆接口一致 | 🔄 逻辑层完成（SeatViolationLogic + 15 条单测，计数/上限/文案/过期清理）；UI 展示待实现 |
-| M9-7 | 研讨间（看/取消） | M9-1 | 研讨间预约与座位**分开**计数 | 🔄 逻辑层完成（SeminarLogic + 15 条单测，/api/Seminar/* 与座位分离）；UI 待实现 |
-| M9-8 | 前台监控（无后台轮询） | M9-4 | App 前台时能发现空位并提示；退到后台**明确提示不监控** | 🔄 逻辑层完成（SeatMonitorLogic 纯函数化 + SeatTask 模型 + SeatTaskStore + ISeatService 接口 + 26 条单测）；UI 面板 + 前台生命周期接线待实现 |
+| M9-2 | 座位树/楼层/区域 | M9-1 | 能列出校区→楼→楼层→区域 | 🔄 逻辑层（SeatTreeModel + SeatTreeService + SeatLogic 75 条）+ **UI 已建**（SeatPage 三级选择 campus/floor/area，groupTree 分组；test-seatview 58 条）；真机未验 |
+| M9-3 | 房间底图选座（5 张底图 + 百分比坐标） | M9-2 | 底图上座位点位与真实布局对得上，点选有反馈 | 🔄 坐标映射纯逻辑完成（SeatMapLogic + SeatMapModel + SeatMapData + 28 条）；**UI 底图点位渲染尚未做**（当前 SeatPage 用「列表」展示座位状态，非底图形态；底图 Image + 点位点击反馈是 M9-3 剩余缺口） |
+| M9-4 | 预约提交（单次模式） | M9-3 | 真机提交后服务端「我的预约」里出现该记录 | 🔄 逻辑层完成（SeatReserveLogic 21 条 + buildSlotOptions/validateSlot 时段校验）；**UI 预约提交表单尚未做** ⚠️有对外副作用 |
+| M9-5 | 我的预约 / 取消 | M9-4 | 取消后列表消失，服务端也消失 | 🔄 逻辑层（SeatReservationLogic 22 条）+ **UI 已建**（SeatPage 我的预约列表 + 取消二次确认，铁律 0.6 守门）；真机未验 |
+| M9-6 | 违约计数（N/5 + 明细） | M9-1 | 显示「违约 N/5」，与图书馆接口一致 | 🔄 逻辑层完成（SeatViolationLogic 15 条 + buildViolationVM）；**UI 未做**（SeatPage 明确标注「违约接口待接，不造假数据」——SeatService.fetchDefaults 现为空占位） |
+| M9-7 | 研讨间（看/取消） | M9-1 | 研讨间预约与座位**分开**计数 | 🔄 逻辑层完成（SeminarLogic 15 条 + seminarVMs）；**UI 未做**（研讨间接口未通，SeatPage 标注「待接接口」） |
+| M9-8 | 前台监控（无后台轮询） | M9-4 | App 前台时能发现空位并提示；退到后台**明确提示不监控** | 🔄 逻辑层完成（SeatMonitorLogic 纯函数化 + SeatTask 模型 + SeatTaskStore + ISeatService 接口 + 26 条）；**UI 面板 + 前台生命周期接线待实现** |
 
 **⚠️ M9-4/M9-5 红线**：有对外副作用的动作（提交预约/取消）**绝不上自动路径**，必须用户显式点击且参数必填（MEMORY 铁律 0.6）。
 

@@ -298,6 +298,27 @@ struct MePage {
             });
           })
 
+          // ── 座位（M9：选座 / 我的预约 / 取消）──
+          Column() {
+            Row() {
+              Text('座位预约')
+                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+              Text('选座 / 我的预约').fontSize(11).fontColor(this.p().textMuted)
+              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+            }
+            .width('100%')
+            Text('需登录 seatlib；取消为对外操作，二次确认')
+              .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 4 })
+          }
+          .width('100%').padding(12).margin({ top: 10 })
+          .backgroundColor(this.p().bgCard).borderRadius(10)
+          .alignItems(HorizontalAlign.Start)
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/SeatPage' }).catch((e: Error) => {
+              warn('me -> seat fail: ' + JSON.stringify(e));
+            });
+          })
+
           // ── 作业 / 设置 ──
           Column() {
             Row() {

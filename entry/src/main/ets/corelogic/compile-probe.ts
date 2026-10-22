@@ -20,6 +20,12 @@ import { parseTable, summaryText } from "./ScoreLogic.ts";
 import { isReady, shouldCheck } from "./ScoreQueryLogic.ts";
 import { statusText, ScoreCheckCode } from "./ScoreCheckLogic.ts";
 import { coursesToSchedule, assembleWidgetPages, isSerializablePayload } from "./WidgetData.ts";
+import {
+  groupTree, toSeatVM, summarizeSeats, fmtMinutes,
+  buildSlotOptions, validateSlot, myReservations,
+  buildViolationVM, seminarVMs,
+} from "./SeatViewLogic.ts";
+import { SeatTreeNode } from "../model/SeatTreeModel.ts";
 import { courseTimeText, FALLBACK_TIME_TABLE } from "./TimeTableLogic.ts";
 import { pickDay, buildDayBlocks } from "./WidgetLogic.ts";
 
@@ -61,6 +67,23 @@ export function runProbe(): string {
     now: { day: 0, minutes: 0 }
   });
   parts.push("widget=" + widgetPages.length + "pages/" + (isSerializablePayload(widgetPages) ? "serializable" : "dirty"));
+  // SeatViewLogic：座位树分组 + 座位 VM + 时段校验 + 违约/研讨间视图（M9 UI 支撑）
+  const probeTreeNodes: SeatTreeNode[] = [
+    new SeatTreeNode('c1', '良乡', 0, null, null),
+    new SeatTreeNode('f1', '1F', 0, 'c1', null),
+    new SeatTreeNode('a1', '自习区A', 1, 'f1', null),
+  ];
+  const probeCampus = groupTree(probeTreeNodes);
+  parts.push("seatview=" + probeCampus.length + "campus/" + fmtMinutes(480) + "/" +
+    (validateSlot(480, 540, 480).length === 0 ? "slotok" : "slotbad") + "/" +
+    (summarizeSeats([]).freeRatio === "暂无座位" ? "sumok" : "sumbad") + "/" +
+    (buildViolationVM([], 0).countText === "0/5" ? "viook" : "viobad") + "/" +
+    (seminarVMs([]).length === 0 ? "semok" : "sembad") + "/" +
+    (buildSlotOptions(480, 30, 480).maxDuration === 480 ? "slotmax" : "slotbadmax") +
+    "/" + (toSeatVM({ seatId: "x", seatName: "x", status: "FREE", reservationId: null,
+      otherName: null, timeRange: null, kind: "SINGLE", signInKind: "NFC_QR",
+      signInDeadlineMinutes: null, isCheckedIn: false }).reservable ? "resv" : "resbad") +
+    "/" + (myReservations([], { day: 0, minutes: 0 }).length === 0 ? "mineok" : "minebad"));
 
   // 以下参数较复杂，不在此构造合法入参，仅 import 强制编译器吃文件（类型校验）
   void weekOf;
