@@ -6,7 +6,7 @@
 import {
   ENDPOINTS, DEFAULT_SEGMENT_ID,
   seatStatusOf, isFree, parseSeats, parseSeatDates, usableSegment,
-  parseMyReservations, parseRenege, renegeKey,
+  parseMyReservations, parseRenege, renegeKey, renegeText,
   seatIdToNumber, buildSeatBody, buildConfirmBody, buildSubscribeBody,
   buildCancelBody, buildMapBody, buildRenegeBody, buildSeminarBody,
   bizResult, signInDeadline, signInHintText,
@@ -128,6 +128,12 @@ function ok(cond, name) {
   const rs = parseRenege(rows);
   eq(rs[0].nameMerge, '徐特立馆-三层-阅览室', "合并名");
   eq(renegeKey(rs[0]), '徐特立馆-三层-阅览室|018|2026-09-18 09:00', "身份键合成");
+  eq(renegeText(rs[0]), '徐特立馆-三层-阅览室 · 2026-09-18 09:00 · 已违约', "展示文案（合并名优先）");
+  // 缺合并名 → 回落具体名；缺 statusName → 不硬塞
+  const bare = parseRenege([{ nameMerge: '', name: '007', time: '2026-09-18 09:00', status: '1', statusName: '' }]);
+  eq(renegeText(bare[0]), '007 · 2026-09-18 09:00', "缺合并名回落 name / 缺状态不塞");
+  const empty = parseRenege([{ nameMerge: '', name: '', time: '', status: '', statusName: '' }]);
+  eq(renegeText(empty[0]), '', "全空 → 空串（UI 自行隐藏）");
 }
 
 // ── 7. body 构建（1:1 Android jsonBody）────────────────────────────────

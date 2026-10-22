@@ -278,6 +278,20 @@ export function renegeKey(r: RenegeRecord): string {
   return r.nameMerge + '|' + r.name + '|' + r.time;
 }
 
+/**
+ * 一条违约记录的展示文案（UI 列表直用，wire 字段直出、不造数据）。
+ * 口径：「{区域/合并名} {时间} {状态}」——缺失字段不硬塞，空就跳过。
+ * 例：「文萃楼 研讨间A 2026-10-18 14:00 未签到」。
+ */
+export function renegeText(r: RenegeRecord): string {
+  const who: string = r.nameMerge.length > 0 ? r.nameMerge : r.name;
+  const parts: string[] = [];
+  if (who.length > 0) parts.push(who);
+  if (r.time.length > 0) parts.push(r.time);
+  if (r.statusName.length > 0) parts.push(r.statusName);
+  return parts.join(' · ');
+}
+
 // ── body 构建（对齐 Android jsonBody，1:1）────────────────────────────────
 
 /** 座位号 → 数字（服务端按 int 处理；补零 "001" → 1）。非法则原样返回字符串。 */

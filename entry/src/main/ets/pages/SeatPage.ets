@@ -23,8 +23,8 @@ import {
   type CampusGroup, type FloorGroup, type AreaGroup,
 } from '../corelogic/SeatViewLogic.ts';
 import {
-  type WireSeat, type MyReservation,
-  wireStatusText, wireStatusColor, isFree,
+  type WireSeat, type MyReservation, type RenegeRecord,
+  wireStatusText, wireStatusColor, isFree, renegeText,
 } from '../corelogic/SeatApiLogic.ts';
 
 @Entry
@@ -62,6 +62,11 @@ struct SeatPage {
   @State reserveTarget: string | null = null;
   @State reserveBusy: boolean = false;
   @State reserveResult: string = '';
+
+  // 我的违约记录（权威 wire：/api/Member/reneges type=1；rename 直出，不造数据）
+  @State reneges: RenegeRecord[] = [];
+  @State renLoading: boolean = false;
+  @State renErr: string = '';
 
   private svc: SeatService = new SeatService();
   private treeSvc: SeatTreeService = new SeatTreeService();
@@ -138,6 +143,7 @@ struct SeatPage {
     }
     this.loadSeats();
     this.loadMyReservations();
+    this.loadReneges();
   }
 
   private async loadSeats(): Promise<void> {
@@ -284,6 +290,32 @@ struct SeatPage {
     this.reserveBusy = false;
   }
 
+  /** 拉我的违约记录（/api/Member/reneges type=1 座位；账号级，不按区域）。
+   *  研讨间（type=2）与研讨间预约的 wire 字段未真机核对（铁律 0.9），本页不渲染，仅违约直出。 */
+  private async loadReneges(): Promise<void> {
+    this.renLoading = true;
+    this.renErr = '';
+    this.reneges = [];
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const user = await SeatService.getSession(ctx);
+      if (user === null) {
+        this.renErr = '未登录，未取到违约记录';
+        this.renLoading = false;
+        return;
+      }
+      const res = await this.svc.reneges(ctx, user.jwt, 1);
+      if (!res.ok) {
+        this.renErr = (res.message ?? '').length > 0 ? res.message! : '违约记录拉取失败';
+      } else {
+        this.reneges = res.records;
+      }
+    } catch (e) {
+      this.renErr = '违约记录拉取失败：' + (e as Error).message;
+    }
+    this.renLoading = false;
+  }
+
   build() {
     Column() {
       // 顶栏
@@ -399,11 +431,16 @@ struct SeatPage {
             this.reserveBlock()
           }
 
-          // ── 研讨间 / 违约（服务端接口待接，不造假数据）──
-          Text('研讨间、违约记录：服务端接口已备（SeatApiLogic），UI 展示待接（不造假数据）')
+          // ── 我的违约记录（权威 wire /api/Member/reneges type=1，直出不造数据）──
+          Text('我的违约记录（' + this.reneges.length + '）')
+            .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 16 })
+          this.renBlock()
+
+          // ── 研讨间（wire 字段未真机核对，铁律 0.9 不渲染，如实标注）──
+          Text('研讨间预约：接口已备（/api/Member/seminar），但 wire 字段未真机核对，暂不渲染（铁律 0.9 不造假数据）')
             .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 12 })
 
-          Text('取消 / 预约为对外操作，需设备端真机回归（当前离线未验）')
+          Text('取消 / 预约 / 违约为敏感操作，需设备端真机回归（当前离线未验）')
             .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 4 })
         }
         .width('100%').padding({ left: 12, right: 12, bottom: 24 })
@@ -535,5 +572,36 @@ struct SeatPage {
     }
     .width('100%').padding(10).margin({ top: 8 })
     .backgroundColor(this.p().bgAlt).borderRadius(8)
+  }
+
+  /** 违约记录区块（权威 wire 直出；空态 / 加载 / 错误 / 列表 四态齐备，不造假数据）。 */
+  @Builder
+  renBlock() {
+    Column() {
+      if (this.renLoading) {
+        Text('拉取违约记录…').fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 4 })
+      } else if (this.renErr.length > 0) {
+        Text(this.renErr).fontSize(11).fontColor(this.p().error).width('100%').margin({ top: 4 })
+      } else if (this.reneges.length === 0) {
+        Text('暂无违约记录').fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 4 })
+      } else {
+        ForEach(this.reneges, (r: RenegeRecord) => {
+          this.renRow(r)
+        }, (r: RenegeRecord) => 'ren' + renegeKey(r))
+      }
+    }
+    .width('100%')
+  }
+
+  /** 单条违约行（文案走 renegeText，wire 字段直出）。 */
+  @Builder
+  renRow(r: RenegeRecord) {
+    Row() {
+      Text(renegeText(r))
+        .fontSize(12).fontColor(this.p().textSecondary).layoutWeight(1)
+    }
+    .width('100%').padding({ top: 8, bottom: 8 })
+    .backgroundColor(this.p().bgCard).borderRadius(8).margin({ top: 4 })
+    .alignItems(VerticalAlign.Center)
   }
 }
