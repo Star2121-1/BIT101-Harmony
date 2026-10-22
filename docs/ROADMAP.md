@@ -127,7 +127,7 @@
 | 28 | 桌面卡片（4 页） | ⬜ 逻辑已移植，Form Kit 未验 | M8 |
 | 29 | 座位登录 | ✅ JWT 已通（M1） | — |
 | 30 | 座位树/底图选座 | 🔄 逻辑层+契约层+主页 UI 已建（欠底图点位渲染） | M9-2/3 |
-| 31 | 预约/取消/违约/研讨间 | 🔄 逻辑层+契约层全完（欠预约表单 UI / 违约研讨间 UI） | M9-4~7 |
+| 31 | 预约/取消/违约/研讨间 | 🔄 逻辑层+契约层全完；预约/取消交互已建（SeatPage 二次确认），欠违约/研讨间 UI | M9-4~7 |
 | 32 | 前台监控 | ⬜ 待做 | M9-8 |
 | 33 | 校园地图 | ⬜ 坐标已移植，瓦片+UI 未做 | M10-1 |
 | 34 | 成绩 | ⬜ 待做 | M10-2 |
@@ -136,7 +136,7 @@
 | 37 | NFC 校园卡 | 🚫 不做 | — |
 | 38 | 话廊/发帖/举报/消息 | 🚫 不做 | — |
 
-**结论**：37 项能力里 ✅ 6 项、🔄 7 项、⬜ 22 项、🚫 2 项。排除不做项后，**还剩约 22 个未开始的功能块**。M9 的 8 项逻辑层 + 契约层已全部完成，座位主页 UI 已建，剩余缺口：M9-3 底图点位渲染 / M9-4 预约提交表单 / M9-8 监控面板 UI。
+**结论**：37 项能力里 ✅ 6 项、🔄 7 项、⬜ 22 项、🚫 2 项。排除不做项后，**还剩约 22 个未开始的功能块**。M9 的 8 项逻辑层 + 契约层已全部完成，座位主页 UI 已建（含预约/取消二次确认交互），剩余缺口：M9-3 底图点位渲染 / M9-8 监控面板 UI / M9-6/7 违约研讨间 UI。
 
 ---
 
@@ -233,7 +233,7 @@
 | M9-1 | 座位 JWT 换取 | — | seatlib 业务接口 `code=1`（M1 已证） | ✅ 完成 |
 | M9-2 | 座位树/楼层/区域 | M9-1 | 能列出校区→楼→楼层→区域 | 🔄 逻辑层（SeatTreeModel + SeatTreeService + SeatLogic 75 条）+ **UI 已建**（SeatPage 三级选择 campus/floor/area，groupTree 分组；test-seatview 58 条）；真机未验 |
 | M9-3 | 房间底图选座（5 张底图 + 百分比坐标） | M9-2 | 底图上座位点位与真实布局对得上，点选有反馈 | 🔄 坐标映射纯逻辑完成（SeatMapLogic + SeatMapModel + SeatMapData + 28 条）；**UI 底图点位渲染尚未做**（当前 SeatPage 用「列表」展示座位状态，非底图形态；底图 Image + 点位点击反馈是 M9-3 剩余缺口） |
-| M9-4 | 预约提交（单次模式） | M9-3 | 真机提交后服务端「我的预约」里出现该记录 | 🔄 逻辑层完成（SeatReserveLogic 21 条 + buildSlotOptions/validateSlot 时段校验）；**契约层已对齐**（SeatApiLogic `buildConfirmBody` seat_id(int)+segment，铁律 0.9）；**UI 预约提交表单尚未做** ⚠️有对外副作用 |
+| M9-4 | 预约提交（单次模式） | M9-3 | 真机提交后服务端「我的预约」里出现该记录 | 🔄 逻辑层完成（SeatReserveLogic 21 条 + buildSlotOptions/validateSlot 时段校验）；**契约层已对齐**（SeatApiLogic `buildConfirmBody` seat_id(int)+segment，铁律 0.9）；**预约交互已建**（SeatPage 点空闲座位行→二次确认→confirmSeat→刷新座位+我的预约，对称于取消，铁律 0.6 守门）；真机未验。⚠️ **隐患待清**：旧 `SeatReserveLogic.calcSignInDeadline`（开始**-15min**）与权威 `SeatApiLogic.signInDeadline`（当日=开始**+60min**/次日=09:00）方向相反，前者零业务引用（仅旧单测用），M9-4 接线时删 |
 | M9-5 | 我的预约 / 取消 | M9-4 | 取消后列表消失，服务端也消失 | 🔄 逻辑层（SeatReservationLogic 22 条）+ **UI 已建**（SeatPage 我的预约列表 + 取消二次确认，铁律 0.6 守门；取消走 `/api/Space/cancel` 传 record.id 非座位 id，契约层 SeatApiLogic 对齐）；真机未验 |
 | M9-6 | 违约计数（N/5 + 明细） | M9-1 | 显示「违约 N/5」，与图书馆接口一致 | 🔄 逻辑层完成（SeatViolationLogic 15 条 + buildViolationVM）+ **契约层已对齐**（SeatApiLogic `/api/Member/reneges` type 1=座位 2=研讨室）；**UI 未做**（SeatPage 标注「待接接口，不造假数据」） |
 | M9-7 | 研讨间（看/取消） | M9-1 | 研讨间预约与座位**分开**计数 | 🔄 逻辑层完成（SeminarLogic 15 条 + seminarVMs）+ **契约层已对齐**（SeatApiLogic `/api/Member/seminar`，与座位分离）；**UI 未做**（研讨间接口未通，SeatPage 标注「待接接口」） |

@@ -24,7 +24,7 @@ import {
 } from '../corelogic/SeatViewLogic.ts';
 import {
   type WireSeat, type MyReservation,
-  wireStatusText, wireStatusColor,
+  wireStatusText, wireStatusColor, isFree,
 } from '../corelogic/SeatApiLogic.ts';
 
 @Entry
@@ -57,6 +57,11 @@ struct SeatPage {
   @State cancelTarget: string | null = null;
   @State cancelBusy: boolean = false;
   @State cancelResult: string = '';
+
+  // 预约确认态（铁律 0.6 对称：点空闲座位 → 二次确认 → 才真调 confirm）
+  @State reserveTarget: string | null = null;
+  @State reserveBusy: boolean = false;
+  @State reserveResult: string = '';
 
   private svc: SeatService = new SeatService();
   private treeSvc: SeatTreeService = new SeatTreeService();
@@ -138,6 +143,8 @@ struct SeatPage {
   private async loadSeats(): Promise<void> {
     this.seatsLoading = true;
     this.seatsErr = '';
+    this.reserveTarget = null;
+    this.reserveResult = '';
     try {
       const ctx: Context = getContext(this) as Context;
       const user = await SeatService.getSession(ctx);
@@ -234,6 +241,47 @@ struct SeatPage {
       this.cancelTarget = null;
     }
     this.cancelBusy = false;
+  }
+
+  /** 点空闲座位行：先进预约确认态，不直接调接口（铁律 0.6）。 */
+  private requestReserve(seatId: string): void {
+    this.reserveTarget = seatId;
+    this.reserveResult = '';
+  }
+
+  /** 二次确认后才真正预约（有对外副作用，铁律 0.6）。
+   *  权威契约 confirm 只传 {seat_id, segment}；segment 传 ''，buildConfirmBody 会回落默认段 "1"
+   *  （times[].id 实测恒 null，回落是正常路径）。成功后刷新座位快照 + 我的预约。 */
+  private async confirmReserve(): Promise<void> {
+    const sid: string | null = this.reserveTarget;
+    if (sid === null) {
+      return;
+    }
+    this.reserveBusy = true;
+    this.reserveResult = '';
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const user = await SeatService.getSession(ctx);
+      if (user === null) {
+        this.reserveResult = '未登录，无法预约';
+        this.reserveBusy = false;
+        this.reserveTarget = null;
+        return;
+      }
+      const res = await this.svc.confirmSeat(ctx, user.jwt, sid, '');
+      this.reserveTarget = null;
+      if (res.ok) {
+        this.reserveResult = '预约成功';
+        await this.loadSeats();
+        await this.loadMyReservations();
+      } else {
+        this.reserveResult = res.message ?? '预约失败';
+      }
+    } catch (e) {
+      this.reserveResult = '预约失败：' + (e as Error).message;
+      this.reserveTarget = null;
+    }
+    this.reserveBusy = false;
   }
 
   build() {
@@ -346,6 +394,11 @@ struct SeatPage {
             this.cancelBlock()
           }
 
+          // ── 预约确认条 ──
+          if (this.reserveTarget !== null || this.reserveResult.length > 0) {
+            this.reserveBlock()
+          }
+
           // ── 研讨间 / 违约（服务端接口待接，不造假数据）──
           Text('研讨间、违约记录：服务端接口已备（SeatApiLogic），UI 展示待接（不造假数据）')
             .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 12 })
@@ -362,7 +415,8 @@ struct SeatPage {
     .backgroundColor(this.p().bgPage)
   }
 
-  /** 单个座位行（纯渲染，无局部变量；状态色/文案走 SeatApiLogic）。 */
+  /** 单个座位行（纯渲染，无局部变量；状态色/文案走 SeatApiLogic）。
+   *  空闲行整行可点（进预约确认态，铁律 0.6）；非空闲行不可点。 */
   @Builder
   seatRow(s: WireSeat) {
     Row() {
@@ -371,12 +425,23 @@ struct SeatPage {
         .backgroundColor(wireStatusColor(s.status, this.isDark))
       Text(s.no.length > 0 ? s.no : s.id)
         .fontSize(13).fontColor(this.p().textPrimary).margin({ left: 8 }).layoutWeight(1)
-      Text(s.statusName.length > 0 ? s.statusName : wireStatusText(s.status))
-        .fontSize(11).fontColor(this.p().textSecondary)
+      if (isFree(s.status)) {
+        Text('点我预约')
+          .fontSize(11).fontColor(this.p().accent)
+      } else {
+        Text(s.statusName.length > 0 ? s.statusName : wireStatusText(s.status))
+          .fontSize(11).fontColor(this.p().textSecondary)
+      }
     }
     .width('100%').padding({ top: 8, bottom: 8 })
     .backgroundColor(this.p().bgCard).borderRadius(8).margin({ top: 4 })
     .alignItems(VerticalAlign.Center)
+    .opacity(isFree(s.status) ? 1 : 0.6)
+    .onClick(() => {
+      if (isFree(s.status) && this.reserveTarget === null && !this.reserveBusy) {
+        this.requestReserve(s.id);
+      }
+    })
   }
 
   /** 空闲统计文案（现算，铁律 0.8）。 */
@@ -443,6 +508,29 @@ struct SeatPage {
       }
       if (this.cancelResult.length > 0) {
         Text(this.cancelResult).fontSize(11).fontColor(this.p().textSecondary).width('100%').margin({ top: 4 })
+      }
+    }
+    .width('100%').padding(10).margin({ top: 8 })
+    .backgroundColor(this.p().bgAlt).borderRadius(8)
+  }
+
+  /** 预约结果 / 确认提示条。 */
+  @Builder
+  reserveBlock() {
+    Column() {
+      if (this.reserveTarget !== null) {
+        Text('确认预约该座位？预约后请在签到截止前刷卡，否则记违约。')
+          .fontSize(11).fontColor(this.p().warn).width('100%')
+        Button('确认预约')
+          .height(26).fontSize(11).margin({ top: 6 })
+          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
+          .enabled(!this.reserveBusy)
+          .onClick(() => {
+            this.confirmReserve();
+          })
+      }
+      if (this.reserveResult.length > 0) {
+        Text(this.reserveResult).fontSize(11).fontColor(this.p().textSecondary).width('100%').margin({ top: 4 })
       }
     }
     .width('100%').padding(10).margin({ top: 8 })
