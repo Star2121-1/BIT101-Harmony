@@ -89,7 +89,8 @@ function parseTimes(raw: string): number[] {
 }
 
 const TIMES: Map<string, number[]> = new Map();
-for (const [k, v] of RAW) TIMES.set(k, parseTimes(v));
+// ArkTS 禁解构赋值（arkts-no-destruct-assignment）⇒ 走索引
+for (const kv of RAW) TIMES.set(kv[0], parseTimes(kv[1]));
 
 /** 某站点、某类日子的完整时刻表（升序 = 站牌顺序）。 */
 export function timetable(stop: Stop, dayType: DayType): number[] {

@@ -384,6 +384,21 @@ M9-1 JWT ✅ ──▶ M9-2 树 ──▶ M9-3 底图 ──▶ M9-4 预约 ─�
 25. **[10-21] ForEach 的 keyGenerator 只能单参**：`(rec, idx?) => …` 双参写法在本编译器下
     连环报 `';' expected`（报错位置还漂到几十行外的容器闭合处）。照 DdlPage 的
     `(e: DdlEntry) => e.uid` 单参写法即可。
+26. **[10-22] ⚠️⚠️⚠️ 全仓 ArkTS 合规扫描（自检）：Node 单测全绿 ≠ 能编译**，一次性修掉 31 处错误级语法：
+    本机无 DevEco（`AppData/Local/Huawei/Sdk` 只剩 productConfig.json 空壳）+ CI 只跑 Node ⇒
+    **鸿蒙仓从来没有过一次可信的 ArkTS 编译门**。按官方《从 TypeScript 到 ArkTS 的适配规则》逐类扫 + 修：
+    ① `unknown`/`any`（arkts-no-any-unknown，10605008）22+3 处 → JsonValue idiom（SchoolModels
+    `str/num/objOf/arrOf`，与 LibBorrowLogic/ScoreLogic 一致）。⚠️ 两个坑：`Record<K,V>` 下标类型是
+    `V | undefined`（标注必须带 `| undefined`，strictNullChecks 会拒）；typeof 守卫后**仍需 `as`**
+    （不依赖编译器窄化）。② `delete`（arkts-no-delete）NotifySentStore.prune → 重建新 map。
+    ③ 解构赋值（arkts-no-destruct-assignment，10605069）5 处 → 索引/临时变量。
+    ④ `globalThis`（SeatTaskStore 的 prefs hack，ArkTS 禁 globalThis）→ Prefs 封装（顺带消灭 `as any`）。
+    ⚠️ **基线 tag 反证**：`h-v1.0.0-alpha.1` 编译图里就带 14 处 unknown + 11 处 as const + 3 处解构，
+    与「assembleHap 已实测通过」的历史记录**矛盾** ⇒ 那条「通过」不可信（大概先行于这些文件或未真编），
+    **不能当编译门**。唯一判据仍是 DevEco/真机 assembleHap。
+    **仍未修（下一轮，已定位）**：`as const`（arkts-no-as-const，10605142）11 文件 19 处 +
+    `(typeof X)[keyof typeof X]` 16 处（禁字面量类型/索引访问类型）。方向：显式 union + 成员逐个 `as T`
+    （保 `=== 'FREE'` 字面量比较兼容）或 ArkTS string enum（会破坏字面量比较，须逐消费方核）。
 
 ---
 

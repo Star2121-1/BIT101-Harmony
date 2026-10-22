@@ -76,16 +76,19 @@ export class NotifySentStore {
     const map: Record<string, number> = await NotifySentStore.loadMap();
     const deadline: number = nowMillis - KEEP_DAYS * 24 * 3600 * 1000;
     const keys: string[] = Object.keys(map);
+    // ArkTS 禁 delete（对象布局编译期固定）⇒ 重建一个新 map，不删旧 map 的键
+    const kept: Record<string, number> = {};
     let removed: number = 0;
     for (let i = 0; i < keys.length; i++) {
       const at: number = map[keys[i]];
       if (!Number.isFinite(at) || at < deadline) {
-        delete map[keys[i]];
         removed++;
+      } else {
+        kept[keys[i]] = at;
       }
     }
     if (removed > 0) {
-      await Prefs.putString(KEY_SENT, JSON.stringify(map));
+      await Prefs.putString(KEY_SENT, JSON.stringify(kept));
       info('NotifySentStore pruned=' + removed);
     }
     return removed;

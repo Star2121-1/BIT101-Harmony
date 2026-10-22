@@ -12,6 +12,8 @@
  * - 本模块只做数据解析和状态判断
  */
 
+import { num as jsonNum, str as jsonStr } from '../core/model/SchoolModels.ts';
+import type { JsonValue } from '../core/model/SchoolModels.ts';
 /** 研讨间预约记录。 */
 export interface SeminarRecord {
   /** 预约 ID（取消时用）。 */
@@ -63,7 +65,7 @@ export function getSeminarStatusText(record: SeminarRecord): string {
  *
  * 对齐 Android：POST /api/Space/cancel，body = { seminar_id: id }
  */
-export function buildCancelSeminarBody(record: SeminarRecord): Record<string, unknown> {
+export function buildCancelSeminarBody(record: SeminarRecord): Record<string, JsonValue> {
   return { seminar_id: record.id };
 }
 
@@ -72,11 +74,11 @@ export function buildCancelSeminarBody(record: SeminarRecord): Record<string, un
  *
  * 格式：`{"code":1,"message":"success"}` 或 `{"code":0,"message":"错误信息"}`
  */
-export function parseSeminarCancelResponse(response: Record<string, unknown>): { ok: boolean; message: string } {
-  const code = Number(response['code'] ?? 0);
-  const message = String(response['message'] ?? '');
+export function parseSeminarCancelResponse(response: Record<string, JsonValue>): { ok: boolean; message: string } {
+  const code = jsonNum(response, 'code', 0);
+  const message = jsonStr(response, 'message', '');
   return {
     ok: code === 1,
-    message: code === 1 ? '取消成功' : (message || '取消失败'),
+    message: code === 1 ? '取消成功' : (message.length > 0 ? message : '取消失败'),
   };
 }

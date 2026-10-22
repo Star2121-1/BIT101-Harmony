@@ -25,6 +25,7 @@ import {
   NOTIFY_KEEP_DAYS
 } from '../corelogic/NotifyRecordLogic.ts';
 import type { ReminderKind } from '../corelogic/NotifyLogic.ts';
+import type { JsonValue } from '../core/model/SchoolModels.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 const KEY: string = 'notify_records_v1';
@@ -144,7 +145,7 @@ export class NotifyRecordStore {
   }
 
   private static parse(raw: string): NotifyRecord[] {
-    const arr: Object[] = JSON.parse(raw) as Object[];
+    const arr: JsonValue[] = JSON.parse(raw) as JsonValue[];
     const out: NotifyRecord[] = [];
     let bad: number = 0;
     const kinds: Set<string> = new Set<string>();
@@ -153,19 +154,19 @@ export class NotifyRecordStore {
       kinds.add(kk[i]);
     }
     for (let i = 0; i < arr.length; i++) {
-      const rec = arr[i] as Record<string, Object>;
-      const key: unknown = rec['key'];
-      const kind: unknown = rec['kind'];
-      const title: unknown = rec['title'];
-      const text: unknown = rec['text'];
-      const at: unknown = rec['atMillis'];
-      const fired: unknown = rec['firedMillis'];
-      if (typeof key !== 'string' || key.length === 0 || key.length > MAX_LEN ||
-        typeof kind !== 'string' || !kinds.has(kind) ||
-        typeof title !== 'string' || title.length > MAX_LEN ||
-        typeof text !== 'string' || text.length > MAX_LEN ||
-        typeof at !== 'number' || !Number.isFinite(at) ||
-        typeof fired !== 'number' || !Number.isFinite(fired)) {
+      const rec = arr[i] as Record<string, JsonValue>;
+      const key: JsonValue | undefined = rec['key'];
+      const kind: JsonValue | undefined = rec['kind'];
+      const title: JsonValue | undefined = rec['title'];
+      const text: JsonValue | undefined = rec['text'];
+      const at: JsonValue | undefined = rec['atMillis'];
+      const fired: JsonValue | undefined = rec['firedMillis'];
+      if (typeof key !== 'string' || (key as string).length === 0 || (key as string).length > MAX_LEN ||
+        typeof kind !== 'string' || !kinds.has(kind as string) ||
+        typeof title !== 'string' || (title as string).length > MAX_LEN ||
+        typeof text !== 'string' || (text as string).length > MAX_LEN ||
+        typeof at !== 'number' || !Number.isFinite(at as number) ||
+        typeof fired !== 'number' || !Number.isFinite(fired as number)) {
         bad++;
         continue;
       }

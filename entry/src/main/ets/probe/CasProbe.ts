@@ -23,6 +23,8 @@ import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import util from '@ohos.util';
 import { Context } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import type { JsonValue } from '../core/model/SchoolModels.ts';
+import { objOf as jsonObjOf, str as jsonStr } from '../core/model/SchoolModels.ts';
 
 const DOMAIN: number = 0x00CC;
 const TAG: string = 'BIT101Probe';
@@ -610,9 +612,10 @@ export class CasProbe {
     hilog.info(DOMAIN, TAG, 'B.step2 http=%{public}d bodyLen=%{public}d', resp.statusCode, text.length);
     const out: Record<string, string> = {};
     try {
-      const o: Record<string, string> = JSON.parse(text) as Record<string, string>;
-      const data: Record<string, string> = (o['data'] as unknown as Record<string, string>) ?? o;
-      out['captchaInvisible'] = String(data['captchaInvisible'] ?? false);
+      const o: Record<string, JsonValue> = JSON.parse(text) as Record<string, JsonValue>;
+      const data: Record<string, JsonValue> = jsonObjOf(o, 'data') ?? o;
+      const ci: JsonValue | undefined = data['captchaInvisible'];
+      out['captchaInvisible'] = (ci === undefined || ci === null) ? 'false' : String(ci);
     } catch (e) {
       out['parse_error'] = JSON.stringify(e);
     }
@@ -651,11 +654,13 @@ export class CasProbe {
     hilog.info(DOMAIN, TAG, 'B.step3 fp http=%{public}d bodyLen=%{public}d', resp.statusCode, text.length);
     let token: string = '';
     try {
-      const o: Record<string, string> = JSON.parse(text) as Record<string, string>;
-      token = String(o['responsetoken'] ?? '');
-      if (token.length === 0 && o['data']) {
-        const d: Record<string, string> = o['data'] as unknown as Record<string, string>;
-        token = String(d['responsetoken'] ?? '');
+      const o: Record<string, JsonValue> = JSON.parse(text) as Record<string, JsonValue>;
+      token = jsonStr(o, 'responsetoken', '');
+      if (token.length === 0) {
+        const d: Record<string, JsonValue> | null = jsonObjOf(o, 'data');
+        if (d !== null) {
+          token = jsonStr(d, 'responsetoken', '');
+        }
       }
     } catch (e) {
       hilog.warn(DOMAIN, TAG, 'B.step3 fp parse error: %{public}s', JSON.stringify(e));
@@ -767,9 +772,9 @@ export class CasProbe {
       throw new Error('cas/user HTTP ' + resp.statusCode);
     }
     try {
-      const o: Record<string, string> = JSON.parse(text) as Record<string, string>;
-      const member: Record<string, string> = (o['member'] as unknown as Record<string, string>) ?? {};
-      return String(member['token'] ?? '');
+      const o: Record<string, JsonValue> = JSON.parse(text) as Record<string, JsonValue>;
+      const member: Record<string, JsonValue> | null = jsonObjOf(o, 'member');
+      return member === null ? '' : jsonStr(member, 'token', '');
     } catch (e) {
       hilog.warn(DOMAIN, TAG, 'B.step6 parse error: %{public}s', JSON.stringify(e));
       return '';

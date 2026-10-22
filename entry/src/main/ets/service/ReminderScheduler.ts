@@ -171,11 +171,12 @@ export class ReminderScheduler {
       courses, ddls, nowDt, firstDayEpochDay, table, policy, sentKeys, [], exams, adjustments
     );
     const nowDay: number = nowDt.day;
-    const { specs, droppedPast, droppedQuota } = specsForPublish(reminders, nowDay, AGENT_REMINDER_LIMIT);
-    result.pastDropped = droppedPast;
-    result.quotaDropped = droppedQuota;
+    // ArkTS 禁解构赋值（arkts-no-destruct-assignment）⇒ 临时变量
+    const publish = specsForPublish(reminders, nowDay, AGENT_REMINDER_LIMIT);
+    result.pastDropped = publish.droppedPast;
+    result.quotaDropped = publish.droppedQuota;
 
-    if (specs.length === 0) {
+    if (publish.specs.length === 0) {
       result.reason = 'empty_plan';
       return result;
     }
@@ -188,8 +189,8 @@ export class ReminderScheduler {
     }
 
     const records: NotifyRecord[] = [];
-    for (let i = 0; i < specs.length; i++) {
-      const spec: AgentReminderSpec = specs[i];
+    for (let i = 0; i < publish.specs.length; i++) {
+      const spec: AgentReminderSpec = publish.specs[i];
       try {
         await reminderAgentManager.publishReminder(ReminderScheduler.toRequest(spec));
         result.published++;

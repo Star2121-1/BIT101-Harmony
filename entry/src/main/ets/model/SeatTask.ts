@@ -169,11 +169,22 @@ export function deserializeTasks(json: string): ReservationTask[] {
     return [];
   }
   try {
-    const parsed = JSON.parse(json);
+    const parsed: Object[] = JSON.parse(json) as Object[];
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed.filter((t: any) => t && t.id && t.mode && t.status) as ReservationTask[];
+    const out: ReservationTask[] = [];
+    for (let i = 0; i < parsed.length; i++) {
+      const t: Object = parsed[i];
+      if (typeof t !== 'object' || t === null || Array.isArray(t)) {
+        continue;
+      }
+      const r: Record<string, Object> = t as Record<string, Object>;
+      if (r['id'] !== undefined && r['mode'] !== undefined && r['status'] !== undefined) {
+        out.push(t as ReservationTask);
+      }
+    }
+    return out;
   } catch {
     return [];
   }

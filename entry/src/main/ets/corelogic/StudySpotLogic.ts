@@ -431,7 +431,10 @@ export function groupByBuilding(buildings: BuildingFree[]): Candidate[] {
     else byId.set(b.buildingId, [b]);
   }
   const out: Candidate[] = [];
-  for (const [buildingId, floors] of byId) {
+  // ArkTS 禁解构赋值（arkts-no-destruct-assignment）⇒ Map 迭代走索引
+  for (const entry of byId) {
+    const buildingId: string = entry[0];
+    const floors: BuildingFree[] = entry[1];
     let total = 0;
     let maxAhead = 0;
     const ff: FloorFree[] = [];

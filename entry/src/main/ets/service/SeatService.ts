@@ -88,11 +88,15 @@ export class SeatService {
   /** 取已存的 seatlib 会话信息（JWT 模型）。 */
   static async getSession(context: Context): Promise<{ jwt: string; studentId: string; displayName: string } | null> {
     try {
-      const [jwt, studentId, displayName] = await Promise.all([
+      // ArkTS 禁解构赋值（arkts-no-destruct-assignment）⇒ Promise.all 元组走索引
+      const sess = await Promise.all([
         SessionStore.getToken(),
         SessionStore.getStudentId(),
         SessionStore.getDisplayName(),
       ]);
+      const jwt: string = sess[0];
+      const studentId: string = sess[1];
+      const displayName: string = sess[2];
       if (jwt.length === 0) return null;
       return { jwt, studentId, displayName };
     } catch (e) {

@@ -9,6 +9,8 @@
  */
 
 import { type DateTime } from './timeutil.ts';
+import { num as jsonNum, str as jsonStr } from '../core/model/SchoolModels.ts';
+import type { JsonValue } from '../core/model/SchoolModels.ts';
 import { SeatStatus, type Seat } from '../model/SeatModel.ts';
 import { SeatStatus as LogicSeatStatus } from './SeatLogic.ts';
 
@@ -75,7 +77,7 @@ export function getReservationStatus(record: ReservationRecord, now: DateTime): 
  * 对齐 Android SeatApi.cancelSeat：
  *   val body = jsonBody(JSONObject().put("reservation_id", recordId))
  */
-export function buildCancelBody(record: ReservationRecord): Record<string, unknown> {
+export function buildCancelBody(record: ReservationRecord): Record<string, JsonValue> {
   return {
     reservation_id: record.id,
     seat_id: parseInt(record.seatId, 10) || record.seatId,
@@ -85,12 +87,14 @@ export function buildCancelBody(record: ReservationRecord): Record<string, unkno
 /**
  * 从服务响应中解析取消结果。
  */
-export function parseCancelResponse(response: Record<string, unknown>): { ok: boolean; message: string } {
-  const code = Number(response['code']);
+export function parseCancelResponse(response: Record<string, JsonValue>): { ok: boolean; message: string } {
+  const code = jsonNum(response, 'code', 0);
   if (code === 1) {
     return { ok: true, message: '取消成功' };
   }
-  const message = String(response['message'] ?? response['error'] ?? '取消失败');
+  const byMessage = jsonStr(response, 'message', '');
+  const byError = jsonStr(response, 'error', '');
+  const message = byMessage.length > 0 ? byMessage : (byError.length > 0 ? byError : '取消失败');
   return { ok: false, message };
 }
 

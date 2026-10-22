@@ -16,6 +16,7 @@
 import { Prefs } from './Prefs.ts';
 import { DdlEntry, mergeDdl, sortDdl, toEntry } from '../corelogic/DdlRules.ts';
 import type { EclassDdlItem } from '../corelogic/EclassDdlLogic.ts';
+import type { JsonValue } from '../core/model/SchoolModels.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 const KEY: string = 'ddl_schedule_v1';
@@ -108,18 +109,18 @@ export class DdlStore {
 
   /** JSON → DdlEntry[]。缺字段/类型不对的条目跳过（记数由 warn 出）。 */
   private static parse(raw: string): DdlEntry[] {
-    const arr: Object[] = JSON.parse(raw) as Object[];
+    const arr: JsonValue[] = JSON.parse(raw) as JsonValue[];
     const out: DdlEntry[] = [];
     let bad: number = 0;
     for (let i = 0; i < arr.length; i++) {
-      const rec = arr[i] as Record<string, Object>;
-      const uid: unknown = rec['uid'];
-      const group: unknown = rec['group'];
-      const title: unknown = rec['title'];
-      const day: unknown = rec['day'];
-      const minutes: unknown = rec['minutes'];
-      const done: unknown = rec['done'];
-      if (typeof uid !== 'string' || uid.length === 0 ||
+      const rec = arr[i] as Record<string, JsonValue>;
+      const uid: JsonValue | undefined = rec['uid'];
+      const group: JsonValue | undefined = rec['group'];
+      const title: JsonValue | undefined = rec['title'];
+      const day: JsonValue | undefined = rec['day'];
+      const minutes: JsonValue | undefined = rec['minutes'];
+      const done: JsonValue | undefined = rec['done'];
+      if (typeof uid !== 'string' || (uid as string).length === 0 ||
         typeof group !== 'string' || typeof title !== 'string' ||
         typeof day !== 'number' || typeof minutes !== 'number' ||
         typeof done !== 'boolean') {

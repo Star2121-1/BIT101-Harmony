@@ -3,7 +3,7 @@
  *
  * 对照 Android SeatTaskRepository：
  * - 管理预约任务的生命周期
- * - 支持持久化（localStorage）
+ * - 支持持久化（Prefs，沙箱 EL2 preferences）
  * - 提供增删改查接口
  *
  * ## ⚠️ 鸿蒙限制说明
@@ -13,6 +13,7 @@
  */
 
 import { ReservationTask, TaskStatus, isActiveStatus, isTerminalStatus, serializeTasks, deserializeTasks } from '../model/SeatTask.ts';
+import { Prefs } from './Prefs.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 const STORAGE_KEY = 'seat_tasks_v1';
@@ -194,23 +195,23 @@ export class SeatTaskRepository {
   }
 
   /**
-   * 持久化到 localStorage。
+   * 持久化到 Prefs（对照 Android DataStore；原 globalThis.prefs 写法 ArkTS 禁 globalThis）。
    */
   private async persist(): Promise<void> {
     try {
       const json = serializeTasks(this.tasks);
-      await (globalThis as any).prefs?.putString(STORAGE_KEY, json)?.commit();
+      await Prefs.putString(STORAGE_KEY, json);
     } catch (e) {
       warn('SeatTaskRepository', `Failed to persist tasks: ${e}`);
     }
   }
 
   /**
-   * 从 localStorage 加载。
+   * 从 Prefs 加载。
    */
   private async loadFromStorage(): Promise<ReservationTask[] | null> {
     try {
-      const json = await (globalThis as any).prefs?.getString(STORAGE_KEY, '');
+      const json = await Prefs.getString(STORAGE_KEY, '');
       if (!json || json.trim() === '') {
         return null;
       }

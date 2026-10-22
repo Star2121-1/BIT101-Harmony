@@ -9,6 +9,7 @@
  */
 
 import { type DateTime } from './timeutil.ts';
+import type { JsonValue } from '../core/model/SchoolModels.ts';
 
 /** 预约请求参数（由 UI 组装后传入）。 */
 export interface ReserveParams {
@@ -64,7 +65,7 @@ export function validateReserveParams(params: ReserveParams): string | null {
  *     JSONObject().apply { put("seat_id", seatIdNum); put("segment", segment) }
  *   )
  */
-export function buildReserveBody(params: ReserveParams): Record<string, unknown> {
+export function buildReserveBody(params: ReserveParams): Record<string, JsonValue> {
   // seat_id 必须是数字（服务端按 int 处理）
   const seatIdNum = parseInt(params.seatId, 10) || params.seatId;
   return {
@@ -79,7 +80,7 @@ export function buildReserveBody(params: ReserveParams): Record<string, unknown>
  * Android 侧：`json.optLong("id")` 或 `json.optString("reservation_id")`
  * 鸿蒙侧对齐此逻辑。
  */
-export function extractReservationId(response: Record<string, unknown>): string | null {
+export function extractReservationId(response: Record<string, JsonValue>): string | null {
   const id = response['id'] ?? response['reservation_id'];
   if (id === undefined || id === null) return null;
   return String(id);
@@ -91,7 +92,7 @@ export function extractReservationId(response: Record<string, unknown>): string 
 export function parseReserveError(statusCode: number, responseBody: string): string {
   let message: string = '';
   try {
-    const json = JSON.parse(responseBody) as Record<string, unknown>;
+    const json = JSON.parse(responseBody) as Record<string, JsonValue>;
     message = String(json['message'] ?? json['error'] ?? responseBody);
   } catch {
     message = responseBody;

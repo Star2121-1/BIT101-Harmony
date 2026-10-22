@@ -285,7 +285,9 @@ function ddlReminders(
     // 已完成的不提醒；已过期的也不提醒（迟到的提醒只添堵）
     if (ddl.done) continue;
     if (cmpDt(ddl.time, now) <= 0) continue;
-    for (const [windowKey, days] of windows) {
+    for (const w of windows) {
+      const windowKey: string = w[0];
+      const days: number = w[1];
       const at = days > 0 ? addDays(ddl.time, -days) : addMinutes(ddl.time, -60);
       if (cmpDt(at, now) < 0 || cmpDt(at, until) > 0) continue;
 
