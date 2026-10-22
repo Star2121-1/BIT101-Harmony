@@ -1,15 +1,21 @@
 /**
- * 座位预约服务（M9）。
+ * 座位预约服务（M9）—— 薄 @kit 网络壳。
  *
- * 对照 Android features/seat/.../api/ 下各 Client：
- * - SeatApi: 核心接口（树/预约/签到/取消）
- * - SeatSession: JWT 管理
+ * ## 铁律 0.9 修复（2026-10-22）
+ * 早期本文件用了**臆造端点**（`/api/Seat/schedule`、`/api/Seat/reserve`、
+ * `/api/Seat/cancel`）+ 自造 body，与 Android 实测契约不符，对真实服务端全挂。
+ * 现在：**端点 / body / 解析 / 状态映射全部委托 `SeatApiLogic`（纯逻辑、可单测），**
+ * 本类只保留 @kit 网络 + TLS CA + cookie 罐 + JWT 认证头，不含任何业务判断。
  *
- * ## 设计纪律（铁律 0.6 强化版）
- * 1. **有对外副作用的动作必须用户显式触发**：预约/取消操作由 UI 按钮直接调用，绝不在自动路径触发。
- * 2. **失败不掩盖**：所有错误都传回调用方，UI 层自行决定展示策略。
- * 3. **会话隔离**：seatlib JWT 走独立 cookie 罐（JAR_SEAT），不与教务会话互相干扰。
- * 4. **离线可读**：树接口免认证，本地缓存可用；预约需在线。
+ * ## 认证模型（M1 探针已验，与 Android 有差异，如实标注）
+ * - Android 侧 seatlib 走 **cookie**（CAS WebView 登录后的 cookie jar）；
+ * - 鸿蒙侧 M1 探针验证了 **Bearer JWT**（`/api/cas/cas` 换 token，存 SessionStore）可过 seatlib。
+ *   这里沿用 JWT 模型（`Authorization: Bearer <jwt>`）。
+ * - ⚠️ **真机未复核**：设备离线中，JWT 头对「我的预约/取消/违约」这些 authed 端点是否
+ *   全通需设备恢复后回归；若服务端只认 cookie，则需把 `JAR_SEAT` 罐接入 CAS 登录链路。
+ *
+ * ## 设计纪律（铁律 0.6）
+ * 有对外副作用的动作（confirm/cancel）只由 UI 显式点击触发，绝不上自动路径。
  */
 
 import { rcp } from '@kit.RemoteCommunicationKit';
@@ -17,14 +23,16 @@ import util from '@ohos.util';
 import { Context } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { JAR_SEAT } from '../core/net/CookieJars.ts';
-import { RcpFactory, PersistedCookie } from '../core/net/RcpFactory.ts';
+import { RcpFactory } from '../core/net/RcpFactory.ts';
 import { SessionStore } from '../data/SessionStore.ts';
-import { SeatTreeService } from './SeatTreeService.ts';
 import {
-  SeatNode, SeatSnapshot, ReserveRequest, SignInRequest, CancelRequest,
-  DefaultRecord, ReservationStats, SeatStatus, seatTypeName,
-  timeOverlap, DateTime, minutesBetween,
-} from '../corelogic/SeatLogic.ts';
+  ENDPOINTS,
+  type WireSeat, type WireSeatDate, type MyReservation, type RenegeRecord,
+  parseSeats, parseSeatDates, parseMyReservations, parseRenege,
+  buildSeatBody, buildConfirmBody, buildSubscribeBody, buildCancelBody,
+  buildMapBody, buildRenegeBody, buildSeminarBody,
+  bizResult, usableSegment,
+} from '../corelogic/SeatApiLogic.ts';
 import { info, warn, error as bitError } from '../core/log/BitLog.ts';
 
 const HLOG_DOMAIN: number = 0x00AB;
@@ -36,10 +44,26 @@ const DESKTOP_UA: string =
 const CONNECT_MS: number = 15000;
 const READ_MS: number = 30000;
 
-/** 缓存的座位树（免认证接口，可缓存一段时间）。 */
-let cachedTree: SeatNode[] | null = null;
-let cachedTreeDate: string = '';
-const TREE_CACHE_HOURS: number = 24; // 缓存 24 小时
+/** 业务响应结果（成功 / 失败带文案）。 */
+export interface SeatOpResult {
+  ok: boolean;
+  /** 成功时为 null；失败为可读文案（bizResult 已保证不拼「预约失败」前缀）。 */
+  message: string | null;
+}
+
+/** 取座位的结果。 */
+export interface SeatsResult {
+  ok: boolean;
+  message: string | null;
+  seats: WireSeat[];
+}
+
+/** 时段列表结果。 */
+export interface DatesResult {
+  ok: boolean;
+  message: string | null;
+  dates: WireSeatDate[];
+}
 
 export class SeatService {
   private session: rcp.Session | null = null;
@@ -54,400 +78,193 @@ export class SeatService {
   }
 
   private async buildSession(context: Context): Promise<void> {
-    // seatlib 使用独立 cookie 罐 JAR_SEAT
-    const transfer: rcp.TransferConfiguration = {
-      autoRedirect: true,
-      timeout: { connectMs: CONNECT_MS, transferMs: READ_MS },
-    };
-    const security: rcp.SecurityConfiguration = { remoteValidation: 'system' };
-    const reqConfig: rcp.Configuration = { transfer, security };
-    const sessionConfig: rcp.SessionConfiguration = { requestConfiguration: reqConfig };
-    this.session = rcp.createSession(sessionConfig);
+    // seatlib 走独立 cookie 罐 JAR_SEAT（JWT 模型下罐基本为空，但保留隔离，便于切回 cookie 模型）。
+    // autoRedirect=false：seatlib 未登录时会 302 踢去 CAS，跟跳会丢 effectiveUrl（M1 验过）。
+    this.session = await RcpFactory.createSession(context, JAR_SEAT, false, CONNECT_MS, READ_MS);
     this.sessionPromise = null;
-    info(HLOG_DOMAIN, HLOG_TAG, 'SeatService session built');
+    info(HLOG_DOMAIN, HLOG_TAG, 'SeatService session built (JAR_SEAT, TLS CA)');
   }
 
-  /**
-   * 获取已登录的用户信息（从 SessionStore + seatlib JWT）。
-   */
-  static async getUserInfo(context: Context): Promise<{
-    jwt: string;
-    studentId: string;
-    displayName: string;
-  } | null> {
+  /** 取已存的 seatlib 会话信息（JWT 模型）。 */
+  static async getSession(context: Context): Promise<{ jwt: string; studentId: string; displayName: string } | null> {
     try {
       const [jwt, studentId, displayName] = await Promise.all([
         SessionStore.getToken(),
         SessionStore.getStudentId(),
         SessionStore.getDisplayName(),
       ]);
-      if (!jwt || jwt.length === 0) return null;
+      if (jwt.length === 0) return null;
       return { jwt, studentId, displayName };
     } catch (e) {
-      warn(HLOG_DOMAIN, HLOG_TAG, 'getUserInfo fail: ' + JSON.stringify(e));
+      warn(HLOG_DOMAIN, HLOG_TAG, 'getSession fail: ' + JSON.stringify(e));
       return null;
     }
   }
 
-  /**
-   * 拉取座位树（免认证、可缓存）。
-   */
-  async fetchTree(context: Context, date: string): Promise<SeatNode[]> {
-    // 简单缓存：同日期不重复请求
-    if (cachedTree && cachedTreeDate === date) {
-      return cachedTree;
+  /** 业务端点的公共请求头（JWT 认证 + 桌面 UA + 语言）。 */
+  private headers(jwt: string): rcp.RequestHeaders {
+    return {
+      'Authorization': `Bearer ${jwt}`,
+      'User-Agent': DESKTOP_UA,
+      'Accept-Language': 'zh-CN,zh;q=0.9',
+      'Content-Type': 'application/json',
+      'lang': 'zh',
+    };
+  }
+
+  /** 发一个 authed POST，返回解析后的业务信封（含 code）。 */
+  private async postJson(context: Context, path: string, body: Record<string, Object>, jwt: string): Promise<Record<string, Object>> {
+    await this.ensureSession(context);
+    const session = this.session;
+    if (session === null) throw new Error('rcp session 未初始化');
+    const res = await RcpFactory.postText(session, SEATLIB_BASE + path, this.headers(jwt), JSON.stringify(body));
+    let envelope: Record<string, Object>;
+    try {
+      envelope = JSON.parse(res.body) as Record<string, Object>;
+    } catch {
+      throw new Error('响应解析失败（HTTP ' + res.status + '）');
     }
-    const nodes = await SeatTreeService.fetchTree(context, date);
-    cachedTree = nodes;
-    cachedTreeDate = date;
-    return nodes;
+    return envelope;
   }
 
   /**
-   * 清座位树缓存（切换日期时调用）。
-   */
-  static clearTreeCache(): void {
-    cachedTree = null;
-    cachedTreeDate = '';
-  }
-
-  /**
-   * 查询指定日期的座位状态。
-   *
-   * ⚠️ 需要 seatlib JWT（已登录）。未登录时返回 null。
-   * @returns 座位快照列表，null = 未登录或请求失败。
+   * 取某区域某时段的座位（POST /api/Seat/seat）。
+   * ⚠️ authed：需要 seatlib 会话。免认证的只有 /api/Seat/tree。
    */
   async fetchSeats(
     context: Context,
-    date: string,
-    jwt: string
-  ): Promise<SeatSnapshot[]> {
-    await this.ensureSession(context);
-    const session = this.session;
-    if (session === null) throw new Error('rcp session 未初始化');
-
-    const headers: rcp.RequestHeaders = {
-      'Authorization': `Bearer ${jwt}`,
-      'User-Agent': DESKTOP_UA,
-      'Accept': 'application/json',
-      'lang': 'zh',
-    };
-    const body: string = JSON.stringify({ date });
-    const request = new rcp.Request(
-      SEATLIB_BASE + '/api/Seat/schedule',
-      'POST',
-      headers,
-      body
-    );
-
-    let resp: rcp.Response;
+    jwt: string,
+    area: string, segment: string, day: string, startTime: string, endTime: string
+  ): Promise<SeatsResult> {
     try {
-      resp = await session.fetch(request);
+      const envelope = await this.postJson(context, ENDPOINTS.seat,
+        buildSeatBody(area, usableSegment(segment), day, startTime, endTime), jwt);
+      const biz = bizResult(envelope);
+      if (!biz.ok) return { ok: false, message: biz.message, seats: [] };
+      const data: Array<Record<string, Object>> = Array.isArray(biz.data)
+        ? (biz.data as Array<Record<string, Object>>) : [];
+      return { ok: true, message: null, seats: parseSeats(data, area) };
     } catch (e) {
-      warn(HLOG_DOMAIN, HLOG_TAG, 'fetchSeats transport fail: ' + JSON.stringify(e));
-      return [];
+      bitError(HLOG_DOMAIN, HLOG_TAG, 'fetchSeats fail: ' + JSON.stringify(e));
+      return { ok: false, message: (e as Error).message, seats: [] };
     }
+  }
 
-    if (resp.statusCode !== 200) {
-      bitError(HLOG_DOMAIN, HLOG_TAG, 'fetchSeats HTTP %d', resp.statusCode);
-      if (resp.statusCode === 401) {
-        throw new Error('seatlib JWT 失效，请重新登录');
+  /** 取时段（POST /api/Seat/date，可带 build_id；times[].id 实测恒 null，回落默认段是正常路径）。 */
+  async fetchSeatDates(context: Context, jwt: string, buildId: string = ''): Promise<DatesResult> {
+    try {
+      const body: Record<string, Object> = {};
+      if (buildId.length > 0) {
+        body['build_id'] = buildId;
       }
-      return [];
-    }
-
-    const rawBody: ArrayBuffer | undefined = resp.body;
-    if (rawBody === undefined) return [];
-
-    const text: string = util.TextDecoder.create('utf-8').decodeToString(new Uint8Array(rawBody));
-    let envelope: Record<string, Object>;
-    try {
-      envelope = JSON.parse(text) as Record<string, Object>;
-    } catch {
-      return [];
-    }
-
-    const code: number = Number(envelope['code'] ?? -1);
-    if (code !== 1) {
-      bitError(HLOG_DOMAIN, HLOG_TAG, 'fetchSeats biz code=%d body=%s', code, text.substring(0, 200));
-      return [];
-    }
-
-    const data: Array<Record<string, Object>> = (envelope['data'] ?? []) as Array<Record<string, Object>>;
-    return this.parseSeatSnapshots(data);
-  }
-
-  /**
-   * 解析座位快照（API 响应 → SeatSnapshot[]）。
-   */
-  private parseSeatSnapshots(rows: Array<Record<string, Object>>): SeatSnapshot[] {
-    const out: SeatSnapshot[] = [];
-    for (const row of rows) {
-      const seatId: string = String(row['seat_id'] ?? '');
-      if (seatId.length === 0) continue;
-      const status: string = String(row['status'] ?? 'FREE');
-      const reservationId: string = String(row['reservation_id'] ?? '');
-      const otherName: string = String(row['other_name'] ?? '');
-      const startTime: string = String(row['start_time'] ?? '');
-      const endTime: string = String(row['end_time'] ?? '');
-      const kind: string = String(row['kind'] ?? 'SINGLE');
-      const signInKind: string = String(row['sign_in_kind'] ?? 'NFC_QR');
-      const signInDeadlineMinutes: number = Number(row['sign_in_deadline_minutes'] ?? -1);
-      const isCheckedIn: boolean = Boolean(row['checked_in']);
-      const seatName: string = String(row['name'] ?? seatId);
-
-      let timeRange: [DateTime, DateTime] | null = null;
-      if (startTime.length > 0 && endTime.length > 0) {
-        try {
-          const startMs = new Date(startTime).getTime()
-            + new Date(startTime).getTimezoneOffset() * 60000 + 8 * 3600000;
-          const endMs = new Date(endTime).getTime()
-            + new Date(endTime).getTimezoneOffset() * 60000 + 8 * 3600000;
-          const fromDay = Math.floor(startMs / 86400000);
-          const fromMin = Math.floor((startMs % 86400000) / 60000);
-          const toDay = Math.floor(endMs / 86400000);
-          const toMin = Math.floor((endMs % 86400000) / 60000);
-          timeRange = [{ day: fromDay, minutes: fromMin }, { day: toDay, minutes: toMin }];
-        } catch {
-          // 日期解析失败，跳过
-        }
-      }
-
-      out.push({
-        seatId,
-        seatName,
-        status: status as SeatStatus,
-        reservationId: reservationId.length > 0 ? reservationId : null,
-        otherName: otherName.length > 0 ? otherName : null,
-        timeRange,
-        kind: kind as import('../corelogic/SeatLogic.ts').ReservationKind,
-        signInKind: signInKind as import('../corelogic/SeatLogic.ts').SignInKind,
-        signInDeadlineMinutes: signInDeadlineMinutes >= 0 ? signInDeadlineMinutes : null,
-        isCheckedIn,
-      });
-    }
-    return out;
-  }
-
-  /**
-   * 提交预约（⚠️ 有对外副作用，仅由 UI 用户显式点击触发）。
-   *
-   * @returns 预约 ID（成功）或错误文案（失败）。
-   */
-  async reserve(
-    context: Context,
-    req: ReserveRequest,
-    jwt: string
-  ): Promise<string | null> {
-    await this.ensureSession(context);
-    const session = this.session;
-    if (session === null) throw new Error('rcp session 未初始化');
-
-    const headers: rcp.RequestHeaders = {
-      'Authorization': `Bearer ${jwt}`,
-      'User-Agent': DESKTOP_UA,
-      'Accept': 'application/json',
-      'lang': 'zh',
-    };
-    const body: string = JSON.stringify({
-      seat_id: req.seatId,
-      start_time: req.startTime.day * 86400000 + req.startTime.minutes * 60000,
-      end_time: req.endTime.day * 86400000 + req.endTime.minutes * 60000,
-      kind: req.kind,
-    });
-    const request = new rcp.Request(
-      SEATLIB_BASE + '/api/Seat/reserve',
-      'POST',
-      headers,
-      body
-    );
-
-    let resp: rcp.Response;
-    try {
-      resp = await session.fetch(request);
+      const envelope = await this.postJson(context, ENDPOINTS.date, body, jwt);
+      const biz = bizResult(envelope);
+      if (!biz.ok) return { ok: false, message: biz.message, dates: [] };
+      const data: Array<Record<string, Object>> = Array.isArray(biz.data)
+        ? (biz.data as Array<Record<string, Object>>) : [];
+      return { ok: true, message: null, dates: parseSeatDates(data) };
     } catch (e) {
-      warn(HLOG_DOMAIN, HLOG_TAG, 'reserve transport fail: ' + JSON.stringify(e));
-      return '网络请求失败';
+      bitError(HLOG_DOMAIN, HLOG_TAG, 'fetchSeatDates fail: ' + JSON.stringify(e));
+      return { ok: false, message: (e as Error).message, dates: [] };
     }
-
-    if (resp.statusCode !== 200) {
-      bitError(HLOG_DOMAIN, HLOG_TAG, 'reserve HTTP %d', resp.statusCode);
-      if (resp.statusCode === 401) return 'JWT 失效，请重新登录';
-      return `提交预约失败（HTTP ${resp.statusCode}）`;
-    }
-
-    const rawBody: ArrayBuffer | undefined = resp.body;
-    if (rawBody === undefined) return '响应体为空';
-
-    const text: string = util.TextDecoder.create('utf-8').decodeToString(new Uint8Array(rawBody));
-    let envelope: Record<string, Object>;
-    try {
-      envelope = JSON.parse(text) as Record<string, Object>;
-    } catch {
-      return '响应解析失败';
-    }
-
-    const code: number = Number(envelope['code'] ?? -1);
-    if (code !== 1) {
-      bitError(HLOG_DOMAIN, HLOG_TAG, 'reserve biz code=%d body=%s', code, text.substring(0, 200));
-      return String(envelope['message'] ?? '预约失败');
-    }
-
-    const reservationId: string = String(envelope['data']?.['reservation_id'] ?? '');
-    if (reservationId.length === 0) return '预约成功但无返回 ID';
-    info(HLOG_DOMAIN, HLOG_TAG, 'reserve ok id=%s seat=%s', reservationId, req.seatId);
-    return reservationId;
   }
 
   /**
-   * 签到（⚠️ 有对外副作用，仅由 UI 用户显式点击触发）。
+   * 预约确认（POST /api/Seat/confirm，body {seat_id(int), segment}）。
+   * ⚠️ 有对外副作用，仅由 UI 用户显式点击触发（铁律 0.6）。
    */
-  async signIn(
-    context: Context,
-    req: SignInRequest,
-    jwt: string
-  ): Promise<string | null> {
-    await this.ensureSession(context);
-    const session = this.session;
-    if (session === null) throw new Error('rcp session 未初始化');
-
-    const headers: rcp.RequestHeaders = {
-      'Authorization': `Bearer ${jwt}`,
-      'User-Agent': DESKTOP_UA,
-      'Accept': 'application/json',
-      'lang': 'zh',
-    };
-
-    let body: Record<string, Object> = {
-      reservation_id: req.reservationId,
-      seat_id: req.seatId,
-      kind: req.signInKind,
-    };
-    if (req.gps) {
-      body['gps'] = req.gps;
-    }
-
-    const request = new rcp.Request(
-      SEATLIB_BASE + '/api/Seat/sign_in',
-      'POST',
-      headers,
-      JSON.stringify(body)
-    );
-
-    let resp: rcp.Response;
+  async confirmSeat(context: Context, jwt: string, seatId: string, segment: string): Promise<SeatOpResult> {
     try {
-      resp = await session.fetch(request);
+      const envelope = await this.postJson(context, ENDPOINTS.confirm,
+        buildConfirmBody(seatId, segment), jwt);
+      const biz = bizResult(envelope);
+      return biz.ok
+        ? { ok: true, message: null }
+        : { ok: false, message: biz.message };
     } catch (e) {
-      warn(HLOG_DOMAIN, HLOG_TAG, 'signIn transport fail: ' + JSON.stringify(e));
-      return '网络请求失败';
+      bitError(HLOG_DOMAIN, HLOG_TAG, 'confirmSeat fail: ' + JSON.stringify(e));
+      return { ok: false, message: (e as Error).message };
     }
-
-    if (resp.statusCode !== 200) {
-      bitError(HLOG_DOMAIN, HLOG_TAG, 'signIn HTTP %d', resp.statusCode);
-      if (resp.statusCode === 401) return 'JWT 失效，请重新登录';
-      return `签到失败（HTTP ${resp.statusCode}）`;
-    }
-
-    const rawBody: ArrayBuffer | undefined = resp.body;
-    if (rawBody === undefined) return '响应体为空';
-
-    const text: string = util.TextDecoder.create('utf-8').decodeToString(new Uint8Array(rawBody));
-    let envelope: Record<string, Object>;
-    try {
-      envelope = JSON.parse(text) as Record<string, Object>;
-    } catch {
-      return '响应解析失败';
-    }
-
-    const code: number = Number(envelope['code'] ?? -1);
-    if (code !== 1) {
-      bitError(HLOG_DOMAIN, HLOG_TAG, 'signIn biz code=%d body=%s', code, text.substring(0, 200));
-      return String(envelope['message'] ?? '签到失败');
-    }
-
-    info(HLOG_DOMAIN, HLOG_TAG, 'signIn ok reservation=%s', req.reservationId);
-    return null; // null = 成功
   }
 
-  /**
-   * 取消预约（⚠️ 有对外副作用，仅由 UI 用户显式点击触发）。
-   */
-  async cancel(
-    context: Context,
-    req: CancelRequest,
-    jwt: string
-  ): Promise<string | null> {
-    await this.ensureSession(context);
-    const session = this.session;
-    if (session === null) throw new Error('rcp session 未初始化');
-
-    const headers: rcp.RequestHeaders = {
-      'Authorization': `Bearer ${jwt}`,
-      'User-Agent': DESKTOP_UA,
-      'Accept': 'application/json',
-      'lang': 'zh',
-    };
-    const body: string = JSON.stringify({
-      reservation_id: req.reservationId,
-      seat_id: req.seatId,
-    });
-    const request = new rcp.Request(
-      SEATLIB_BASE + '/api/Seat/cancel',
-      'POST',
-      headers,
-      body
-    );
-
-    let resp: rcp.Response;
+  /** 我的座位预约（POST /api/index/subscribe，body {type:'1'}）。 */
+  async myReservations(context: Context, jwt: string): Promise<{ ok: boolean; message: string | null; records: MyReservation[] }> {
     try {
-      resp = await session.fetch(request);
+      const envelope = await this.postJson(context, ENDPOINTS.subscribe, buildSubscribeBody(), jwt);
+      const biz = bizResult(envelope);
+      if (!biz.ok) return { ok: false, message: biz.message, records: [] };
+      const data: Array<Record<string, Object>> = Array.isArray(biz.data)
+        ? (biz.data as Array<Record<string, Object>>) : [];
+      return { ok: true, message: null, records: parseMyReservations(data) };
     } catch (e) {
-      warn(HLOG_DOMAIN, HLOG_TAG, 'cancel transport fail: ' + JSON.stringify(e));
-      return '网络请求失败';
+      bitError(HLOG_DOMAIN, HLOG_TAG, 'myReservations fail: ' + JSON.stringify(e));
+      return { ok: false, message: (e as Error).message, records: [] };
     }
+  }
 
-    if (resp.statusCode !== 200) {
-      bitError(HLOG_DOMAIN, HLOG_TAG, 'cancel HTTP %d', resp.statusCode);
-      if (resp.statusCode === 401) return 'JWT 失效，请重新登录';
-      return `取消失败（HTTP ${resp.statusCode}）`;
-    }
-
-    const rawBody: ArrayBuffer | undefined = resp.body;
-    if (rawBody === undefined) return '响应体为空';
-
-    const text: string = util.TextDecoder.create('utf-8').decodeToString(new Uint8Array(rawBody));
-    let envelope: Record<string, Object>;
+  /**
+   * 取消预约（POST /api/Space/cancel，body {id=预约记录id}）。
+   * ⚠️ 传座位 id 恒失败（2026-09-18 实测），必须先有「我的预约」拿到记录 id。
+   * 有对外副作用，仅由 UI 显式触发（铁律 0.6）。
+   */
+  async cancelReservation(context: Context, jwt: string, recordId: string): Promise<SeatOpResult> {
     try {
-      envelope = JSON.parse(text) as Record<string, Object>;
-    } catch {
-      return '响应解析失败';
+      const envelope = await this.postJson(context, ENDPOINTS.cancel,
+        buildCancelBody(recordId), jwt);
+      const biz = bizResult(envelope);
+      return biz.ok
+        ? { ok: true, message: null }
+        : { ok: false, message: biz.message };
+    } catch (e) {
+      bitError(HLOG_DOMAIN, HLOG_TAG, 'cancelReservation fail: ' + JSON.stringify(e));
+      return { ok: false, message: (e as Error).message };
     }
-
-    const code: number = Number(envelope['code'] ?? -1);
-    if (code !== 1) {
-      bitError(HLOG_DOMAIN, HLOG_TAG, 'cancel biz code=%d body=%s', code, text.substring(0, 200));
-      return String(envelope['message'] ?? '取消失败');
-    }
-
-    info(HLOG_DOMAIN, HLOG_TAG, 'cancel ok reservation=%s', req.reservationId);
-    return null;
   }
 
-  /**
-   * 获取违约记录。
-   */
-  static async fetchDefaults(context: Context, jwt: string): Promise<DefaultRecord[]> {
-    // seatlib 违约记录接口（占位，对齐 Android SeatApi 契约）
-    // 实际实现需要等待服务端接口契约确认
-    return [];
+  /** 我的违约记录（POST /api/Member/reneges，type 1=座位 2=研讨室）。 */
+  async reneges(context: Context, jwt: string, type: number): Promise<{ ok: boolean; message: string | null; records: RenegeRecord[] }> {
+    try {
+      const envelope = await this.postJson(context, ENDPOINTS.reneges, buildRenegeBody(type), jwt);
+      const biz = bizResult(envelope);
+      if (!biz.ok) return { ok: false, message: biz.message, records: [] };
+      const data: Array<Record<string, Object>> = Array.isArray(biz.data)
+        ? (biz.data as Array<Record<string, Object>>) : [];
+      return { ok: true, message: null, records: parseRenege(data) };
+    } catch (e) {
+      bitError(HLOG_DOMAIN, HLOG_TAG, 'reneges fail: ' + JSON.stringify(e));
+      return { ok: false, message: (e as Error).message, records: [] };
+    }
   }
 
-  /**
-   * 静默续签 seatlib JWT（使用已存的 phpCAS cookie）。
-   */
-  static async silentRenewJwt(context: Context): Promise<string | null> {
-    // 复用 CasLoginService 的同构逻辑
-    // 这里只返回 null，具体续期逻辑由 CasLoginService 处理
-    return null;
+  /** 取区域底图（POST /api/seat/map，body {id}；区域没配底图时服务端直接 500，按失败回落方格）。 */
+  async seatMap(context: Context, jwt: string, areaId: string): Promise<{ ok: boolean; message: string | null; raw: string }> {
+    try {
+      const envelope = await this.postJson(context, ENDPOINTS.map, buildMapBody(areaId), jwt);
+      const biz = bizResult(envelope);
+      if (!biz.ok) return { ok: false, message: biz.message, raw: '' };
+      // 底图 data 是 {free,book,close,leave,use} 的 URL 对象，这里原样交给 UI 层映射
+      return { ok: true, message: null, raw: JSON.stringify(biz.data ?? {}) };
+    } catch (e) {
+      bitError(HLOG_DOMAIN, HLOG_TAG, 'seatMap fail: ' + JSON.stringify(e));
+      return { ok: false, message: (e as Error).message, raw: '' };
+    }
+  }
+
+  /** 我的研讨间预约（POST /api/Member/seminar，body {}）。 */
+  async seminarReservations(context: Context, jwt: string): Promise<{ ok: boolean; message: string | null; raw: string }> {
+    try {
+      const envelope = await this.postJson(context, ENDPOINTS.seminar, buildSeminarBody(), jwt);
+      const biz = bizResult(envelope);
+      if (!biz.ok) return { ok: false, message: biz.message, raw: '' };
+      return { ok: true, message: null, raw: JSON.stringify(biz.data ?? []) };
+    } catch (e) {
+      bitError(HLOG_DOMAIN, HLOG_TAG, 'seminarReservations fail: ' + JSON.stringify(e));
+      return { ok: false, message: (e as Error).message, raw: '' };
+    }
+  }
+
+  /** 清 JAR_SEAT 罐（登出时调用；JWT 模型下基本无内容，保留以对齐 cookie 模型）。 */
+  static async clearSession(): Promise<number> {
+    return RcpFactory.clearRepoCookies(JAR_SEAT);
   }
 }

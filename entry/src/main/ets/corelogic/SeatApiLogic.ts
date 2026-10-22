@@ -75,6 +75,29 @@ export function isFree(status: WireSeatStatus): boolean {
   return status === 'AVAILABLE';
 }
 
+/** 归一状态的中文文案（列表展示用；优先用服务端 statusName，缺失才回落到这里）。 */
+export function wireStatusText(status: WireSeatStatus): string {
+  switch (status) {
+    case 'AVAILABLE': return '空闲';
+    case 'RESERVED': return '已预约';
+    case 'IN_USE': return '在用';
+    case 'LEAVE': return '暂离';
+    case 'UNAVAILABLE': return '停用';
+  }
+}
+
+/** 归一状态 → 展示色（浅/深各一档，对齐 statusColor 的既有配色风格）。 */
+export function wireStatusColor(status: WireSeatStatus, isDark: boolean): string {
+  switch (status) {
+    case 'AVAILABLE': return isDark ? '#2E7D32' : '#4CAF50';
+    case 'RESERVED': return isDark ? '#1565C0' : '#1976D2';
+    case 'IN_USE': return isDark ? '#6D4C41' : '#8D6E63';
+    case 'LEAVE': return isDark ? '#B45309' : '#B45309';
+    case 'UNAVAILABLE': return isDark ? '#546E7A' : '#78909C';
+    default: return isDark ? '#546E7A' : '#78909C';
+  }
+}
+
 // ── 座位模型 + 解析 ───────────────────────────────────────────────────────
 
 /** 单个座位（wire 形态，含底图百分比坐标）。 */
@@ -97,7 +120,7 @@ export interface WireSeat {
 }
 
 /** 坐标字段可能是字符串浮点（如 "69.106880000000004"），解析失败返回 null。 */
-function optNum(v: unknown): number | null {
+function optNum(v: Object): number | null {
   if (v === undefined || v === null) return null;
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
   if (typeof v === 'string') {
@@ -108,7 +131,7 @@ function optNum(v: unknown): number | null {
 }
 
 /** 解析 `/api/Seat/seat` 的 data 数组。 */
-export function parseSeats(data: Array<Record<string, unknown>>, areaId: string): WireSeat[] {
+export function parseSeats(data: Array<Record<string, Object>>, areaId: string): WireSeat[] {
   const out: WireSeat[] = [];
   for (const s of data) {
     const id: string = String(s['id'] ?? '');
@@ -142,17 +165,17 @@ export interface WireSeatDate {
 }
 
 /** 解析时段：把每个 times 条目展开；id/start/end 缺失时回落（id→默认段、start/end→""）。 */
-export function parseSeatDates(data: Array<Record<string, unknown>>): WireSeatDate[] {
+export function parseSeatDates(data: Array<Record<string, Object>>): WireSeatDate[] {
   const out: WireSeatDate[] = [];
   for (const dayObj of data) {
     const day: string = String(dayObj['day'] ?? '');
-    const timesRaw: unknown = dayObj['times'];
+    const timesRaw: Object = dayObj['times'];
     if (!Array.isArray(timesRaw)) continue;
-    const times: Array<Record<string, unknown>> = timesRaw as Array<Record<string, unknown>>;
+    const times: Array<Record<string, Object>> = timesRaw as Array<Record<string, Object>>;
     for (const t of times) {
-      const id: unknown = t['id'];
-      const start: unknown = t['start'];
-      const end: unknown = t['end'];
+      const id: Object = t['id'];
+      const start: Object = t['start'];
+      const end: Object = t['end'];
       out.push({
         day,
         segmentId: id === null || id === undefined || id === '' ? '' : String(id),
@@ -193,14 +216,14 @@ export interface MyReservation {
 }
 
 /** 解析「我的预约」。⚠️ 服务端把座位 id 放在 `space`、座位号放在 `no`。 */
-export function parseMyReservations(data: Array<Record<string, unknown>>): MyReservation[] {
+export function parseMyReservations(data: Array<Record<string, Object>>): MyReservation[] {
   const out: MyReservation[] = [];
   for (const r of data) {
     const id: string = String(r['id'] ?? '');
     if (id.length === 0) continue;
     const status: string = String(r['status'] ?? '');
-    const statusNameRaw: unknown = r['statusName'] ?? r['status_name'];
-    const leaveSinceRaw: unknown = r['leaveSince'] ?? r['leave_since'];
+    const statusNameRaw: Object = r['statusName'] ?? r['status_name'];
+    const leaveSinceRaw: Object = r['leaveSince'] ?? r['leave_since'];
     out.push({
       id,
       seatId: String(r['space'] ?? ''),
@@ -218,7 +241,7 @@ export function parseMyReservations(data: Array<Record<string, unknown>>): MyRes
   return out;
 }
 
-function optStrOrNull(v: unknown): string | null {
+function optStrOrNull(v: Object): string | null {
   if (v === undefined || v === null) return null;
   const s = String(v);
   return s.length > 0 ? s : null;
@@ -236,7 +259,7 @@ export interface RenegeRecord {
 }
 
 /** 解析违约。⚠️ 接口不给 id，身份键 = nameMerge|name|time（去重/增量用）。 */
-export function parseRenege(data: Array<Record<string, unknown>>): RenegeRecord[] {
+export function parseRenege(data: Array<Record<string, Object>>): RenegeRecord[] {
   const out: RenegeRecord[] = [];
   for (const r of data) {
     out.push({
@@ -266,37 +289,37 @@ export function seatIdToNumber(seatId: string): number | string {
 /** `/api/Seat/seat`：取某区域某时段的座位。 */
 export function buildSeatBody(
   area: string, segment: string, day: string, startTime: string, endTime: string
-): Record<string, unknown> {
+): Record<string, Object> {
   return { area, segment, day, startTime, endTime };
 }
 
 /** `/api/Seat/confirm`：seat_id 必须是 int，segment 用（回落后的）时段 id。 */
-export function buildConfirmBody(seatId: string, segment: string): Record<string, unknown> {
+export function buildConfirmBody(seatId: string, segment: string): Record<string, Object> {
   return { seat_id: seatIdToNumber(seatId), segment: usableSegment(segment) };
 }
 
 /** `/api/index/subscribe`：我的座位预约。 */
-export function buildSubscribeBody(): Record<string, unknown> {
+export function buildSubscribeBody(): Record<string, Object> {
   return { type: '1' };
 }
 
 /** `/api/Space/cancel`：传**预约记录 id**（不是座位 id）。 */
-export function buildCancelBody(recordId: string): Record<string, unknown> {
+export function buildCancelBody(recordId: string): Record<string, Object> {
   return { id: recordId };
 }
 
 /** `/api/seat/map`：参数名**必须**是 id。 */
-export function buildMapBody(areaId: string): Record<string, unknown> {
+export function buildMapBody(areaId: string): Record<string, Object> {
   return { id: areaId };
 }
 
 /** `/api/Member/reneges`：type 1=座位 2=研讨室。 */
-export function buildRenegeBody(type: number): Record<string, unknown> {
+export function buildRenegeBody(type: number): Record<string, Object> {
   return { type };
 }
 
 /** `/api/Member/seminar`：无参数。 */
-export function buildSeminarBody(): Record<string, unknown> {
+export function buildSeminarBody(): Record<string, Object> {
   return {};
 }
 
@@ -307,13 +330,13 @@ export function buildSeminarBody(): Record<string, unknown> {
  * @returns ok / 错误文案（未登录时 code 常为 10001，如实报「登录失效」）。
  */
 export function bizResult(
-  envelope: Record<string, unknown>
-): { ok: boolean; message: string; data: unknown } {
+  envelope: Record<string, Object>
+): { ok: boolean; message: string; data: Object } {
   const code: number = Number(envelope['code'] ?? -1);
   if (code === 1) {
     return { ok: true, message: '', data: envelope['data'] ?? null };
   }
-  const msg: unknown = envelope['message'] ?? envelope['msg'];
+  const msg: Object = envelope['message'] ?? envelope['msg'];
   const text: string = typeof msg === 'string' && msg.length > 0 ? msg : '';
   // ⚠️ 不拼「预约失败」前缀——UI 会再拼一次（Android 真机见过双重前缀）
   if (code === 10001) {

@@ -17,16 +17,15 @@ import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { SeatTreeNode } from '../model/SeatTreeModel.ts';
 import { SeatService } from '../service/SeatService.ts';
 import { SeatTreeService } from '../service/SeatTreeService.ts';
+import { type DateTime } from '../corelogic/SeatLogic.ts';
 import {
-  type SeatSnapshot, type DateTime,
-} from '../corelogic/SeatLogic.ts';
-import {
-  groupTree,
-  toSeatVM, summarizeSeats, myReservations,
-  fmtMinutes,
+  groupTree, fmtMinutes,
   type CampusGroup, type FloorGroup, type AreaGroup,
-  type SeatVM, type SeatSummaryVM, type MyReservationVM,
 } from '../corelogic/SeatViewLogic.ts';
+import {
+  type WireSeat, type MyReservation,
+  wireStatusText, wireStatusColor,
+} from '../corelogic/SeatApiLogic.ts';
 
 @Entry
 @Component
@@ -41,17 +40,20 @@ struct SeatPage {
   @State treeLoading: boolean = true;
   @State treeErr: string = '';
 
-  @State seats: SeatSnapshot[] = [];
-  @State seatVMs: SeatVM[] = [];
-  @State summary: SeatSummaryVM = { total: 0, free: 0, yours: 0, others: 0, freeRatio: '暂无座位' };
-  @State mine: MyReservationVM[] = [];
+  // 当前区域的座位（权威契约：/api/Seat/seat 按区域+时段取，无区域归属跨区混列）
+  @State seats: WireSeat[] = [];
   @State seatsLoading: boolean = false;
   @State seatsErr: string = '';
   @State seatsLoaded: boolean = false;
 
+  // 我的预约（权威列表：/api/index/subscribe；取消用 record.id 不是座位 id）
+  @State mine: MyReservation[] = [];
+  @State mineLoading: boolean = false;
+  @State mineErr: string = '';
+
   @State nowText: string = '';
   @State myCount: number = 0;
-  /** 取消二次确认态：null = 无；非 null = 正在等用户确认取消该预约。 */
+  /** 取消二次确认态：null = 无；非 null = 正在等用户确认取消该预约记录。 */
   @State cancelTarget: string | null = null;
   @State cancelBusy: boolean = false;
   @State cancelResult: string = '';
@@ -116,17 +118,21 @@ struct SeatPage {
     this.treeLoading = false;
   }
 
-  /** 选中区域 → 拉当日座位快照。 */
+  /** 选中区域 → 拉当日该区域的座位 + 我的预约。 */
   private async selectArea(areaId: string): Promise<void> {
     this.selArea = areaId;
     this.seatsErr = '';
     this.seats = [];
     this.seatsLoaded = false;
+    this.cancelTarget = null;
+    this.mineErr = '';
+    this.mine = [];
     if (areaId.length === 0) {
       this.myCount = 0;
       return;
     }
     this.loadSeats();
+    this.loadMyReservations();
   }
 
   private async loadSeats(): Promise<void> {
@@ -134,46 +140,71 @@ struct SeatPage {
     this.seatsErr = '';
     try {
       const ctx: Context = getContext(this) as Context;
-      const date: string = SeatTreeService.today();
-      const user = await SeatService.getUserInfo(ctx);
+      const user = await SeatService.getSession(ctx);
       if (user === null) {
         this.seatsErr = '未登录（座位需要 seatlib 会话），先登录';
         this.seats = [];
-        this.seatVMs = [];
-        this.summary = { total: 0, free: 0, yours: 0, others: 0, freeRatio: '暂无座位' };
-        this.mine = [];
-        this.myCount = 0;
         this.seatsLoaded = true;
         this.seatsLoading = false;
         return;
       }
-      const snaps: SeatSnapshot[] = await this.svc.fetchSeats(ctx, date, user.jwt);
-      // ⚠️ 如实：快照不带区域归属（服务端没给 areaId），本页列出全部座位，
-      // 不假装「只看当前区域」。
-      this.seats = snaps;
-      this.seatVMs = snaps.map((s: SeatSnapshot): SeatVM => toSeatVM(s));
-      this.summary = summarizeSeats(snaps);
-      this.mine = myReservations(snaps, this.nowDt());
-      this.myCount = this.mine.length;
+      // 权威契约：/api/Seat/seat 按「区域 + 时段 + 日期 + 起讫时刻」取该区域的座位。
+      // 时段：默认段 "1"（times[].id 实测恒 null，回落默认是正常路径）；
+      // 起讫时刻：今天 00:00 → 24:00（服务端据此过滤状态，空时段照常返回全量）。
+      const day: string = SeatTreeService.today();
+      const res = await this.svc.fetchSeats(ctx, user.jwt, this.selArea, '', day, '00:00', '24:00');
+      if (!res.ok) {
+        this.seatsErr = (res.message ?? '').length > 0 ? res.message! : '座位拉取失败';
+        this.seats = [];
+      } else {
+        this.seats = res.seats;
+      }
       this.seatsLoaded = true;
-      this.cancelTarget = null;
     } catch (e) {
       this.seatsErr = '座位状态拉取失败：' + (e as Error).message;
       this.seats = [];
-      this.seatVMs = [];
-      this.mine = [];
-      this.myCount = 0;
     }
     this.seatsLoading = false;
   }
 
-  /** 点「取消」：先进确认态，不直接调接口。 */
-  private requestCancel(reservationId: string): void {
-    this.cancelTarget = reservationId;
+  /** 拉「我的预约」权威列表（/api/index/subscribe，取消用这里的 record.id）。 */
+  private async loadMyReservations(): Promise<void> {
+    this.mineLoading = true;
+    this.mineErr = '';
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const user = await SeatService.getSession(ctx);
+      if (user === null) {
+        this.mineErr = '未登录，未取到我的预约';
+        this.mine = [];
+        this.myCount = 0;
+        this.mineLoading = false;
+        return;
+      }
+      const res = await this.svc.myReservations(ctx, user.jwt);
+      if (!res.ok) {
+        this.mineErr = (res.message ?? '').length > 0 ? res.message! : '我的预约拉取失败';
+        this.mine = [];
+        this.myCount = 0;
+      } else {
+        this.mine = res.records;
+        this.myCount = res.records.length;
+      }
+    } catch (e) {
+      this.mineErr = '我的预约拉取失败：' + (e as Error).message;
+      this.mine = [];
+      this.myCount = 0;
+    }
+    this.mineLoading = false;
+  }
+
+  /** 点「取消」：先进确认态，不直接调接口。record.id 作取消目标。 */
+  private requestCancel(recordId: string): void {
+    this.cancelTarget = recordId;
     this.cancelResult = '';
   }
 
-  /** 二次确认后才真正取消（有对外副作用）。 */
+  /** 二次确认后才真正取消（有对外副作用，铁律 0.6）。取消接口传的是**预约记录 id**。 */
   private async confirmCancel(): Promise<void> {
     const rid: string | null = this.cancelTarget;
     if (rid === null) {
@@ -182,39 +213,21 @@ struct SeatPage {
     this.cancelBusy = true;
     this.cancelResult = '';
     try {
-      // 找到这条预约对应的 seatId（取消接口要 seat_id + reservation_id）
-      let seatId: string = '';
-      for (let i = 0; i < this.seats.length; i++) {
-        const s: SeatSnapshot = this.seats[i];
-        if (s.reservationId === rid) {
-          seatId = s.seatId;
-          break;
-        }
-      }
-      if (seatId.length === 0) {
-        this.cancelResult = '找不到该预约对应的座位，无法取消';
-        this.cancelBusy = false;
-        this.cancelTarget = null;
-        return;
-      }
       const ctx: Context = getContext(this) as Context;
-      const user = await SeatService.getUserInfo(ctx);
+      const user = await SeatService.getSession(ctx);
       if (user === null) {
         this.cancelResult = '未登录，无法取消';
         this.cancelBusy = false;
         this.cancelTarget = null;
         return;
       }
-      const msg: string | null = await this.svc.cancel(ctx, {
-        reservationId: rid,
-        seatId: seatId,
-      }, user.jwt);
+      const res = await this.svc.cancelReservation(ctx, user.jwt, rid);
       this.cancelTarget = null;
-      if (msg === null) {
+      if (res.ok) {
         this.cancelResult = '已取消';
-        await this.loadSeats();
+        await this.loadMyReservations();
       } else {
-        this.cancelResult = msg;
+        this.cancelResult = res.message ?? '取消失败';
       }
     } catch (e) {
       this.cancelResult = '取消失败：' + (e as Error).message;
@@ -301,28 +314,31 @@ struct SeatPage {
             .width('100%')
           }
 
-          // ── 座位状态 ──
+          // ── 座位状态（当前区域）──
           Text('座位状态' + (this.selArea.length > 0 ? '（' + this.selArea + '）' : ''))
             .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 16 })
           if (this.seatsLoading) {
             Text('拉取座位状态…').fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
           } else if (this.seatsErr.length > 0) {
             Text(this.seatsErr).fontSize(11).fontColor(this.p().error).width('100%').margin({ top: 6 })
-          } else if (this.selArea.length > 0 && this.seatVMs.length === 0) {
+          } else if (this.selArea.length > 0 && this.seats.length === 0) {
             Text('该区域暂未查到座位').fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
           } else if (this.selArea.length > 0) {
-            // 汇总（派生，已算好）
-            Text(this.summary.freeRatio)
+            Text(this.freeText())
               .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 6 })
-            // 座位列表
-            ForEach(this.seatVMs, (vm: SeatVM) => {
-              this.seatRow(vm)
-            }, (vm: SeatVM) => 'seat' + vm.seatId)
+            ForEach(this.seats, (s: WireSeat) => {
+              this.seatRow(s)
+            }, (s: WireSeat) => 'seat' + s.id)
           }
 
-          // ── 我的预约 ──
+          // ── 我的预约（权威列表 /api/index/subscribe）──
           Text('我的预约（' + this.myCount + '）')
             .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 16 })
+          if (this.mineLoading) {
+            Text('拉取我的预约…').fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 4 })
+          } else if (this.mineErr.length > 0) {
+            Text(this.mineErr).fontSize(11).fontColor(this.p().error).width('100%').margin({ top: 4 })
+          }
           this.myBlock()
 
           // ── 取消确认条 ──
@@ -330,8 +346,8 @@ struct SeatPage {
             this.cancelBlock()
           }
 
-          // ── 占位：研讨间 / 违约 ──
-          Text('研讨间、违约记录：服务端接口待接，暂不显示（不造假数据）')
+          // ── 研讨间 / 违约（服务端接口待接，不造假数据）──
+          Text('研讨间、违约记录：服务端接口已备（SeatApiLogic），UI 展示待接（不造假数据）')
             .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 12 })
 
           Text('取消 / 预约为对外操作，需设备端真机回归（当前离线未验）')
@@ -346,47 +362,57 @@ struct SeatPage {
     .backgroundColor(this.p().bgPage)
   }
 
-  /** 单个座位行（纯渲染，无局部变量）。 */
+  /** 单个座位行（纯渲染，无局部变量；状态色/文案走 SeatApiLogic）。 */
   @Builder
-  seatRow(vm: SeatVM) {
+  seatRow(s: WireSeat) {
     Row() {
       Text('')
         .width(10).height(10).borderRadius(5)
-        .backgroundColor(this.isDark ? vm.statusColorDark : vm.statusColorLight)
-      Text(vm.seatName)
+        .backgroundColor(wireStatusColor(s.status, this.isDark))
+      Text(s.no.length > 0 ? s.no : s.id)
         .fontSize(13).fontColor(this.p().textPrimary).margin({ left: 8 }).layoutWeight(1)
-      Text(vm.statusText).fontSize(11).fontColor(this.p().textSecondary)
-      if (vm.timeText.length > 0) {
-        Text(vm.timeText).fontSize(11).fontColor(this.p().textFaint).margin({ left: 8 })
-      }
+      Text(s.statusName.length > 0 ? s.statusName : wireStatusText(s.status))
+        .fontSize(11).fontColor(this.p().textSecondary)
     }
     .width('100%').padding({ top: 8, bottom: 8 })
     .backgroundColor(this.p().bgCard).borderRadius(8).margin({ top: 4 })
     .alignItems(VerticalAlign.Center)
   }
 
+  /** 空闲统计文案（现算，铁律 0.8）。 */
+  private freeText(): string {
+    let free = 0;
+    for (let i = 0; i < this.seats.length; i++) {
+      if (this.seats[i].status === 'AVAILABLE') {
+        free++;
+      }
+    }
+    return '空闲 ' + free + '/' + this.seats.length;
+  }
+
   /** 我的预约区块（数据来自状态 this.mine，不在 ForEach 里重算）。 */
   @Builder
   myBlock() {
     Column() {
-      ForEach(this.mine, (m: MyReservationVM) => {
+      ForEach(this.mine, (m: MyReservation) => {
         this.myResRow(m)
-      }, (m: MyReservationVM) => 'myres' + m.reservationId)
+      }, (m: MyReservation) => 'myres' + m.id)
     }
     .width('100%')
   }
 
   /** 单条我的预约行。 */
   @Builder
-  myResRow(m: MyReservationVM) {
+  myResRow(m: MyReservation) {
     Row() {
-      Text(m.seatName).fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
-      if (m.timeText.length > 0) {
-        Text(m.timeText).fontSize(11).fontColor(this.p().textFaint)
+      Text(m.seatNo.length > 0 ? m.seatNo : m.seatId)
+        .fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
+      if (m.beginTime.length > 0) {
+        Text(m.beginTime).fontSize(11).fontColor(this.p().textFaint)
       }
-      Text(m.phase === 'active' ? '生效中' : '已过期')
-        .fontSize(10).fontColor(m.phase === 'active' ? this.p().success : this.p().textMuted)
-      if (m.cancellable && this.cancelTarget === m.reservationId) {
+      Text(m.isActive ? '未签到' : m.statusName ?? m.status)
+        .fontSize(10).fontColor(m.isActive ? this.p().success : this.p().textMuted)
+      if (m.isActive && this.cancelTarget === m.id) {
         Button('确认取消')
           .height(26).fontSize(11).margin({ left: 8 })
           .backgroundColor(this.p().error).fontColor('#FFFFFF')
@@ -394,11 +420,11 @@ struct SeatPage {
           .onClick(() => {
             this.confirmCancel();
           })
-      } else if (m.cancellable) {
+      } else if (m.isActive) {
         Button('取消')
           .height(26).fontSize(11).margin({ left: 8 })
           .onClick(() => {
-            this.requestCancel(m.reservationId);
+            this.requestCancel(m.id);
           })
       }
     }
