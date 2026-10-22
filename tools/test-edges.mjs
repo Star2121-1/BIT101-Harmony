@@ -2,7 +2,7 @@
  * 边界自查（M2-9）：周次串 / 周次包含 / 周次换算 / 日期合法性 / 可渲染判据 / 有效星期。
  *
  * 这些函数是课表一切渲染的判据，边界错一天 = 学生少上一节课，所以逐条钉死。
- * 跑法：node --experimental-strip-types tools/test-edges.mjs
+ * 跑法：node --experimental-transform-types tools/test-edges.mjs
  */
 
 import { skzcToWeeks, maxWeekOf, parseCourseRow, isRenderableCourse } from '../entry/src/main/ets/core/model/SchoolModels.ts';

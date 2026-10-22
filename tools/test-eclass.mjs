@@ -7,7 +7,7 @@
  * 数据形状全部来自实测契约（BIT101-seat/docs/ddl-source-contract.md §二，
  * 2026-09-22/23）：visited_courses[] 与 activities[] 的真实字段。
  *
- * 跑法：node --experimental-strip-types tools/test-eclass.mjs
+ * 跑法：node --experimental-transform-types tools/test-eclass.mjs
  */
 
 import {

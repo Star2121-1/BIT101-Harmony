@@ -13,28 +13,28 @@ cd "$(dirname "$0")/.." || exit 1
 
 NODE_BIN="${NODE_BIN:-node}"
 if ! command -v "$NODE_BIN" >/dev/null 2>&1; then
-  echo "找不到 node。需要 Node 22.6+（支持 --experimental-strip-types）" >&2
+  echo "找不到 node。需要 Node 22.7+（支持 --experimental-transform-types）" >&2
   echo "可用 NODE_BIN=/path/to/node bash tools/run-tests.sh 指定" >&2
   exit 1
 fi
 
 node_ver="$("$NODE_BIN" --version 2>/dev/null)"
-# Node 22.6 起才有 --experimental-strip-types
+# Node 22.7 起才有 --experimental-transform-types（strip-types 不支持 enum 等需代码生成的语法）
 major="$(echo "$node_ver" | sed -E 's/^v([0-9]+).*/\1/')"
 minor="$(echo "$node_ver" | sed -E 's/^v[0-9]+\.([0-9]+).*/\1/')"
-if [ "${major:-0}" -lt 22 ] || { [ "${major:-0}" -eq 22 ] && [ "${minor:-0}" -lt 6 ]; }; then
-  echo "Node 版本过低：$node_ver（需要 22.6+ 才支持 --experimental-strip-types）" >&2
+if [ "${major:-0}" -lt 22 ] || { [ "${major:-0}" -eq 22 ] && [ "${minor:-0}" -lt 7 ]; }; then
+  echo "Node 版本过低：$node_ver（需要 22.7+ 才支持 --experimental-transform-types）" >&2
   exit 1
 fi
 
-suites="test-parser test-teaching test-edges test-shuttle test-colors test-timetable test-eclass test-ddl test-libborrow test-routes test-card test-net test-overlay test-netalert test-notify test-schedule test-settings test-score test-seat test-seatapi test-seatmap test-seatreserve test-seatviolation test-seatreservation test-seatmonitor test-seminar test-seatview test-widget"
+suites="test-parser test-teaching test-edges test-shuttle test-colors test-timetable test-eclass test-ddl test-libborrow test-routes test-card test-net test-overlay test-netalert test-notify test-schedule test-settings test-score test-seat test-seatapi test-seatmap test-seatreserve test-seatviolation test-seatreservation test-seatmonitor test-seminar test-seatview test-widget test-enums"
 total=0
 passed=0
 failed_suites=""
 
 for s in $suites; do
   printf '\n──────── %s ────────\n' "$s"
-  out="$("$NODE_BIN" --experimental-strip-types "tools/$s.mjs" 2>&1)"
+  out="$("$NODE_BIN" --experimental-transform-types "tools/$s.mjs" 2>&1)"
   code=$?
   printf '%s\n' "$out"
 

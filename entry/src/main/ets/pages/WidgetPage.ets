@@ -12,7 +12,7 @@
  */
 
 import { formBindingData } from '@kit.FormKit';
-import { WidgetPage, PageKind } from '../corelogic/WidgetLogic.ts';
+import { WidgetPage, PageKind, ClassState } from '../corelogic/WidgetLogic.ts';
 import { type WidgetLine } from '../corelogic/WidgetLogic.ts';
 
 // ── 卡片主组件 ─────────────────────────────────────────────────────────────
@@ -182,9 +182,9 @@ struct WidgetPage {
   private renderLine(line: WidgetLine): Row {
     // 根据 highlight 设置背景色
     let bgColor: string = '#FFFFFF';
-    if (line.highlight === 'ONGOING') {
+    if (line.highlight === ClassState.ONGOING) {
       bgColor = '#E8F5E9';
-    } else if (line.highlight === 'UPCOMING') {
+    } else if (line.highlight === ClassState.UPCOMING) {
       bgColor = '#FFF3E0';
     }
 

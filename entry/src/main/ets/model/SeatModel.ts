@@ -8,19 +8,17 @@
  */
 
 /** 服务端返回的座位状态码。 */
-export const SeatStatus = {
-  AVAILABLE: 1,          // 空闲
-  RESERVED: 2,           // 已预约（含他人）
-  RESERVED_YOURS: 10,    // 我已预约（与 RESERVED 同码，需交叉比对）
-  RESERVED_OTHERS: 11,   // 他人已预约
-  IN_USE: 6,             // 使用中
-  LEAVE: 7,              // 临时离开
-  UNAVAILABLE: 3,        // 暂停使用
-  BLOCKED: 4,            // 锁定
-  MAINTENANCE: 5,        // 维护中
-} as const;
-
-export type SeatStatus = (typeof SeatStatus)[keyof typeof SeatStatus];
+export enum SeatStatus {
+  AVAILABLE = 1,          // 空闲
+  RESERVED = 2,           // 已预约（含他人）
+  RESERVED_YOURS = 10,    // 我已预约（与 RESERVED 同码，需交叉比对）
+  RESERVED_OTHERS = 11,   // 他人已预约
+  IN_USE = 6,             // 使用中
+  LEAVE = 7,              // 临时离开
+  UNAVAILABLE = 3,        // 暂停使用
+  BLOCKED = 4,            // 锁定
+  MAINTENANCE = 5,        // 维护中
+}
 
 /** 座位数据（来自 /api/seat/map 接口）。 */
 export interface Seat {

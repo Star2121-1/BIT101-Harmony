@@ -4,7 +4,7 @@
  */
 
 import {
-  ENDPOINTS, DEFAULT_SEGMENT_ID,
+  Endpoint, DEFAULT_SEGMENT_ID,
   seatStatusOf, isFree, parseSeats, parseSeatDates, usableSegment,
   parseMyReservations, parseRenege, renegeKey, renegeText,
   seatIdToNumber, buildSeatBody, buildConfirmBody, buildSubscribeBody,
@@ -31,13 +31,13 @@ function ok(cond, name) {
 
 // ── 1. 端点表（唯一事实源）────────────────────────────────────────────────
 {
-  eq(ENDPOINTS.seat, '/api/Seat/seat', "取座位端点");
-  eq(ENDPOINTS.confirm, '/api/Seat/confirm', "预约端点");
-  eq(ENDPOINTS.cancel, '/api/Space/cancel', "取消端点（跨 /api/Space）");
-  eq(ENDPOINTS.subscribe, '/api/index/subscribe', "我的预约端点");
-  eq(ENDPOINTS.map, '/api/seat/map', "底图端点");
-  eq(ENDPOINTS.reneges, '/api/Member/reneges', "违约端点");
-  eq(ENDPOINTS.seminar, '/api/Member/seminar', "研讨间端点");
+  eq(Endpoint.SEAT, '/api/Seat/seat', "取座位端点");
+  eq(Endpoint.CONFIRM, '/api/Seat/confirm', "预约端点");
+  eq(Endpoint.CANCEL, '/api/Space/cancel', "取消端点（跨 /api/Space）");
+  eq(Endpoint.SUBSCRIBE, '/api/index/subscribe', "我的预约端点");
+  eq(Endpoint.MAP, '/api/seat/map', "底图端点");
+  eq(Endpoint.RENEGES, '/api/Member/reneges', "违约端点");
+  eq(Endpoint.SEMINAR, '/api/Member/seminar', "研讨间端点");
   eq(DEFAULT_SEGMENT_ID, '1', "默认时段 id");
 }
 

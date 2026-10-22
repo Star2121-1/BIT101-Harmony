@@ -51,8 +51,13 @@ const MAX_CAS_HOPS: number = 8;
 /** cookie 罐标识（只允许字母+下划线）。 */
 
 /** 登录结果状态。 */
-export type LoginStatus =
-  'ok' | 'sms_required' | 'captcha_required' | 'bad_credentials' | 'error';
+export enum LoginStatus {
+  OK = 'ok',
+  SMS_REQUIRED = 'sms_required',
+  CAPTCHA_REQUIRED = 'captcha_required',
+  BAD_CREDENTIALS = 'bad_credentials',
+  ERROR = 'error',
+}
 
 export interface LoginOutcome {
   status: LoginStatus;
@@ -126,7 +131,7 @@ export class CasLoginService {
       const cap = await CasLoginService.findCaptchaInvisible(session, username);
       steps.push('step2 captchaInvisible=' + cap);
       if (cap === 'true') {
-        outcome.status = 'captcha_required';
+        outcome.status = LoginStatus.CAPTCHA_REQUIRED;
         outcome.message = '学校要求图形验证码，当前版本不支持（已停手，请到浏览器登录一次后重试）';
         return outcome;
       }
@@ -213,7 +218,7 @@ export class CasLoginService {
         const sent = await CasLoginService.sendSmsCode(session, sf.phone);
         steps.push('step5 sms_send http=' + sent.status + ' phone=' + mask(sf.phone));
         pending = { jarLogin: session, repoLogin: repo, sf: sf, username: username };
-        outcome.status = 'sms_required';
+        outcome.status = LoginStatus.SMS_REQUIRED;
         outcome.message = '已向 ' + mask(sf.phone) + ' 发送验证码，请输入后继续';
         return outcome;
       } catch (e) {
@@ -223,7 +228,7 @@ export class CasLoginService {
       }
     } else {
       const errMsg: string = extractLoginError(post.body);
-      outcome.status = 'bad_credentials';
+      outcome.status = LoginStatus.BAD_CREDENTIALS;
       outcome.message = errMsg.length > 0 ? errMsg : '登录被拒绝（账号或密码错误，或风控拦截）';
       steps.push('step5 rejected bodyLen=' + post.body.length);
       return outcome;
@@ -244,7 +249,7 @@ export class CasLoginService {
         return outcome;
       }
       outcome.jwt = jwt;
-      outcome.status = 'ok';
+      outcome.status = LoginStatus.OK;
       outcome.message = '登录成功';
     } catch (e) {
       outcome.message = '换取 JWT 失败（网络或服务端异常）';
@@ -364,7 +369,7 @@ export class CasLoginService {
         return outcome;
       }
       outcome.jwt = jwt;
-      outcome.status = 'ok';
+      outcome.status = LoginStatus.OK;
       outcome.message = '登录成功';
       await SchoolCookieStore.snapshotAndSave(p.repoLogin);
       await SessionStore.saveToken(jwt, p.username, '');

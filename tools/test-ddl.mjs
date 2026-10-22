@@ -4,7 +4,7 @@
  * 为什么值得单测：合并规则错一次 = 「勾掉完成的作业，同步后又变回未完成」，
  * 用户会认为自己的操作丢了（Android EclassDdlSyncer 的原注释就是这个风险）。
  *
- * 跑法：node --experimental-strip-types tools/test-ddl.mjs
+ * 跑法：node --experimental-transform-types tools/test-ddl.mjs
  */
 
 import { mergeDdl, sortDdl, toEntry, findDdl } from '../entry/src/main/ets/corelogic/DdlRules.ts';

@@ -29,14 +29,13 @@ import { weekdayCn, dateLabelCn, type AdjustmentEntry, type DayPlan } from "./Te
 
 // ── 数据模型 ────────────────────────────────────────────────────────────
 
-export const ReminderKind = {
-  CLASS: "CLASS",
-  DDL: "DDL",
-  SEAT_SIGN_IN: "SEAT_SIGN_IN",
-  EXAM: "EXAM",
-  ADJUSTMENT: "ADJUSTMENT",
-} as const;
-export type ReminderKind = (typeof ReminderKind)[keyof typeof ReminderKind];
+export enum ReminderKind {
+  CLASS = "CLASS",
+  DDL = "DDL",
+  SEAT_SIGN_IN = "SEAT_SIGN_IN",
+  EXAM = "EXAM",
+  ADJUSTMENT = "ADJUSTMENT",
+}
 
 /** 座位提醒的输入（notify 不依赖座位模块，由座位侧转换后传入）。 */
 export interface SeatReminderInput {

@@ -87,7 +87,7 @@
 - 37 个源文件 9114 行（含 M1 探针 `probe/CasProbe.ts` 1178 行、`pages/CasProbePage.ets` 183 行，属诊断代码，M2 收尾后可删）
 - 分层：`core/{crypto,net,model,theme,log}` + `data` + `service` + `corelogic` + `pages`
 - 已有页面：`Index`（入口）· `LoginPage` · `SchedulePage` · `CasProbePage`（诊断）
-- 缺口：**无 RDB**（课表在内存，冷启动每次重拉 20 秒）· 无 `features/` 分层 · 无单测框架（当前用 Node `--experimental-strip-types` 跑真源码）
+- 缺口：**无 RDB**（课表在内存，冷启动每次重拉 20 秒）· 无 `features/` 分层 · 无单测框架（当前用 Node `--experimental-transform-types` 跑真源码）
 
 ---
 
@@ -380,7 +380,7 @@ M9-1 JWT ✅ ──▶ M9-2 树 ──▶ M9-3 底图 ──▶ M9-4 预约 ─�
     要用 `JsonValue`（SchoolModels.ts）+ `str/num/objOf/arrOf`；`Object.values` 没人用过（返回
     any[] 有风险），遍历 Record 用 `Object.keys` + 下标；`catch (e)` 后 `(e as Error).message`
     是既有写法；`in` 操作符项目里零使用，判字段存在用 `obj[k] === undefined`。
-    **Node 单测（strip-types）证明不了这些**——测试照跑 68 条全绿，ArkTS 编译器照样拒。
+    **Node 单测（transform-types）证明不了这些**——测试照跑 68 条全绿，ArkTS 编译器照样拒。
 25. **[10-21] ForEach 的 keyGenerator 只能单参**：`(rec, idx?) => …` 双参写法在本编译器下
     连环报 `';' expected`（报错位置还漂到几十行外的容器闭合处）。照 DdlPage 的
     `(e: DdlEntry) => e.uid` 单参写法即可。
@@ -396,9 +396,20 @@ M9-1 JWT ✅ ──▶ M9-2 树 ──▶ M9-3 底图 ──▶ M9-4 预约 ─�
     ⚠️ **基线 tag 反证**：`h-v1.0.0-alpha.1` 编译图里就带 14 处 unknown + 11 处 as const + 3 处解构，
     与「assembleHap 已实测通过」的历史记录**矛盾** ⇒ 那条「通过」不可信（大概先行于这些文件或未真编），
     **不能当编译门**。唯一判据仍是 DevEco/真机 assembleHap。
-    **仍未修（下一轮，已定位）**：`as const`（arkts-no-as-const，10605142）11 文件 19 处 +
-    `(typeof X)[keyof typeof X]` 16 处（禁字面量类型/索引访问类型）。方向：显式 union + 成员逐个 `as T`
-    （保 `=== 'FREE'` 字面量比较兼容）或 ArkTS string enum（会破坏字面量比较，须逐消费方核）。
+27. **[10-22] as const / 字面量类型清理（第 26 条续）**：`as const`（arkts-no-as-const，10605142）
+    11 文件 19 处 + `(typeof X)[keyof typeof X]` 16 处 + 裸字面量联合（WireSeatStatus /
+    CasLoginService.LoginStatus，arkts-no-string-literal-type）全改 **string/number enum**。
+    ① **官方口径**：字面量联合 `"A"|"B"` 也禁（不止 as const）⇒ union 方案不可行，enum 是唯一正路。
+    ② **Node 链切换**：`--experimental-strip-types` **不支持 enum**（实测两版本都报错）⇒
+    全链改 `--experimental-transform-types`（22.7+，实测 string enum 运行时值 === 原字符串，
+    旧测试传字符串照跑绿 ⇒ **行为零变化**，测试文件零修改）。③ **test-enums.mjs 88 条锁定每个
+    enum 成员运行时值**（防 value drift；单测传字符串绿证明不了这个）。④ 消费方只有成员访问
+    `X.A`（enum 语法兼容）+ 6 处字符串比较（SeatPage/EclassActivityPage/WidgetPage/SeatApiLogic 内部）。
+    ⑤ ⚠️⚠️ **compile-probe 自己是假绿受害者**：原探针用字符串字面量喂 enum 参数
+    （`isFree("AVAILABLE")`）——Node 跑得过、ArkTS 编译必拒 ⇒ 探针全部改 enum 成员传参。
+    ⑥ ⚠️ **SeatReservationLogic/SeatMonitorLogic 零 import**（⇒ SeatModel/SeatTask 不在编译图，
+    enum 改造不会被编译器验证）⇒ probe 补拉 SeatModel/SeatTask/SeatReservationLogic 进编译图
+    （SeatMonitorLogic 依赖 SeatTaskStore→@kit 链，Node probe 吃不了，留待 M9-8 接线）。
 
 ---
 

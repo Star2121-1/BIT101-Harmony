@@ -16,21 +16,20 @@
  */
 
 /** 检查结果分类（值与 Android `Code.name` 一致，编码时直接写进存储串）。 */
-export const ScoreCheckCode = {
+export enum ScoreCheckCode {
   /** 成功拿到成绩表（Status.count 是解析出的课程数）。 */
-  OK: 'OK',
+  OK = 'OK',
   /** 学校要求短信二次验证 —— 后台没有交互通道，本次放弃。 */
-  NEED_SMS: 'NEED_SMS',
+  NEED_SMS = 'NEED_SMS',
   /** 轮询超时（挑战一直没就绪）。 */
-  TIMEOUT: 'TIMEOUT',
+  TIMEOUT = 'TIMEOUT',
   /** 学校未通过本次登录（重试无效；典型=学号密码错，先确认凭据）。 */
-  AUTH_FAILED: 'AUTH_FAILED',
+  AUTH_FAILED = 'AUTH_FAILED',
   /** 网络 / 接口异常（这类才值得「稍后重试」）。 */
-  FAILED: 'FAILED',
+  FAILED = 'FAILED',
   /** 没登录（学号密码为空）。 */
-  NOT_LOGGED_IN: 'NOT_LOGGED_IN'
-} as const;
-export type ScoreCheckCode = (typeof ScoreCheckCode)[keyof typeof ScoreCheckCode];
+  NOT_LOGGED_IN = 'NOT_LOGGED_IN'
+}
 
 /** 全部合法码（parse 校验用；未知码 → 整条丢弃，不猜）。 */
 export const ALL_SCORE_CODES: ScoreCheckCode[] = [

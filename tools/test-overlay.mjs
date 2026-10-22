@@ -8,7 +8,7 @@
  * ⚠️ 周次表示法与 Android 不同：鸿蒙侧 SKZC 是 `01` 串（`'1'` = 上课），
  * Android 是 `[1][2][3]`；语义相同，测试按 01 串写。
  *
- * 跑法：node --experimental-strip-types tools/test-overlay.mjs
+ * 跑法：node --experimental-transform-types tools/test-overlay.mjs
  */
 
 import {

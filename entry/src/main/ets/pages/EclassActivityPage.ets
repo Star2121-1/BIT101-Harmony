@@ -13,7 +13,7 @@ import { router } from '@kit.ArkUI';
 import { palette, Palette } from '../core/theme/AppColors.ts';
 import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { EclassService } from '../service/EclassService.ts';
-import { EclassActivity, activityKindLabel } from '../corelogic/EclassActivityLogic.ts';
+import { EclassActivity, activityKindLabel, ActivityKind } from '../corelogic/EclassActivityLogic.ts';
 import { agoText } from '../corelogic/EclassActivityLogic.ts';
 import type { DateTime } from '../corelogic/timeutil.ts';
 import { info, warn } from '../core/log/BitLog.ts';
@@ -125,8 +125,8 @@ struct EclassActivityPage {
                 Row() {
                   Text(activityKindLabel(a.kind))
                     .fontSize(10)
-                    .fontColor(a.kind === 'HOMEWORK' ? this.p().textOnAccent : this.p().textMuted)
-                    .backgroundColor(a.kind === 'HOMEWORK' ? this.p().accent : this.p().bgAlt)
+                    .fontColor(a.kind === ActivityKind.HOMEWORK ? this.p().textOnAccent : this.p().textMuted)
+                    .backgroundColor(a.kind === ActivityKind.HOMEWORK ? this.p().accent : this.p().bgAlt)
                     .padding({ left: 6, right: 6, top: 2, bottom: 2 })
                     .borderRadius(4)
                   Text(a.courseName)

@@ -25,43 +25,40 @@ export interface SessionSnapshot {
 
 // ── 枚举 ─────────────────────────────────────────────────────────────────────
 
-export const SeatStatus = {
+export enum SeatStatus {
   /** 空闲，可预约。 */
-  FREE: 'FREE',
+  FREE = 'FREE',
   /** 已被你预约，等待签到。 */
-  RESERVED_YOURS: 'RESERVED_YOURS',
+  RESERVED_YOURS = 'RESERVED_YOURS',
   /** 已被他人预约。 */
-  RESERVED_OTHERS: 'RESERVED_OTHERS',
+  RESERVED_OTHERS = 'RESERVED_OTHERS',
   /** 已签到，你在座位上。 */
-  CHECKED_IN: 'CHECKED_IN',
+  CHECKED_IN = 'CHECKED_IN',
   /** 已过期（预约时段已过但尚未清理）。 */
-  EXPIRED: 'EXPIRED',
+  EXPIRED = 'EXPIRED',
   /** 违约（迟到未签到，计入黑名单）。 */
-  DEFAULTED: 'DEFAULTED',
+  DEFAULTED = 'DEFAULTED',
   /** 已取消。 */
-  CANCELLED: 'CANCELLED',
-} as const;
-export type SeatStatus = (typeof SeatStatus)[keyof typeof SeatStatus];
+  CANCELLED = 'CANCELLED',
+}
 
-export const ReservationKind = {
+export enum ReservationKind {
   /** 单次预约（最常见）。 */
-  SINGLE: 'SINGLE',
+  SINGLE = 'SINGLE',
   /** 连续预约（连续多个时段）。 */
-  CONTINUOUS: 'CONTINUOUS',
+  CONTINUOUS = 'CONTINUOUS',
   /** 研讨间预约。 */
-  SEMINAR_ROOM: 'SEMINAR_ROOM',
-} as const;
-export type ReservationKind = (typeof ReservationKind)[keyof typeof ReservationKind];
+  SEMINAR_ROOM = 'SEMINAR_ROOM',
+}
 
-export const SignInKind = {
+export enum SignInKind {
   /** NFC/二维码扫码签到（需要物理到场）。 */
-  NFC_QR: 'NFC_QR',
+  NFC_QR = 'NFC_QR',
   /** GPS 定位签到（需要物理到场）。 */
-  GPS: 'GPS',
+  GPS = 'GPS',
   /** 系统模拟签到（仅测试用，不允许生产）。 */
-  SIMULATED: 'SIMULATED',
-} as const;
-export type SignInKind = (typeof SignInKind)[keyof typeof SignInKind];
+  SIMULATED = 'SIMULATED',
+}
 
 // ── 数据模型 ─────────────────────────────────────────────────────────────────
 

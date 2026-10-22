@@ -4,8 +4,8 @@
  * 为什么这几条要单独成文件：解析判据一旦漂移，表现全是「这条路走不通」
  * （真机 302 变成了 parse_empty），先在这里红掉比在真机上白查一轮便宜得多。
  *
- * 跑法（Node 22+，靠 --experimental-strip-types 直接吃 .ts，不需要 tsc）：
- *   node --experimental-strip-types tools/test-parser.mjs
+ * 跑法（Node 22+，靠 --experimental-transform-types 直接吃 .ts，不需要 tsc）：
+ *   node --experimental-transform-types tools/test-parser.mjs
  *
  * fixture：`tools/fixtures/cas/login-page.html`（**随仓库走**）
  * —— 2026-10-20 从 sso.bit.edu.cn 抓下的**服务端原始页面**（不跑 JS）。

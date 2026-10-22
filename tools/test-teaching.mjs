@@ -5,7 +5,7 @@
  * （BIT101-seat/data/src/test/java/cn/bit101/android/data/school/TeachingAdjustmentLogicTest.kt），
  * fixture 是**同一批真机抓下来的门户页面**（tools/fixtures/teaching/，一字未改）。
  *
- * 跑法：node --experimental-strip-types tools/test-teaching.mjs
+ * 跑法：node --experimental-transform-types tools/test-teaching.mjs
  */
 
 import { readFileSync } from 'node:fs';

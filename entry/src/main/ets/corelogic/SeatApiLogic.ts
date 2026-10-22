@@ -27,17 +27,17 @@
 
 // ── 端点表（唯一事实源；service 不写死 URL）────────────────────────────────
 
-export const ENDPOINTS = {
-  tree: '/api/Seat/tree',
-  date: '/api/Seat/date',
-  seat: '/api/Seat/seat',
-  confirm: '/api/Seat/confirm',
-  subscribe: '/api/index/subscribe',
-  cancel: '/api/Space/cancel',
-  map: '/api/seat/map',
-  reneges: '/api/Member/reneges',
-  seminar: '/api/Member/seminar',
-} as const;
+export enum Endpoint {
+  TREE = '/api/Seat/tree',
+  DATE = '/api/Seat/date',
+  SEAT = '/api/Seat/seat',
+  CONFIRM = '/api/Seat/confirm',
+  SUBSCRIBE = '/api/index/subscribe',
+  CANCEL = '/api/Space/cancel',
+  MAP = '/api/seat/map',
+  RENEGES = '/api/Member/reneges',
+  SEMINAR = '/api/Member/seminar',
+}
 
 /** 时段 id 的默认回落值（times[].id 实测恒 null ⇒ 用 "1"，是正常路径）。 */
 export const DEFAULT_SEGMENT_ID: string = '1';
@@ -45,12 +45,13 @@ export const DEFAULT_SEGMENT_ID: string = '1';
 // ── 服务端状态码 → 归一状态（对齐官方前端 seat-map.js）────────────────────
 
 /** 归一后的座位状态（5 类；「我的」是交叉标记，不由服务端给）。 */
-export type WireSeatStatus =
-  | 'AVAILABLE'   // 1 空闲可约
-  | 'RESERVED'    // 2/10/11 已预约（不区分是不是本人）
-  | 'IN_USE'      // 6/8/9 在用
-  | 'LEAVE'       // 7 临时离开
-  | 'UNAVAILABLE'; // 3/4/5/未知 暂停/不可用（宁可不让点）
+export enum WireSeatStatus {
+  AVAILABLE = 'AVAILABLE',   // 1 空闲可约
+  RESERVED = 'RESERVED',    // 2/10/11 已预约（不区分是不是本人）
+  IN_USE = 'IN_USE',      // 6/8/9 在用
+  LEAVE = 'LEAVE',       // 7 临时离开
+  UNAVAILABLE = 'UNAVAILABLE', // 3/4/5/未知 暂停/不可用（宁可不让点）
+}
 
 /**
  * 服务端状态码（字符串）→ 归一状态。
@@ -58,42 +59,43 @@ export type WireSeatStatus =
  */
 export function seatStatusOf(raw: string | null | undefined): WireSeatStatus {
   switch ((raw ?? '').trim()) {
-    case '1': return 'AVAILABLE';
+    case '1': return WireSeatStatus.AVAILABLE;
     case '2':
     case '10':
-    case '11': return 'RESERVED';
+    case '11': return WireSeatStatus.RESERVED;
     case '6':
     case '8':
-    case '9': return 'IN_USE';
-    case '7': return 'LEAVE';
-    default: return 'UNAVAILABLE';
+    case '9': return WireSeatStatus.IN_USE;
+    case '7': return WireSeatStatus.LEAVE;
+    default: return WireSeatStatus.UNAVAILABLE;
   }
 }
 
 /** 是否可作为预约目标（单人预约只允许空位）。 */
 export function isFree(status: WireSeatStatus): boolean {
-  return status === 'AVAILABLE';
+  return status === WireSeatStatus.AVAILABLE;
 }
 
 /** 归一状态的中文文案（列表展示用；优先用服务端 statusName，缺失才回落到这里）。 */
 export function wireStatusText(status: WireSeatStatus): string {
   switch (status) {
-    case 'AVAILABLE': return '空闲';
-    case 'RESERVED': return '已预约';
-    case 'IN_USE': return '在用';
-    case 'LEAVE': return '暂离';
-    case 'UNAVAILABLE': return '停用';
+    case WireSeatStatus.AVAILABLE: return '空闲';
+    case WireSeatStatus.RESERVED: return '已预约';
+    case WireSeatStatus.IN_USE: return '在用';
+    case WireSeatStatus.LEAVE: return '暂离';
+    case WireSeatStatus.UNAVAILABLE: return '停用';
+    default: return '停用';
   }
 }
 
 /** 归一状态 → 展示色（浅/深各一档，对齐 statusColor 的既有配色风格）。 */
 export function wireStatusColor(status: WireSeatStatus, isDark: boolean): string {
   switch (status) {
-    case 'AVAILABLE': return isDark ? '#2E7D32' : '#4CAF50';
-    case 'RESERVED': return isDark ? '#1565C0' : '#1976D2';
-    case 'IN_USE': return isDark ? '#6D4C41' : '#8D6E63';
-    case 'LEAVE': return isDark ? '#B45309' : '#B45309';
-    case 'UNAVAILABLE': return isDark ? '#546E7A' : '#78909C';
+    case WireSeatStatus.AVAILABLE: return isDark ? '#2E7D32' : '#4CAF50';
+    case WireSeatStatus.RESERVED: return isDark ? '#1565C0' : '#1976D2';
+    case WireSeatStatus.IN_USE: return isDark ? '#6D4C41' : '#8D6E63';
+    case WireSeatStatus.LEAVE: return isDark ? '#B45309' : '#B45309';
+    case WireSeatStatus.UNAVAILABLE: return isDark ? '#546E7A' : '#78909C';
     default: return isDark ? '#546E7A' : '#78909C';
   }
 }

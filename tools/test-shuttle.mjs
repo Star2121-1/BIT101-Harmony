@@ -4,7 +4,7 @@
  * ⚠️ 时刻表是**逐条抄自站牌实拍照片**的（2026-09-27 用户提供），
  * 抄错一班车 = 用户在站台白等 20 分钟。所以班次数、严格递增、边界行为全部钉死。
  *
- * 跑法：node --experimental-strip-types tools/test-shuttle.mjs
+ * 跑法：node --experimental-transform-types tools/test-shuttle.mjs
  */
 
 import {

@@ -219,13 +219,12 @@ export function distanceMeters(a: Location | null, b: Location | null): number |
 }
 
 /** 距离分档 —— 只给档位、不给米数（坐标精度约 31 米一格，米数是假的精度）。 */
-export const Distance = {
-  SAME: "SAME",
-  NEXT_DOOR: "NEXT_DOOR",
-  NEAR: "NEAR",
-  FAR: "FAR",
-} as const;
-export type Distance = (typeof Distance)[keyof typeof Distance];
+export enum Distance {
+  SAME = "SAME",
+  NEXT_DOOR = "NEXT_DOOR",
+  NEAR = "NEAR",
+  FAR = "FAR",
+}
 
 export function distanceLabel(d: Distance): string {
   switch (d) {

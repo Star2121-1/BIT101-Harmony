@@ -27,12 +27,15 @@ import {
 } from "./SeatViewLogic.ts";
 import { SeatTreeNode } from "../model/SeatTreeModel.ts";
 import {
-  ENDPOINTS, seatStatusOf, isFree, parseSeats, buildConfirmBody, bizResult,
+  Endpoint, WireSeatStatus, seatStatusOf, isFree, parseSeats, buildConfirmBody, bizResult,
   signInDeadline, seatNumberEquals, wireStatusText, wireStatusColor, renegeText,
   buildMapPoints,
 } from "./SeatApiLogic.ts";
 import { courseTimeText, FALLBACK_TIME_TABLE } from "./TimeTableLogic.ts";
 import { pickDay, buildDayBlocks } from "./WidgetLogic.ts";
+import { statusText as seatModelStatusText, hasMapPosition, SeatStatus as ModelSeatStatus } from "../model/SeatModel.ts";
+import { isActiveStatus, isTerminalStatus, TaskStatus as ProbeTaskStatus } from "../model/SeatTask.ts";
+import { isReservationActive, buildCancelBody } from "./SeatReservationLogic.ts";
 
 /** 各模块各取一个可离线调用的纯函数/常量，拼成一段可观测文本。 */
 export function runProbe(): string {
@@ -92,22 +95,32 @@ export function runProbe(): string {
 
   // SeatApiLogic：座位接口契约（端点/body/解析/状态映射，铁律0.9 对齐 Android 实测）
   parts.push("seatapi=" +
-    (ENDPOINTS.confirm === "/api/Seat/confirm" ? "ep-ok" : "ep-bad") + "/" +
-    (seatStatusOf("2") === "RESERVED" ? "st-ok" : "st-bad") + "/" +
-    (isFree("AVAILABLE") ? "free-ok" : "free-bad") + "/" +
+    (Endpoint.CONFIRM === "/api/Seat/confirm" ? "ep-ok" : "ep-bad") + "/" +
+    (seatStatusOf("2") === WireSeatStatus.RESERVED ? "st-ok" : "st-bad") + "/" +
+    (isFree(WireSeatStatus.AVAILABLE) ? "free-ok" : "free-bad") + "/" +
     (JSON.stringify(buildConfirmBody("007", "")) === '{"seat_id":7,"segment":"1"}' ? "body-ok" : "body-bad") + "/" +
     (bizResult({ code: 1 }).ok ? "biz-ok" : "biz-bad") + "/" +
     (JSON.stringify(signInDeadline(100, 480, 100)) === '{"day":100,"minutes":540}' ? "dl-ok" : "dl-bad") + "/" +
     (seatNumberEquals("001", "1") ? "eq-ok" : "eq-bad") + "/" +
     (parseSeats([{ id: "1", no: "001", status: "1" }], "a").length === 1 ? "ps-ok" : "ps-bad") + "/" +
-    (wireStatusText("AVAILABLE") === "空闲" ? "wst-ok" : "wst-bad") + "/" +
-    (wireStatusColor("LEAVE", false) === "#B45309" ? "wsc-ok" : "wsc-bad") + "/" +
+    (wireStatusText(WireSeatStatus.AVAILABLE) === "空闲" ? "wst-ok" : "wst-bad") + "/" +
+    (wireStatusColor(WireSeatStatus.LEAVE, false) === "#B45309" ? "wsc-ok" : "wsc-bad") + "/" +
     (renegeText({ nameMerge: "徐特立馆-三层-阅览室", name: "018", time: "2026-09-18 09:00", status: "1", statusName: "已违约" })
       === "徐特立馆-三层-阅览室 · 2026-09-18 09:00 · 已违约" ? "rt-ok" : "rt-bad") + "/" +
     (buildMapPoints([{
-      id: "1", no: "A01", statusRaw: "1", status: "AVAILABLE", statusName: "空闲",
+      id: "1", no: "A01", statusRaw: "1", status: WireSeatStatus.AVAILABLE, statusName: "空闲",
       areaId: "a", pointX: 69.10688, pointY: 25.5, width: 4.2, height: 3.8,
     }]).length === 1 ? "map-ok" : "map-bad"));
+
+  // SeatModel / SeatTask / SeatReservationLogic：这三个文件在 ets 树里零 import（未接线），
+  // 靠 probe 强制进 ArkTS 编译图（否则 enum 改造不会被编译器验证）。
+  parts.push("seatmodel=" +
+    (seatModelStatusText(ModelSeatStatus.IN_USE) === "使用中" ? "smt-ok" : "smt-bad") + "/" +
+    (hasMapPosition({ id: "1", no: "A01", status: 1, areaId: "a", pointX: 1, pointY: 1, width: 1, height: 1 })
+      ? "hmp-ok" : "hmp-bad"));
+  parts.push("seattask=" +
+    (isActiveStatus(ProbeTaskStatus.RUNNING) ? "act-ok" : "act-bad") + "/" +
+    (isTerminalStatus(ProbeTaskStatus.CANCELLED) ? "term-ok" : "term-bad"));
 
   // 以下参数较复杂，不在此构造合法入参，仅 import 强制编译器吃文件（类型校验）
   void weekOf;
@@ -120,6 +133,8 @@ export function runProbe(): string {
   void dayPlanOf;
   void pickDay;
   void buildDayBlocks;
+  void buildCancelBody;
+  void isReservationActive;
   void ALL;
 
   return "probe[" + parts.join(" ") + "]";

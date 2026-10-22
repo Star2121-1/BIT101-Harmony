@@ -8,7 +8,7 @@
  *   - 正文文本 ≥ 4.5:1
  *   - 大文本（≥18pt 或 ≥14pt 粗体）≥ 3:1 —— 本项目只有 textFaint 走这一档，且只用于装饰
  *
- * 跑法：node --experimental-strip-types tools/test-colors.mjs
+ * 跑法：node --experimental-transform-types tools/test-colors.mjs
  */
 
 import { palette, contrastRatio, relativeLuminance } from '../entry/src/main/ets/core/theme/AppColors.ts';

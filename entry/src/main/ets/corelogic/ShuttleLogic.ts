@@ -17,22 +17,20 @@
 import { dayOfWeekMon1, fmtHM, parseHM } from "./timeutil.ts";
 
 /** 有固定发车时刻的两个站点（对齐 Kotlin enum Stop）。 */
-export const Stop = {
-  METRO: "METRO",
-  LIBRARY: "LIBRARY",
-} as const;
-export type Stop = (typeof Stop)[keyof typeof Stop];
+export enum Stop {
+  METRO = "METRO",
+  LIBRARY = "LIBRARY",
+}
 
 export function stopLabel(stop: Stop): string {
   return stop === Stop.METRO ? "良乡大学城北（地铁站）" : "北校区 徐特立图书馆";
 }
 
 /** 一天属于哪套表（对齐 Kotlin enum DayType）。⚠️ 只有这两类。 */
-export const DayType = {
-  WORKDAY: "WORKDAY",
-  WEEKEND_HOLIDAY: "WEEKEND_HOLIDAY",
-} as const;
-export type DayType = (typeof DayType)[keyof typeof DayType];
+export enum DayType {
+  WORKDAY = "WORKDAY",
+  WEEKEND_HOLIDAY = "WEEKEND_HOLIDAY",
+}
 
 export function dayTypeLabel(dayType: DayType): string {
   return dayType === DayType.WORKDAY ? "工作日" : "周末及节假日";

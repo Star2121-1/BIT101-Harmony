@@ -10,7 +10,7 @@
  * 时间统一用东八区（学校所在地），且**显式注入 `shanghaiEpochDay`** ——
  * 否则 GitHub CI 跑在 UTC 上，hour<8 的用例会整体差一天。
  *
- * 跑法：node --experimental-strip-types tools/test-card.mjs
+ * 跑法：node --experimental-transform-types tools/test-card.mjs
  */
 
 import {

@@ -2,7 +2,7 @@
 // 对照 main_pages.json。漏注册的页面在真机上点了没反应（pushUrl 抛错），
 // 而这种「入口在、点了不动」的 bug 单测不抓就只能靠真机点出来。
 //
-//   node --experimental-strip-types tools/test-routes.mjs
+//   node --experimental-transform-types tools/test-routes.mjs
 //
 // 判据是「每个被导航的页面都注册了」，不是「注册表非空」——
 // 后者抓不到漏注册（正是 M5-3 栽的那个坑）。

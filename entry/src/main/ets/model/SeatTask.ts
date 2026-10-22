@@ -8,32 +8,28 @@
  */
 
 /** 任务模式。 */
-export const TaskMode = {
+export enum TaskMode {
   /** 单次预约（手动触发）。 */
-  SINGLE: 'SINGLE',
+  SINGLE = 'SINGLE',
   /** 监控模式（自动轮询指定座位）。 */
-  MONITOR: 'MONITOR',
+  MONITOR = 'MONITOR',
   /** 优先模式（按偏好列表依次尝试）。 */
-  PREFER: 'PREFER',
-} as const;
-
-export type TaskMode = (typeof TaskMode)[keyof typeof TaskMode];
+  PREFER = 'PREFER',
+}
 
 /** 任务状态。 */
-export const TaskStatus = {
+export enum TaskStatus {
   /** 空闲（等待开始）。 */
-  IDLE: 'IDLE',
+  IDLE = 'IDLE',
   /** 运行中。 */
-  RUNNING: 'RUNNING',
+  RUNNING = 'RUNNING',
   /** 成功。 */
-  SUCCESS: 'SUCCESS',
+  SUCCESS = 'SUCCESS',
   /** 失败。 */
-  FAILED: 'FAILED',
+  FAILED = 'FAILED',
   /** 已取消。 */
-  CANCELLED: 'CANCELLED',
-} as const;
-
-export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
+  CANCELLED = 'CANCELLED',
+}
 
 /** 任务是否处于活跃状态。 */
 export function isActiveStatus(status: TaskStatus): boolean {

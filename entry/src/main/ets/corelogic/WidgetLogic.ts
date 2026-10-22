@@ -35,14 +35,13 @@ import { ddlDisplayName } from "./TeachingAdjustment.ts";
 
 // ── 常量（对应 Android config 侧的共享约定）─────────────────────────────
 
-export const PageKind = {
-  COURSE: "COURSE",
-  DDL: "DDL",
-  ACTIVITY: "ACTIVITY",
-  SEAT: "SEAT",
-  STUDY: "STUDY",
-} as const;
-export type PageKind = (typeof PageKind)[keyof typeof PageKind];
+export enum PageKind {
+  COURSE = "COURSE",
+  DDL = "DDL",
+  ACTIVITY = "ACTIVITY",
+  SEAT = "SEAT",
+  STUDY = "STUDY",
+}
 
 export function pageKindLabel(kind: PageKind): string {
   switch (kind) {
@@ -63,21 +62,21 @@ export function pageKindLabel(kind: PageKind): string {
 export const NO_COLOR_INDEX = -1;
 
 /** App 课表页各 tab 的下标（与 ScheduleScreen 的顺序约定一致，改顺序必须同步）。 */
-export const ScheduleTabs = {
-  COURSE: 0,
-  DDL: 1,
-  ACTIVITY: 2,
-  FREE_CLASSROOM: 3,
-  TRANSPORT: 4,
-  COUNT: 5,
-} as const;
+export enum ScheduleTabs {
+  COURSE = 0,
+  DDL = 1,
+  ACTIVITY = 2,
+  FREE_CLASSROOM = 3,
+  TRANSPORT = 4,
+  COUNT = 5,
+}
 
 /** 底部导航路由值（PageShowOnNav.toPageData().value 口径）。 */
-export const Routes = {
-  SCHEDULE: "schedule",
-  SEAT: "seat",
-  LOGIN: "login",
-} as const;
+export enum Routes {
+  SCHEDULE = "schedule",
+  SEAT = "seat",
+  LOGIN = "login",
+}
 
 /** 「定位到哪一条」的键格式（带归属前缀，防两个列表抢同一个键）。 */
 export const FocusKeys = {
@@ -95,17 +94,15 @@ export const URGENT_HOURS = 24;
 export const MAX_ITEMS = 60;
 export const FREE_LABEL = "空闲";
 
-export const ClassState = {
-  ONGOING: "ONGOING",
-  UPCOMING: "UPCOMING",
-} as const;
-export type ClassState = (typeof ClassState)[keyof typeof ClassState];
+export enum ClassState {
+  ONGOING = "ONGOING",
+  UPCOMING = "UPCOMING",
+}
 
-export const BlockKind = {
-  COURSE: "COURSE",
-  FREE: "FREE",
-} as const;
-export type BlockKind = (typeof BlockKind)[keyof typeof BlockKind];
+export enum BlockKind {
+  COURSE = "COURSE",
+  FREE = "FREE",
+}
 
 /** 列表里的一行。 */
 export interface WidgetLine {

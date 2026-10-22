@@ -26,7 +26,7 @@ import { JAR_SEAT } from '../core/net/CookieJars.ts';
 import { RcpFactory } from '../core/net/RcpFactory.ts';
 import { SessionStore } from '../data/SessionStore.ts';
 import {
-  ENDPOINTS,
+  Endpoint,
   type WireSeat, type WireSeatDate, type MyReservation, type RenegeRecord,
   parseSeats, parseSeatDates, parseMyReservations, parseRenege,
   buildSeatBody, buildConfirmBody, buildSubscribeBody, buildCancelBody,
@@ -141,7 +141,7 @@ export class SeatService {
     area: string, segment: string, day: string, startTime: string, endTime: string
   ): Promise<SeatsResult> {
     try {
-      const envelope = await this.postJson(context, ENDPOINTS.seat,
+      const envelope = await this.postJson(context, Endpoint.SEAT,
         buildSeatBody(area, usableSegment(segment), day, startTime, endTime), jwt);
       const biz = bizResult(envelope);
       if (!biz.ok) return { ok: false, message: biz.message, seats: [] };
@@ -161,7 +161,7 @@ export class SeatService {
       if (buildId.length > 0) {
         body['build_id'] = buildId;
       }
-      const envelope = await this.postJson(context, ENDPOINTS.date, body, jwt);
+      const envelope = await this.postJson(context, Endpoint.DATE, body, jwt);
       const biz = bizResult(envelope);
       if (!biz.ok) return { ok: false, message: biz.message, dates: [] };
       const data: Array<Record<string, Object>> = Array.isArray(biz.data)
@@ -179,7 +179,7 @@ export class SeatService {
    */
   async confirmSeat(context: Context, jwt: string, seatId: string, segment: string): Promise<SeatOpResult> {
     try {
-      const envelope = await this.postJson(context, ENDPOINTS.confirm,
+      const envelope = await this.postJson(context, Endpoint.CONFIRM,
         buildConfirmBody(seatId, segment), jwt);
       const biz = bizResult(envelope);
       return biz.ok
@@ -194,7 +194,7 @@ export class SeatService {
   /** 我的座位预约（POST /api/index/subscribe，body {type:'1'}）。 */
   async myReservations(context: Context, jwt: string): Promise<{ ok: boolean; message: string | null; records: MyReservation[] }> {
     try {
-      const envelope = await this.postJson(context, ENDPOINTS.subscribe, buildSubscribeBody(), jwt);
+      const envelope = await this.postJson(context, Endpoint.SUBSCRIBE, buildSubscribeBody(), jwt);
       const biz = bizResult(envelope);
       if (!biz.ok) return { ok: false, message: biz.message, records: [] };
       const data: Array<Record<string, Object>> = Array.isArray(biz.data)
@@ -213,7 +213,7 @@ export class SeatService {
    */
   async cancelReservation(context: Context, jwt: string, recordId: string): Promise<SeatOpResult> {
     try {
-      const envelope = await this.postJson(context, ENDPOINTS.cancel,
+      const envelope = await this.postJson(context, Endpoint.CANCEL,
         buildCancelBody(recordId), jwt);
       const biz = bizResult(envelope);
       return biz.ok
@@ -228,7 +228,7 @@ export class SeatService {
   /** 我的违约记录（POST /api/Member/reneges，type 1=座位 2=研讨室）。 */
   async reneges(context: Context, jwt: string, type: number): Promise<{ ok: boolean; message: string | null; records: RenegeRecord[] }> {
     try {
-      const envelope = await this.postJson(context, ENDPOINTS.reneges, buildRenegeBody(type), jwt);
+      const envelope = await this.postJson(context, Endpoint.RENEGES, buildRenegeBody(type), jwt);
       const biz = bizResult(envelope);
       if (!biz.ok) return { ok: false, message: biz.message, records: [] };
       const data: Array<Record<string, Object>> = Array.isArray(biz.data)
@@ -243,7 +243,7 @@ export class SeatService {
   /** 取区域底图（POST /api/seat/map，body {id}；区域没配底图时服务端直接 500，按失败回落方格）。 */
   async seatMap(context: Context, jwt: string, areaId: string): Promise<{ ok: boolean; message: string | null; raw: string }> {
     try {
-      const envelope = await this.postJson(context, ENDPOINTS.map, buildMapBody(areaId), jwt);
+      const envelope = await this.postJson(context, Endpoint.MAP, buildMapBody(areaId), jwt);
       const biz = bizResult(envelope);
       if (!biz.ok) return { ok: false, message: biz.message, raw: '' };
       // 底图 data 是 {free,book,close,leave,use} 的 URL 对象，这里原样交给 UI 层映射
@@ -257,7 +257,7 @@ export class SeatService {
   /** 我的研讨间预约（POST /api/Member/seminar，body {}）。 */
   async seminarReservations(context: Context, jwt: string): Promise<{ ok: boolean; message: string | null; raw: string }> {
     try {
-      const envelope = await this.postJson(context, ENDPOINTS.seminar, buildSeminarBody(), jwt);
+      const envelope = await this.postJson(context, Endpoint.SEMINAR, buildSeminarBody(), jwt);
       const biz = bizResult(envelope);
       if (!biz.ok) return { ok: false, message: biz.message, raw: '' };
       return { ok: true, message: null, raw: JSON.stringify(biz.data ?? []) };

@@ -17,13 +17,12 @@ import { isHomework, parseTime, type Activity } from "./EclassDdlLogic.ts";
 import { LOGIN_URL } from "./EclassDdlLogic.ts";
 import { fmtHM, type DateTime } from "./timeutil.ts";
 
-export const ActivityKind = {
-  HOMEWORK: "HOMEWORK",
-  MATERIAL: "MATERIAL",
-  ANNOUNCEMENT: "ANNOUNCEMENT",
-  OTHER: "OTHER",
-} as const;
-export type ActivityKind = (typeof ActivityKind)[keyof typeof ActivityKind];
+export enum ActivityKind {
+  HOMEWORK = "HOMEWORK",
+  MATERIAL = "MATERIAL",
+  ANNOUNCEMENT = "ANNOUNCEMENT",
+  OTHER = "OTHER",
+}
 
 export function activityKindLabel(kind: ActivityKind): string {
   switch (kind) {

@@ -4,7 +4,7 @@
  * 锁的是：**阈值边界**（270 与 300 都算「达到」）、**已提醒过不再发**、
  * **越过 300 时不再补发 270 那条**（两条一起弹是打扰）。
  *
- * 跑法：node --experimental-strip-types tools/test-netalert.mjs
+ * 跑法：node --experimental-transform-types tools/test-netalert.mjs
  */
 
 import {

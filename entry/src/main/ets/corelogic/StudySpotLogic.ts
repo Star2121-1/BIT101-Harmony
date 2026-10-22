@@ -85,12 +85,11 @@ export interface Booking {
   timeText: string;
 }
 
-export const Kind = {
-  IN_CLASS: "IN_CLASS",
-  HAS_BOOKING: "HAS_BOOKING",
-  FREE_ROOM: "FREE_ROOM",
-} as const;
-export type Kind = (typeof Kind)[keyof typeof Kind];
+export enum Kind {
+  IN_CLASS = "IN_CLASS",
+  HAS_BOOKING = "HAS_BOOKING",
+  FREE_ROOM = "FREE_ROOM",
+}
 
 /** 楼级建议（组件走这条）。 */
 export interface Suggestion {

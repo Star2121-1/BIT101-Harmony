@@ -4,7 +4,7 @@
  * 为什么值得单测：一张**半对**的作息表比没有更糟 —— 它会算出错误的「现在上什么课」，
  * 而且用户很难察觉（时间列看起来是正常的）。
  *
- * 跑法：node --experimental-strip-types tools/test-timetable.mjs
+ * 跑法：node --experimental-transform-types tools/test-timetable.mjs
  */
 
 import {

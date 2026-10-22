@@ -8,7 +8,7 @@
  * 为什么值得单测：把「取不到」当成「0 本」会在真正该提醒的时候告诉用户「你没借书」
  * （Android 原注释就是这个风险）。锚点找不到 = 门户改版 = 必须失败，不是空列表。
  *
- * 跑法：node --experimental-strip-types tools/test-libborrow.mjs
+ * 跑法：node --experimental-transform-types tools/test-libborrow.mjs
  */
 
 import {

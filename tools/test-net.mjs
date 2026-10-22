@@ -8,7 +8,7 @@
  *
  * 这里最该锁死的是**计费周期重置**：接口 [6] 换周期会归零，不检测就会算出负增量。
  *
- * 跑法：node --experimental-strip-types tools/test-net.mjs
+ * 跑法：node --experimental-transform-types tools/test-net.mjs
  */
 
 import {

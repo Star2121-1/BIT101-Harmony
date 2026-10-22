@@ -24,7 +24,7 @@ import {
 } from '../corelogic/SeatViewLogic.ts';
 import {
   type WireSeat, type MyReservation, type RenegeRecord, type MapPointVM,
-  wireStatusText, wireStatusColor, isFree, renegeText, buildMapPoints,
+  wireStatusText, wireStatusColor, isFree, renegeText, WireSeatStatus, buildMapPoints,
 } from '../corelogic/SeatApiLogic.ts';
 
 @Entry
@@ -511,7 +511,7 @@ struct SeatPage {
   private freeText(): string {
     let free = 0;
     for (let i = 0; i < this.seats.length; i++) {
-      if (this.seats[i].status === 'AVAILABLE') {
+      if (this.seats[i].status === WireSeatStatus.AVAILABLE) {
         free++;
       }
     }
