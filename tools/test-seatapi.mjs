@@ -11,6 +11,7 @@ import {
   buildCancelBody, buildMapBody, buildRenegeBody, buildSeminarBody,
   bizResult, signInDeadline, signInHintText,
   seatNumberEquals, compareSeatNumber,
+  filterMappableSeats, buildMapPoints,
 } from "../entry/src/main/ets/corelogic/SeatApiLogic.ts";
 
 let passed = 0;
@@ -188,6 +189,45 @@ function ok(cond, name) {
   // 排序：9 < 10（数值，不是字符串 "10"<"9"）
   const arr = ['10', '9', '002', '7'].sort(compareSeatNumber);
   eq(arr, ['002', '7', '9', '10'], "数值排序 2,7,9,10");
+}
+
+// ── 11. 点位视图 buildMapPoints / filterMappableSeats（M9-3 纯逻辑）────────
+{
+  // 实测坐标形态：字符串浮点（point_x "69.10688"），缺坐标的座位被过滤
+  const full = {
+    id: "30001", no: "A01", statusRaw: "1", status: "AVAILABLE", statusName: "空闲",
+    areaId: "areaX", pointX: 69.10688, pointY: 25.5, width: 4.2, height: 3.8,
+  };
+  const missing = {
+    id: "30002", no: "A02", statusRaw: "2", status: "RESERVED", statusName: "已预约",
+    areaId: "areaX", pointX: null, pointY: null, width: null, height: null,
+  };
+  const onlyX = {
+    id: "30003", no: "A03", statusRaw: "1", status: "AVAILABLE", statusName: "空闲",
+    areaId: "areaX", pointX: 10, pointY: null, width: null, height: null,
+  };
+  const list = [full, missing, onlyX];
+
+  // 只保留四边坐标齐全的（full）；缺任一坐标的（missing/onlyX）被滤掉
+  const mapped = filterMappableSeats(list);
+  eq(mapped.length, 1, "只保留四边坐标齐全");
+  eq(mapped[0].id, "30001", "保留的是 full");
+
+  // 渲染规格：百分比字符串落值（toFixed(2)）+ 状态色 + 可预约
+  const pts = buildMapPoints(list);
+  eq(pts.length, 1, "buildMapPoints 也只画有坐标的");
+  eq(pts[0].leftPct, "69.11%", "leftPct = pointX.toFixed(2)");
+  eq(pts[0].topPct, "25.50%", "topPct = pointY.toFixed(2)");
+  eq(pts[0].widthPct, "4.20%", "widthPct");
+  eq(pts[0].heightPct, "3.80%", "heightPct");
+  eq(pts[0].colorLight, "#4CAF50", "空闲浅档色");
+  eq(pts[0].colorDark, "#2E7D32", "空闲深档色");
+  ok(pts[0].reservable, "空闲座位 reservable=true");
+  eq(pts[0].no, "A01", "no 直出");
+
+  // 全空坐标列表 → 空点位（UI 给「该区域无带坐标的座位」空态）
+  eq(buildMapPoints([missing]).length, 0, "全无坐标 → 空");
+  eq(buildMapPoints([]).length, 0, "空输入 → 空");
 }
 
 console.log("");

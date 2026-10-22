@@ -232,7 +232,7 @@
 |---|---|---|---|---|
 | M9-1 | 座位 JWT 换取 | — | seatlib 业务接口 `code=1`（M1 已证） | ✅ 完成 |
 | M9-2 | 座位树/楼层/区域 | M9-1 | 能列出校区→楼→楼层→区域 | 🔄 逻辑层（SeatTreeModel + SeatTreeService + SeatLogic 75 条）+ **UI 已建**（SeatPage 三级选择 campus/floor/area，groupTree 分组；test-seatview 58 条）；真机未验 |
-| M9-3 | 房间底图选座（5 张底图 + 百分比坐标） | M9-2 | 底图上座位点位与真实布局对得上，点选有反馈 | 🔄 坐标映射纯逻辑完成（SeatMapLogic + SeatMapModel + SeatMapData + 28 条）；**UI 底图点位渲染尚未做**（当前 SeatPage 用「列表」展示座位状态，非底图形态；底图 Image + 点位点击反馈是 M9-3 剩余缺口） |
+| M9-3 | 房间底图选座（5 张底图 + 百分比坐标） | M9-2 | 底图上座位点位与真实布局对得上，点选有反馈 | 🔄 **点位视图已建**（`buildMapPoints` 纯函数过滤有坐标座位 + 百分比定位，13 条单测 + compile-probe `map-ok`；SeatPage 加「列表/点位」切换，点位在 16:9 中性框里百分比定位，点空闲点位复用 `confirmSeat` 预约链路）；**底图 image 未画**（`/api/seat/map` 的 5 张状态图 data 形态与 URL 可达性未真机核对，铁律 0.9 不硬造）。真机未验 |
 | M9-4 | 预约提交（单次模式） | M9-3 | 真机提交后服务端「我的预约」里出现该记录 | 🔄 逻辑层完成（SeatReserveLogic 21 条 + buildSlotOptions/validateSlot 时段校验）；**契约层已对齐**（SeatApiLogic `buildConfirmBody` seat_id(int)+segment，铁律 0.9）；**预约交互已建**（SeatPage 点空闲座位行→二次确认→confirmSeat→刷新座位+我的预约，对称于取消，铁律 0.6 守门）；真机未验。⚠️ **隐患待清**：旧 `SeatReserveLogic.calcSignInDeadline`（开始**-15min**）与权威 `SeatApiLogic.signInDeadline`（当日=开始**+60min**/次日=09:00）方向相反，前者零业务引用（仅旧单测用），M9-4 接线时删 |
 | M9-5 | 我的预约 / 取消 | M9-4 | 取消后列表消失，服务端也消失 | 🔄 逻辑层（SeatReservationLogic 22 条）+ **UI 已建**（SeatPage 我的预约列表 + 取消二次确认，铁律 0.6 守门；取消走 `/api/Space/cancel` 传 record.id 非座位 id，契约层 SeatApiLogic 对齐）；真机未验 |
 | M9-6 | 违约计数（N/5 + 明细） | M9-1 | 显示「违约 N/5」，与图书馆接口一致 | 🔄 **违约 UI 已建**（SeatPage 拉 `/api/Member/reneges` type=1 → wire `RenegeRecord[]` 直出渲染，`renegeText` 纯函数组文案 + 8 条单测 + compile-probe，空态/加载/错误/列表四态齐备，不造假数据）；真机未验 |

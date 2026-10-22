@@ -416,3 +416,58 @@ export function compareSeatNumber(a: string, b: string): number {
   if (av !== bv) return av - bv;
   return a.trim().localeCompare(b.trim());
 }
+
+// ── M9-3 点位视图（纯逻辑：把有坐标的座位转成 UI 直接定位的渲染规格）─────
+
+/** 点位视图的一个座位渲染规格（百分比字符串，UI 直接 position/width 用，无需像素换算）。 */
+export interface MapPointVM {
+  seatId: string;
+  no: string;
+  status: WireSeatStatus;
+  /** 浅/深两档状态色（UI 按主题取）。 */
+  colorLight: string;
+  colorDark: string;
+  /** 百分比定位/尺寸（相对 1920×1080 底图 16:9，UI 容器 aspectRatio(16/9)）。 */
+  leftPct: string;
+  topPct: string;
+  widthPct: string;
+  heightPct: string;
+  /** 是否可预约（仅空闲）。 */
+  reservable: boolean;
+}
+
+/** 只保留「四边坐标齐全」的座位（缺坐标的画不到底图，宁可不出）。 */
+export function filterMappableSeats(seats: WireSeat[]): WireSeat[] {
+  return seats.filter(s =>
+    s.pointX !== null && s.pointY !== null && s.width !== null && s.height !== null);
+}
+
+/**
+ * 把座位列表转成点位渲染规格（纯函数，可离线证伪）。
+ * - 只画有完整坐标的座位（filterMappableSeats）。
+ * - 百分比字符串用 toFixed(2) 落值，避免 69.10688… 长尾直接进 UI。
+ * - 颜色取浅/深两档（复用 wireStatusColor），reservable = isFree。
+ * 不画底图 image：/api/seat/map 的 data 形态与 URL 可达性未真机核对（铁律 0.9）。
+ */
+export function buildMapPoints(seats: WireSeat[]): MapPointVM[] {
+  const out: MapPointVM[] = [];
+  for (const s of filterMappableSeats(seats)) {
+    const px: number = s.pointX as number;
+    const py: number = s.pointY as number;
+    const w: number = s.width as number;
+    const h: number = s.height as number;
+    out.push({
+      seatId: s.id,
+      no: s.no.length > 0 ? s.no : s.id,
+      status: s.status,
+      colorLight: wireStatusColor(s.status, false),
+      colorDark: wireStatusColor(s.status, true),
+      leftPct: px.toFixed(2) + '%',
+      topPct: py.toFixed(2) + '%',
+      widthPct: w.toFixed(2) + '%',
+      heightPct: h.toFixed(2) + '%',
+      reservable: isFree(s.status),
+    });
+  }
+  return out;
+}

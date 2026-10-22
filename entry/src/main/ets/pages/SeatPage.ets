@@ -23,8 +23,8 @@ import {
   type CampusGroup, type FloorGroup, type AreaGroup,
 } from '../corelogic/SeatViewLogic.ts';
 import {
-  type WireSeat, type MyReservation, type RenegeRecord,
-  wireStatusText, wireStatusColor, isFree, renegeText,
+  type WireSeat, type MyReservation, type RenegeRecord, type MapPointVM,
+  wireStatusText, wireStatusColor, isFree, renegeText, buildMapPoints,
 } from '../corelogic/SeatApiLogic.ts';
 
 @Entry
@@ -45,6 +45,8 @@ struct SeatPage {
   @State seatsLoading: boolean = false;
   @State seatsErr: string = '';
   @State seatsLoaded: boolean = false;
+  /** 座位视图模式：'list' 列表（默认）/ 'map' 点位（M9-3，buildMapPoints 百分比定位，不画未实测底图 image）。 */
+  @State viewMode: string = 'list';
 
   // 我的预约（权威列表：/api/index/subscribe；取消用 record.id 不是座位 id）
   @State mine: MyReservation[] = [];
@@ -406,9 +408,33 @@ struct SeatPage {
           } else if (this.selArea.length > 0) {
             Text(this.freeText())
               .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 6 })
-            ForEach(this.seats, (s: WireSeat) => {
-              this.seatRow(s)
-            }, (s: WireSeat) => 'seat' + s.id)
+            // 视图切换（列表 / 点位）
+            Row() {
+              Text('列表')
+                .fontSize(11).padding({ left: 10, right: 10, top: 4, bottom: 4 })
+                .borderRadius(6).margin({ right: 6, top: 6 })
+                .fontColor(this.viewMode === 'list' ? this.p().textOnAccent : this.p().textSecondary)
+                .backgroundColor(this.viewMode === 'list' ? this.p().accent : this.p().bgAlt)
+                .onClick(() => {
+                  this.viewMode = 'list';
+                })
+              Text('点位')
+                .fontSize(11).padding({ left: 10, right: 10, top: 4, bottom: 4 })
+                .borderRadius(6).margin({ top: 6 })
+                .fontColor(this.viewMode === 'map' ? this.p().textOnAccent : this.p().textSecondary)
+                .backgroundColor(this.viewMode === 'map' ? this.p().accent : this.p().bgAlt)
+                .onClick(() => {
+                  this.viewMode = 'map';
+                })
+            }
+            .width('100%')
+            if (this.viewMode === 'list') {
+              ForEach(this.seats, (s: WireSeat) => {
+                this.seatRow(s)
+              }, (s: WireSeat) => 'seat' + s.id)
+            } else {
+              this.mapView()
+            }
           }
 
           // ── 我的预约（权威列表 /api/index/subscribe）──
@@ -490,6 +516,57 @@ struct SeatPage {
       }
     }
     return '空闲 ' + free + '/' + this.seats.length;
+  }
+
+  /** 点位渲染规格（现算，铁律 0.8；buildMapPoints 过滤无坐标座位 + 百分比落值，不画未实测底图 image）。 */
+  private mapPoints(): MapPointVM[] {
+    return buildMapPoints(this.seats);
+  }
+
+  /** 点位视图（M9-3）：16:9 中性底图框 + 服务端坐标百分比定位的座位方块。
+   *  ⚠️ 不画 /api/seat/map 的 5 张状态 image——其 data 形态与 URL 可达性未真机核对（铁律 0.9），
+   *  这里用中性框 + 座位百分比定位，点空闲座位进预约确认态（复用列表视图同一套 confirmSeat 链路）。 */
+  @Builder
+  mapView() {
+    Column() {
+      if (this.mapPoints().length === 0) {
+        Text('该区域没有带坐标的座位，无法点位定位（底图 image 未真机核对，铁律 0.9）')
+          .fontSize(11).fontColor(this.p().textMuted).width('100%').padding(12)
+          .backgroundColor(this.p().bgAlt).borderRadius(8)
+      } else {
+        Stack({ alignContent: Alignment.TopStart }) {
+          Row() {}
+            .width('100%').height('100%')
+            .backgroundColor(this.p().bgAlt)
+            .borderRadius(8)
+          ForEach(this.mapPoints(), (pm: MapPointVM) => {
+            this.mapPointBlock(pm)
+          }, (pm: MapPointVM) => 'pt' + pm.seatId)
+        }
+        .width('100%').aspectRatio(16 / 9)
+        .clip(true).borderRadius(8)
+        Text('点位颜色 = 座位状态；点空闲座位可预约')
+          .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 6 })
+      }
+    }
+    .width('100%').margin({ top: 8 })
+  }
+
+  /** 单个座位点位（百分比定位；空闲可点进预约确认，非空闲 0.5 透明不可点）。 */
+  @Builder
+  mapPointBlock(pm: MapPointVM) {
+    Text(pm.no)
+      .fontSize(9).fontColor('#FFFFFF').textAlign(TextAlign.Center)
+      .backgroundColor(this.isDark ? pm.colorDark : pm.colorLight)
+      .borderRadius(2)
+      .opacity(pm.reservable ? 1 : 0.5)
+      .position({ x: pm.leftPct, y: pm.topPct })
+      .width(pm.widthPct).height(pm.heightPct)
+      .onClick(() => {
+        if (pm.reservable && this.reserveTarget === null && !this.reserveBusy) {
+          this.requestReserve(pm.seatId);
+        }
+      })
   }
 
   /** 我的预约区块（数据来自状态 this.mine，不在 ForEach 里重算）。 */

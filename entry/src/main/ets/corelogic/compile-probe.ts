@@ -29,6 +29,7 @@ import { SeatTreeNode } from "../model/SeatTreeModel.ts";
 import {
   ENDPOINTS, seatStatusOf, isFree, parseSeats, buildConfirmBody, bizResult,
   signInDeadline, seatNumberEquals, wireStatusText, wireStatusColor, renegeText,
+  buildMapPoints,
 } from "./SeatApiLogic.ts";
 import { courseTimeText, FALLBACK_TIME_TABLE } from "./TimeTableLogic.ts";
 import { pickDay, buildDayBlocks } from "./WidgetLogic.ts";
@@ -102,7 +103,11 @@ export function runProbe(): string {
     (wireStatusText("AVAILABLE") === "空闲" ? "wst-ok" : "wst-bad") + "/" +
     (wireStatusColor("LEAVE", false) === "#B45309" ? "wsc-ok" : "wsc-bad") + "/" +
     (renegeText({ nameMerge: "徐特立馆-三层-阅览室", name: "018", time: "2026-09-18 09:00", status: "1", statusName: "已违约" })
-      === "徐特立馆-三层-阅览室 · 2026-09-18 09:00 · 已违约" ? "rt-ok" : "rt-bad"));
+      === "徐特立馆-三层-阅览室 · 2026-09-18 09:00 · 已违约" ? "rt-ok" : "rt-bad") + "/" +
+    (buildMapPoints([{
+      id: "1", no: "A01", statusRaw: "1", status: "AVAILABLE", statusName: "空闲",
+      areaId: "a", pointX: 69.10688, pointY: 25.5, width: 4.2, height: 3.8,
+    }]).length === 1 ? "map-ok" : "map-bad"));
 
   // 以下参数较复杂，不在此构造合法入参，仅 import 强制编译器吃文件（类型校验）
   void weekOf;
