@@ -436,6 +436,15 @@ export interface MapPointVM {
   heightPct: string;
   /** 是否可预约（仅空闲）。 */
   reservable: boolean;
+  /** M9-3：该状态对应的底图 URL（'' = 无图，UI 回落到 colorLight 色块）。 */
+  tileUrl: string;
+  /** M9-3 裁图规格：内层 Image 相对**座位框**的宽/高（%）与负偏移（%）。
+   *  语义：座位框内放一张「容器全尺寸」的状态图，用负偏移把对应区域移进框内。
+   *  仅 tileUrl 非空且宽高 > 0 时有效，否则为 '100%'/'0%'（整图铺满，不会裁错）。 */
+  imgScaleX: string;
+  imgScaleY: string;
+  imgOffsetX: string;
+  imgOffsetY: string;
 }
 
 /** 只保留「四边坐标齐全」的座位（缺坐标的画不到底图，宁可不出）。 */
@@ -449,15 +458,19 @@ export function filterMappableSeats(seats: WireSeat[]): WireSeat[] {
  * - 只画有完整坐标的座位（filterMappableSeats）。
  * - 百分比字符串用 toFixed(2) 落值，避免 69.10688… 长尾直接进 UI。
  * - 颜色取浅/深两档（复用 wireStatusColor），reservable = isFree。
- * 不画底图 image：/api/seat/map 的 data 形态与 URL 可达性未真机核对（铁律 0.9）。
+ * - images 非空时按状态带裁图规格（tileUrl + 内层 Image 的缩放/偏移百分比），
+ *   UI 用「座位框内放一张容器尺寸的 Image、负偏移回退」实现逐座位裁图
+ *   （对齐 Android SeatMapCanvas.drawSeatTile 的 srcOffset/srcSize 裁剪）。
  */
-export function buildMapPoints(seats: WireSeat[]): MapPointVM[] {
+export function buildMapPoints(seats: WireSeat[], images?: SeatMapImages): MapPointVM[] {
   const out: MapPointVM[] = [];
   for (const s of filterMappableSeats(seats)) {
     const px: number = s.pointX as number;
     const py: number = s.pointY as number;
     const w: number = s.width as number;
     const h: number = s.height as number;
+    const tile: string = images === undefined ? '' : mapImageForStatus(s.status, images);
+    const scalable: boolean = tile.length > 0 && w > 0 && h > 0;
     out.push({
       seatId: s.id,
       no: s.no.length > 0 ? s.no : s.id,
@@ -469,7 +482,73 @@ export function buildMapPoints(seats: WireSeat[]): MapPointVM[] {
       widthPct: w.toFixed(2) + '%',
       heightPct: h.toFixed(2) + '%',
       reservable: isFree(s.status),
+      tileUrl: tile,
+      // 内层 Image 尺寸/偏移都以**座位框**为参照系（ArkTS 百分比相对父容器）：
+      // 宽 = 容器宽/座位宽 = 100/W（以百分比-of-座位框表示 ⇒ ×100），偏移 = -L/W。
+      // 例：座位在容器 10%、宽 2.5% ⇒ 内层 Image 宽 = 100/2.5*100 = 4000%，
+      //     左偏移 = -10/2.5*100 = -400%（把容器原点拉回座位框左上）。
+      imgScaleX: scalable ? (100 / w * 100).toFixed(2) + '%' : '100%',
+      imgScaleY: scalable ? (100 / h * 100).toFixed(2) + '%' : '100%',
+      imgOffsetX: scalable ? (-px / w * 100).toFixed(2) + '%' : '0%',
+      imgOffsetY: scalable ? (-py / h * 100).toFixed(2) + '%' : '0%',
     });
   }
+  return out;
+}
+
+// ── M9-3 区域底图（/api/seat/map，2026-10-22 真机实测）──────────────────────
+
+/**
+ * 区域底图五件套（实测 data：book/close/free/leave/use 五个 1920×1080 URL）。
+ * 空串 = 服务端没给该状态图（Android 侧是可空，这里用 '' 省掉 UI 判空）。
+ */
+export interface SeatMapImages {
+  free: string;
+  book: string;
+  close: string;
+  leave: string;
+  use: string;
+}
+
+/** 空底图（无图时 UI 回落到纯色点位块，即 M9-3 之前的行为）。 */
+export function emptySeatMapImages(): SeatMapImages {
+  return { free: '', book: '', close: '', leave: '', use: '' };
+}
+
+/** 五张图一张都没有（按 Android isEmpty 语义）。 */
+export function isSeatMapImagesEmpty(images: SeatMapImages): boolean {
+  return images.free.length === 0 && images.book.length === 0 &&
+    images.close.length === 0 && images.leave.length === 0 && images.use.length === 0;
+}
+
+/**
+ * 按座位状态取底图 URL（对齐 Android SeatMapImages.forStatus）：
+ * AVAILABLE→free，RESERVED→book，IN_USE→use，LEAVE→leave，UNAVAILABLE→close。
+ * 缺图返回 ''（调用方回落到色块）。
+ */
+export function mapImageForStatus(status: WireSeatStatus, images: SeatMapImages): string {
+  switch (status) {
+    case WireSeatStatus.AVAILABLE: return images.free;
+    case WireSeatStatus.RESERVED: return images.book;
+    case WireSeatStatus.IN_USE: return images.use;
+    case WireSeatStatus.LEAVE: return images.leave;
+    case WireSeatStatus.UNAVAILABLE: return images.close;
+    default: return '';
+  }
+}
+
+/**
+ * 解析 `/api/seat/map` 的 data（实测形态）：
+ * `{"code":1,"data":{"book":"https://…/seat-book.jpg","close":"…","free":"…","leave":"…","use":"…"}}`
+ * 非对象 / 缺字段一律空串（不猜 URL —— 铁律 0.9）。
+ */
+export function parseSeatMap(data: Record<string, Object> | null): SeatMapImages {
+  const out: SeatMapImages = emptySeatMapImages();
+  if (data === null) return out;
+  out.free = optStrOrNull(data['free']) ?? '';
+  out.book = optStrOrNull(data['book']) ?? '';
+  out.close = optStrOrNull(data['close']) ?? '';
+  out.leave = optStrOrNull(data['leave']) ?? '';
+  out.use = optStrOrNull(data['use']) ?? '';
   return out;
 }

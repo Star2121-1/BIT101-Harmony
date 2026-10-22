@@ -3,16 +3,19 @@
  *
  * 对照 Android RemoteViews 渲染：
  * - 只使用基础组件：Column、Row、Text、List
- * - 通过 formBindingData 接收 JSON 数据（WidgetPage[]）
+ * - 数据经 formBindingData → LocalStorage 注入（官方模式：FormExtensionAbility 调
+ *   `formBindingData.createFormBindingData({ widgetPayload: json })`，
+ *   卡片页面用 `@LocalStorageProp('widgetPayload')` 收；API 12 起无 getFormBindingData）
  * - 5 页内容按 Tab 切换显示
  *
- * ⚠️ ArkTS 限制：
- * - UI 树中不允许局部变量声明（rollup 编译限制）
- * - 必须使用 @State/@Prop 等装饰器管理状态
+ * ⚠️ ArkTS 限制（2026-10-22 编译门实录）：
+ * - UI 树中不允许局部变量声明（rollup 编译限制）⇒ 派生数据一律走取值方法现算
+ * - ForEach 的 keyGenerator 只能单参（双参连环报错）⇒ index 用 indexOf 现取
+ * - `Column`/`Row` 是 struct 不是类型，不能作方法返回类型 ⇒ UI 方法一律 @Builder
+ * - WidgetLogic 的 WidgetPage（数据类型）与本 struct 同名 ⇒ import 重命名为 WidgetPageData
  */
 
-import { formBindingData } from '@kit.FormKit';
-import { WidgetPage, PageKind, ClassState } from '../corelogic/WidgetLogic.ts';
+import { WidgetPage as WidgetPageData, PageKind, ClassState } from '../corelogic/WidgetLogic.ts';
 import { type WidgetLine } from '../corelogic/WidgetLogic.ts';
 
 // ── 卡片主组件 ─────────────────────────────────────────────────────────────
@@ -20,40 +23,86 @@ import { type WidgetLine } from '../corelogic/WidgetLogic.ts';
 @Entry
 @Component
 struct WidgetPage {
-  // 卡片数据（从 formBindingData 注入）
-  @State private pages: WidgetPage[] = [];
+  // 卡片数据（FormExtensionAbility 经 formBindingData 注入 LocalStorage）
+  @LocalStorageProp('widgetPayload') widgetPayload: string = '';
   @State private currentTabIndex: number = 0;
 
   // 5 个页面名称（对应 PageKind）
   private readonly tabLabels: string[] = ['课程', 'DDL', '动态', '座位', '自习'];
 
-  aboutToAppear(): void {
-    this.loadDataFromForm();
-  }
-
   /**
-   * 从 formBindingData 读取卡片数据
-   * 数据由 FormExtensionAbility 装配后通过 JSON 传入
+   * 现取现解析（铁律 0.8：卡片数据可能晚于 aboutToAppear 到达，不缓存派生）。
+   * 解析失败或空 ⇒ 空态（卡片界面保持干净，不报错）。
    */
-  private loadDataFromForm(): void {
+  private shownPages(): WidgetPageData[] {
+    if (this.widgetPayload.length === 0) {
+      return [];
+    }
     try {
-      const formData: string = formBindingData.getFormBindingData();
-      if (formData && formData.length > 0) {
-        const parsed: WidgetPage[] = JSON.parse(formData);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          this.pages = parsed;
-          // 确保 currentTabIndex 不越界
-          if (this.currentTabIndex >= parsed.length) {
-            this.currentTabIndex = 0;
-          }
-          return;
-        }
+      const parsed: WidgetPageData[] = JSON.parse(this.widgetPayload);
+      if (Array.isArray(parsed)) {
+        return parsed;
       }
     } catch (e) {
-      // 解析失败时使用默认空数据
+      // 解析失败按空处理
     }
-    // 兜底：空数据不显示错误，保持界面干净
-    this.pages = [];
+    return [];
+  }
+
+  /** 当前页（越界返回 null，由调用方兜底）。 */
+  private currentPage(): WidgetPageData | null {
+    const pages: WidgetPageData[] = this.shownPages();
+    if (this.currentTabIndex >= pages.length) {
+      return null;
+    }
+    return pages[this.currentTabIndex];
+  }
+
+  /** 当前页的列表行（空页/越界 ⇒ 空数组）。 */
+  private currentPageItems(): WidgetLine[] {
+    const page: WidgetPageData | null = this.currentPage();
+    if (page === null) {
+      return [];
+    }
+    return page.items;
+  }
+
+  /** 当前页空态文案（页自带 emptyText 优先，否则「暂无数据」）。 */
+  private currentEmptyText(): string {
+    const page: WidgetPageData | null = this.currentPage();
+    if (page !== null && page.emptyText.length > 0) {
+      return page.emptyText;
+    }
+    return '暂无数据';
+  }
+
+  /** 当前页页脚（null/空串都不渲染）。 */
+  private currentFooter(): string | null {
+    const page: WidgetPageData | null = this.currentPage();
+    if (page === null) {
+      return null;
+    }
+    return page.footer;
+  }
+
+  /** 当前页页脚文本（无页脚 = 空串；UI 判长度用，避免可空串进 Text）。 */
+  private currentFooterText(): string {
+    const footer: string | null = this.currentFooter();
+    if (footer !== null && footer.length > 0) {
+      return footer;
+    }
+    return '';
+  }
+
+  /** 一行的背景色（按高亮态；普通方法才能写分支语句，@Builder 里只放 UI 语法）。 */
+  private lineBg(line: WidgetLine): string {
+    if (line.highlight === ClassState.ONGOING) {
+      return '#E8F5E9';
+    }
+    if (line.highlight === ClassState.UPCOMING) {
+      return '#FFF3E0';
+    }
+    return '#FFFFFF';
   }
 
   build() {
@@ -77,20 +126,20 @@ struct WidgetPage {
       .alignItems(VerticalAlign.Center)
 
       // 页面内容区（5 页 Tab）
-      if (this.pages.length > 0) {
+      if (this.shownPages().length > 0) {
         Column() {
-          // Tab 切换栏
+          // Tab 切换栏（keyGenerator 单参：kind 每类一页，唯一）
           Row() {
-            ForEach(this.pages, (page: WidgetPage, index: number) => {
+            ForEach(this.shownPages(), (page: WidgetPageData) => {
               Text(page.title)
                 .fontSize(11)
-                .fontColor(index === this.currentTabIndex ? '#1A7F37' : '#888888')
-                .fontWeight(index === this.currentTabIndex ? FontWeight.Bold : FontWeight.Normal)
+                .fontColor(this.shownPages().indexOf(page) === this.currentTabIndex ? '#1A7F37' : '#888888')
+                .fontWeight(this.shownPages().indexOf(page) === this.currentTabIndex ? FontWeight.Bold : FontWeight.Normal)
                 .padding({ left: 8, right: 8, top: 4, bottom: 4 })
                 .onClick(() => {
-                  this.currentTabIndex = index;
+                  this.currentTabIndex = this.shownPages().indexOf(page);
                 })
-            }, (page: WidgetPage, index: number) => `${page.kind}-${index}`)
+            }, (page: WidgetPageData) => page.kind)
           }
           .width('100%')
           .justifyContent(FlexAlign.SpaceAround)
@@ -98,7 +147,7 @@ struct WidgetPage {
           .borderColor('#E0E0E0')
 
           // 当前页内容
-          this.renderCurrentPage()
+          this.currentPageView()
         }
         .width('100%')
         .layoutWeight(1)
@@ -131,64 +180,56 @@ struct WidgetPage {
     .borderRadius(12)
   }
 
-  /**
-   * 渲染当前选中的页面内容
-   */
-  private renderCurrentPage(): Column {
-    if (this.currentTabIndex >= this.pages.length) {
-      return Column().width('100%').height(0);
-    }
-    const page: WidgetPage = this.pages[this.currentTabIndex];
-
-    return Column() {
-      // 列表内容
-      if (page.items && page.items.length > 0) {
-        List({ space: 4 }) {
-          ForEach(page.items, (line: WidgetLine) => {
-            ListItem() {
-              this.renderLine(line)
-            }
-          }, (line: WidgetLine) => `${line.lead}-${line.main}-${line.time}`)
+  /** 当前选中页的内容（@Builder：UI 不能作方法返回类型；体内只写 UI 语法，逻辑走方法）。 */
+  @Builder
+  currentPageView() {
+    if (this.currentPage() === null) {
+      Column() {
+      }
+      .width('100%')
+      .height(0)
+    } else {
+      Column() {
+        // 列表内容
+        if (this.currentPageItems().length > 0) {
+          List({ space: 4 }) {
+            ForEach(this.currentPageItems(), (line: WidgetLine) => {
+              ListItem() {
+                this.widgetLine(line)
+              }
+            }, (line: WidgetLine) => line.lead + '-' + line.main + '-' + line.time)
+          }
+          .width('100%')
+          .layoutWeight(1)
+        } else {
+          // 空态文本
+          Text(this.currentEmptyText())
+            .fontSize(11)
+            .fontColor('#999999')
+            .width('100%')
+            .textAlign(TextAlign.Center)
+            .margin({ top: 20 })
         }
-        .width('100%')
-        .layoutWeight(1)
-      } else {
-        // 空态文本
-        Text(page.emptyText || '暂无数据')
-          .fontSize(11)
-          .fontColor('#999999')
-          .width('100%')
-          .textAlign(TextAlign.Center)
-          .margin({ top: 20 })
-      }
 
-      // 页脚
-      if (page.footer) {
-        Text(page.footer)
-          .fontSize(9)
-          .fontColor('#AAAAAA')
-          .width('100%')
-          .textAlign(TextAlign.Center)
-          .margin({ top: 4 })
+        // 页脚
+        if (this.currentFooterText().length > 0) {
+          Text(this.currentFooterText())
+            .fontSize(9)
+            .fontColor('#AAAAAA')
+            .width('100%')
+            .textAlign(TextAlign.Center)
+            .margin({ top: 4 })
+        }
       }
+      .width('100%')
+      .layoutWeight(1)
     }
-    .width('100%')
-    .layoutWeight(1)
   }
 
-  /**
-   * 渲染列表中的一行
-   */
-  private renderLine(line: WidgetLine): Row {
-    // 根据 highlight 设置背景色
-    let bgColor: string = '#FFFFFF';
-    if (line.highlight === ClassState.ONGOING) {
-      bgColor = '#E8F5E9';
-    } else if (line.highlight === ClassState.UPCOMING) {
-      bgColor = '#FFF3E0';
-    }
-
-    return Row() {
+  /** 列表中的一行（@Builder：体内只写 UI 语法，背景色走 lineBg 方法）。 */
+  @Builder
+  widgetLine(line: WidgetLine) {
+    Row() {
       // 时间列
       Column() {
         Text(line.time)
@@ -217,8 +258,8 @@ struct WidgetPage {
         .alignItems(VerticalAlign.Center)
 
         // 副标题
-        if (line.lead || line.trail) {
-          Text((line.lead || '') + ' ' + (line.trail || ''))
+        if (line.lead.length > 0 || line.trail.length > 0) {
+          Text((line.lead.length > 0 ? line.lead : '') + ' ' + (line.trail.length > 0 ? line.trail : ''))
             .fontSize(9)
             .fontColor('#999999')
             .maxLines(1)
@@ -231,14 +272,12 @@ struct WidgetPage {
     }
     .width('100%')
     .height(28)
-    .backgroundColor(bgColor)
+    .backgroundColor(this.lineBg(line))
     .borderRadius(4)
     .padding({ left: 6 })
   }
 
-  /**
-   * 获取当前日期文本（北京时间）
-   */
+  /** 获取当前日期文本（北京时间） */
   private getCurrentDateText(): string {
     const now = new Date();
     const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
@@ -248,6 +287,6 @@ struct WidgetPage {
     const day = bjDate.getUTCDate();
     const weekdays: string[] = ['日', '一', '二', '三', '四', '五', '六'];
     const weekday = bjDate.getUTCDay();
-    return `${month}月${day}日 周${weekdays[weekday]}`;
+    return month + '月' + day + '日 周' + weekdays[weekday];
   }
 }

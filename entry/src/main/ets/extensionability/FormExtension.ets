@@ -15,8 +15,10 @@
  */
 
 import { FormExtensionAbility } from '@kit.FormKit';
+import { formBindingData, formProvider } from '@kit.FormKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Context } from '@kit.AbilityKit';
+import type { Want } from '@kit.AbilityKit';
 import { Prefs } from '../data/Prefs.ts';
 import { CourseCache, CachedSchedule } from '../data/CourseCache.ts';
 import { DdlStore } from '../data/DdlStore.ts';
@@ -27,6 +29,7 @@ import { parseISODate } from '../corelogic/timeutil.ts';
 import type { AdjustmentEntry } from '../corelogic/TeachingAdjustment.ts';
 import type { EclassActivity } from '../corelogic/EclassActivityLogic.ts';
 import type { TimeTable, DateTime } from '../corelogic/timeutil.ts';
+import type { CourseSchedule, DDLSchedule } from '../corelogic/WidgetLogic.ts';
 
 const DOMAIN = 0x0003; // Form 专属域
 
@@ -48,39 +51,41 @@ export default class FormExtension extends FormExtensionAbility {
   }
 
   /**
-   * 卡片创建时调用，装配当前数据
+   * 卡片创建时调用。
+   * ⚠️ 签名必须**同步**返回 FormBindingData（d.ts：`onAddForm(want: Want): FormBindingData`；
+   * 返回 Promise 不兼容，编译门实录 2026-10-22）。
+   * 装配是异步的 ⇒ 先返回空数据，装配完经 `formProvider.updateForm` 推送。
    */
-  async onAddForm(formId: string): Promise<void> {
+  onAddForm(want: Want): formBindingData.FormBindingData {
+    const formId: string = String(want.parameters?.['ohos.extra.param.key.form_id'] ?? '');
+    hilog.info(DOMAIN, this.TAG, 'onAddForm: %{public}s', formId);
+    // 异步装配 + 推送（不阻塞 onAddForm 返回）
+    this.assembleAndPush(formId);
+    return formBindingData.createFormBindingData({ widgetPayload: '' });
+  }
+
+  /** 装配 payload 并推送（onAddForm / onUpdateForm 共用）。 */
+  private async assembleAndPush(formId: string): Promise<void> {
     try {
-      hilog.info(DOMAIN, this.TAG, 'onAddForm: %{public}s', formId);
       const payload = await this.assemblePayload();
-      if (!payload || payload.length === 0) {
-        hilog.warn(DOMAIN, this.TAG, 'onAddForm: payload empty, formId=%{public}s', formId);
+      if (payload.length === 0) {
+        hilog.warn(DOMAIN, this.TAG, 'assembleAndPush: payload empty, formId=%{public}s', formId);
         return;
       }
       await this.setFormBindingData(formId, payload);
-      hilog.info(DOMAIN, this.TAG, 'onAddForm success: %{public}s, len=%{public}d', formId, payload.length);
+      hilog.info(DOMAIN, this.TAG, 'assembleAndPush success: %{public}s, len=%{public}d', formId, payload.length);
     } catch (e) {
-      hilog.error(DOMAIN, this.TAG, 'onAddForm failed: %{public}s', JSON.stringify(e));
+      hilog.error(DOMAIN, this.TAG, 'assembleAndPush failed: %{public}s', JSON.stringify(e));
     }
   }
 
   /**
    * 卡片更新时调用（系统定时触发或手动刷新）
+   * 签名对齐 d.ts：`onUpdateForm(formId: string, wantParams?: Record<string, Object>): void`
    */
-  async onUpdateForm(formId: string): Promise<void> {
-    try {
-      hilog.info(DOMAIN, this.TAG, 'onUpdateForm: %{public}s', formId);
-      const payload = await this.assemblePayload();
-      if (!payload || payload.length === 0) {
-        hilog.warn(DOMAIN, this.TAG, 'onUpdateForm: payload empty, formId=%{public}s', formId);
-        return;
-      }
-      await this.setFormBindingData(formId, payload);
-      hilog.info(DOMAIN, this.TAG, 'onUpdateForm success: %{public}s', formId);
-    } catch (e) {
-      hilog.error(DOMAIN, this.TAG, 'onUpdateForm failed: %{public}s', JSON.stringify(e));
-    }
+  async onUpdateForm(formId: string, wantParams?: Record<string, Object>): Promise<void> {
+    hilog.info(DOMAIN, this.TAG, 'onUpdateForm: %{public}s', formId);
+    await this.assembleAndPush(formId);
   }
 
   /**
@@ -100,6 +105,19 @@ export default class FormExtension extends FormExtensionAbility {
   }
 
   /**
+   * 把装配好的 payload 推给卡片页面。
+   *
+   * 官方模式（API 9+）：`formBindingData.createFormBindingData({ key: obj })` 建数据对象，
+   * `formProvider.updateForm(formId, formData)` 推送；卡片页面（WidgetPage）用
+   * `@LocalStorageProp('widgetPayload')` 收同一个 key。
+   * ⚠️ API 12 起 formBindingData 没有 getFormBindingData（编译门实录 2026-10-22）。
+   */
+  private async setFormBindingData(formId: string, payload: string): Promise<void> {
+    const formData = formBindingData.createFormBindingData({ widgetPayload: payload });
+    await formProvider.updateForm(formId, formData);
+  }
+
+  /**
    * 装配卡片数据（主进程数据 → 可 JSON 序列化的 payload）
    *
    * 数据源优先级：
@@ -113,7 +131,7 @@ export default class FormExtension extends FormExtensionAbility {
     const now: DateTime = this.getNowDateTime();
 
     // 1. 获取课程数据（本地缓存）
-    let courses: import('../corelogic/WidgetData.ts').CourseSchedule[] = [];
+    let courses: CourseSchedule[] = [];
     let firstDay: string = '';
     let timeTable: TimeTable = FALLBACK_TIME_TABLE;
 
@@ -133,7 +151,7 @@ export default class FormExtension extends FormExtensionAbility {
     }
 
     // 2. 获取 DDL 数据（本地存储）
-    let ddls: import('../corelogic/WidgetData.ts').DDLSchedule[] = [];
+    let ddls: DDLSchedule[] = [];
     try {
       const ddlEntries = await DdlStore.load();
       ddls = ddlsToSchedule(ddlEntries);

@@ -102,7 +102,7 @@ export function assembleWidgetPages(input: WidgetAssembleInput): WidgetPage[] {
   return buildWidgetPages(
     input.courses,
     input.ddls,
-    emptySeatSnapshot(false),
+    emptySeatSnapshot(),
     todayEpochDay,
     input.now,
     firstDayEpochDay,

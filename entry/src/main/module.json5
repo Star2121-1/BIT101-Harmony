@@ -64,14 +64,6 @@
             "name": "ohos.extension.form",
             "resource": "$profile:form_config"
           }
-        ],
-        "abilities": [
-          {
-            "name": "WidgetPage",
-            "srcEntry": "./ets/pages/WidgetPage.ets",
-            "type": "page",
-            "visible": true
-          }
         ]
       }
     ]

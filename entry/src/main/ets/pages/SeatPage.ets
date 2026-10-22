@@ -24,8 +24,11 @@ import {
 } from '../corelogic/SeatViewLogic.ts';
 import {
   type WireSeat, type MyReservation, type RenegeRecord, type MapPointVM,
-  wireStatusText, wireStatusColor, isFree, renegeText, WireSeatStatus, buildMapPoints,
+  type SeatMapImages,
+  wireStatusText, wireStatusColor, isFree, renegeText, renegeKey, WireSeatStatus, buildMapPoints,
+  emptySeatMapImages, isSeatMapImagesEmpty,
 } from '../corelogic/SeatApiLogic.ts';
+import { warn } from '../core/log/BitLog.ts';
 
 @Entry
 @Component
@@ -45,8 +48,15 @@ struct SeatPage {
   @State seatsLoading: boolean = false;
   @State seatsErr: string = '';
   @State seatsLoaded: boolean = false;
-  /** 座位视图模式：'list' 列表（默认）/ 'map' 点位（M9-3，buildMapPoints 百分比定位，不画未实测底图 image）。 */
+  /** 座位视图模式：'list' 列表（默认）/ 'map' 点位（M9-3，buildMapPoints 百分比定位 + 实测底图裁图）。 */
   @State viewMode: string = 'list';
+
+  // M9-3 区域底图（/api/seat/map 2026-10-22 真机实测：free/book/close/leave/use 五件套）
+  @State mapImages: SeatMapImages = emptySeatMapImages();
+  @State mapImgLoading: boolean = false;
+  @State mapImgErr: string = '';
+  /** 已加载过底图的区域 id（同区域不重复拉；切区域才重拉）。 */
+  private mapLoadedArea: string = '';
 
   // 我的预约（权威列表：/api/index/subscribe；取消用 record.id 不是座位 id）
   @State mine: MyReservation[] = [];
@@ -180,6 +190,41 @@ struct SeatPage {
       this.seats = [];
     }
     this.seatsLoading = false;
+  }
+
+  /**
+   * 拉当前区域的底图五件套（M9-3，POST /api/seat/map）。
+   * - 仅点位视图用；同区域不重复拉（URL 是原始事实，铁律 0.8 只缓存原始事实）。
+   * - 失败/无图一律回落色块（mapLoadedArea 不记，下次切回会重试）。
+   */
+  private async loadMapImages(): Promise<void> {
+    if (this.selArea.length === 0 || this.mapImgLoading) return;
+    if (this.mapLoadedArea === this.selArea) return;
+    this.mapImgLoading = true;
+    this.mapImgErr = '';
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const user = await SeatService.getSession(ctx);
+      if (user === null) {
+        this.mapImgErr = '未登录，底图拉不了（先用色块）';
+        this.mapImages = emptySeatMapImages();
+        this.mapImgLoading = false;
+        return;
+      }
+      const res = await this.svc.seatMap(ctx, user.jwt, this.selArea);
+      if (res.ok && !isSeatMapImagesEmpty(res.images)) {
+        this.mapImages = res.images;
+        this.mapLoadedArea = this.selArea;
+      } else {
+        this.mapImages = emptySeatMapImages();
+        this.mapImgErr = (res.message ?? '').length > 0 ? res.message! : '该区域没配底图（用色块）';
+      }
+    } catch (e) {
+      warn('loadMapImages fail: ' + JSON.stringify(e));
+      this.mapImgErr = '底图拉取异常（用色块）';
+      this.mapImages = emptySeatMapImages();
+    }
+    this.mapImgLoading = false;
   }
 
   /** 拉「我的预约」权威列表（/api/index/subscribe，取消用这里的 record.id）。 */
@@ -425,6 +470,7 @@ struct SeatPage {
                 .backgroundColor(this.viewMode === 'map' ? this.p().accent : this.p().bgAlt)
                 .onClick(() => {
                   this.viewMode = 'map';
+                  this.loadMapImages();
                 })
             }
             .width('100%')
@@ -518,55 +564,87 @@ struct SeatPage {
     return '空闲 ' + free + '/' + this.seats.length;
   }
 
-  /** 点位渲染规格（现算，铁律 0.8；buildMapPoints 过滤无坐标座位 + 百分比落值，不画未实测底图 image）。 */
+  /** 点位渲染规格（现算，铁律 0.8；buildMapPoints 过滤无坐标座位 + 百分比落值；
+   *  mapImages 非空时按状态带裁图规格 tileUrl/imgScale/imgOffset）。 */
   private mapPoints(): MapPointVM[] {
-    return buildMapPoints(this.seats);
+    return buildMapPoints(this.seats, this.mapImages);
   }
 
-  /** 点位视图（M9-3）：16:9 中性底图框 + 服务端坐标百分比定位的座位方块。
-   *  ⚠️ 不画 /api/seat/map 的 5 张状态 image——其 data 形态与 URL 可达性未真机核对（铁律 0.9），
-   *  这里用中性框 + 座位百分比定位，点空闲座位进预约确认态（复用列表视图同一套 confirmSeat 链路）。 */
+  /** 点位视图（M9-3）：16:9 底图框 + 服务端坐标百分比定位的座位裁图。
+   *  - 底图：mapImages.free（2026-10-22 真机实测五件套之一，承载房间轮廓/桌子/图例；
+   *    五图的非座位区域一致，free 语义最中性 —— 对齐 Android SeatMapCanvas）。
+   *  - 座位：色块兜底 + 状态图裁片覆盖（图没加载出来时色块照旧，不会出现「全绿」假态）；
+   *    裁图 = 座位框内放一张容器全尺寸 Image，负偏移把对应区域移进框内
+   *    （对齐 Android drawSeatTile 的 srcOffset/srcSize 裁剪）。
+   *  - 点空闲座位进预约确认态（复用列表视图同一套 confirmSeat 链路，铁律 0.6）。 */
   @Builder
   mapView() {
     Column() {
       if (this.mapPoints().length === 0) {
-        Text('该区域没有带坐标的座位，无法点位定位（底图 image 未真机核对，铁律 0.9）')
+        Text('该区域没有带坐标的座位，无法点位定位')
           .fontSize(11).fontColor(this.p().textMuted).width('100%').padding(12)
           .backgroundColor(this.p().bgAlt).borderRadius(8)
       } else {
         Stack({ alignContent: Alignment.TopStart }) {
-          Row() {}
-            .width('100%').height('100%')
-            .backgroundColor(this.p().bgAlt)
-            .borderRadius(8)
+          // ① 底图：有 free 图铺真图，没有就露中性底（回落到纯色点位）
+          if (this.mapImages.free.length > 0) {
+            Image(this.mapImages.free)
+              .width('100%').height('100%')
+              .objectFit(ImageFit.Contain)
+          } else {
+            Row() {}
+              .width('100%').height('100%')
+              .backgroundColor(this.p().bgAlt)
+          }
+          // ② 逐座位裁片
           ForEach(this.mapPoints(), (pm: MapPointVM) => {
             this.mapPointBlock(pm)
           }, (pm: MapPointVM) => 'pt' + pm.seatId)
         }
         .width('100%').aspectRatio(16 / 9)
         .clip(true).borderRadius(8)
-        Text('点位颜色 = 座位状态；点空闲座位可预约')
-          .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 6 })
+        if (this.mapImgLoading) {
+          Text('底图加载中…').fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 6 })
+        } else if (this.mapImgErr.length > 0) {
+          Text(this.mapImgErr).fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 6 })
+        } else {
+          Text('点位 = 座位状态（官方底图）；点空闲座位可预约')
+            .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 6 })
+        }
       }
     }
     .width('100%').margin({ top: 8 })
   }
 
-  /** 单个座位点位（百分比定位；空闲可点进预约确认，非空闲 0.5 透明不可点）。 */
+  /** 单个座位点位（百分比定位；空闲可点进预约确认，非空闲 0.5 透明不可点）。
+   *  底层色块兜底，上层按状态裁官方底图（tileUrl 空 = 没图，只显示色块）。 */
   @Builder
   mapPointBlock(pm: MapPointVM) {
-    Text(pm.no)
-      .fontSize(9).fontColor('#FFFFFF').textAlign(TextAlign.Center)
-      .backgroundColor(this.isDark ? pm.colorDark : pm.colorLight)
-      .borderRadius(2)
-      .opacity(pm.reservable ? 1 : 0.5)
-      .position({ x: pm.leftPct, y: pm.topPct })
-      .width(pm.widthPct).height(pm.heightPct)
-      .onClick(() => {
-        if (pm.reservable && this.reserveTarget === null && !this.reserveBusy) {
-          this.requestReserve(pm.seatId);
-        }
-      })
+    Stack({ alignContent: Alignment.TopStart }) {
+      // 兜底色块（裁图没加载出来时就是它，行为同 M9-3 之前）
+      Text(pm.no)
+        .fontSize(9).fontColor('#FFFFFF').textAlign(TextAlign.Center)
+        .backgroundColor(this.isDark ? pm.colorDark : pm.colorLight)
+        .borderRadius(2)
+        .opacity(pm.reservable ? 1 : 0.5)
+        .width('100%').height('100%')
+      // 官方状态图裁片：容器全尺寸 + 负偏移回退（尺寸/偏移由纯逻辑层算好）
+      if (pm.tileUrl.length > 0) {
+        Image(pm.tileUrl)
+          .width(pm.imgScaleX).height(pm.imgScaleY)
+          .position({ x: pm.imgOffsetX, y: pm.imgOffsetY })
+          .objectFit(ImageFit.Fill)
+          .opacity(pm.reservable ? 1 : 0.85)
+      }
+    }
+    .position({ x: pm.leftPct, y: pm.topPct })
+    .width(pm.widthPct).height(pm.heightPct)
+    .clip(true)
+    .onClick(() => {
+      if (pm.reservable && this.reserveTarget === null && !this.reserveBusy) {
+        this.requestReserve(pm.seatId);
+      }
+    })
   }
 
   /** 我的预约区块（数据来自状态 this.mine，不在 ForEach 里重算）。 */

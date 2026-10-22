@@ -585,6 +585,19 @@ struct SettingsPage {
               }
               .width('100%').margin({ top: 8 })
 
+              Row() {
+                Text('座位 wire 探针（map/seminar 字段实测）')
+                  .fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
+                Button('打开')
+                  .height(28).fontSize(11)
+                  .onClick(() => {
+                    router.pushUrl({ url: 'pages/SeatProbePage' }).catch((e: Error) => {
+                      this.toast = '跳转失败：' + JSON.stringify(e);
+                    });
+                  })
+              }
+              .width('100%').margin({ top: 8 })
+
               if (this.diagText.length > 0) {
                 Text(this.diagText)
                   .fontSize(10).fontColor(this.p().textMuted)

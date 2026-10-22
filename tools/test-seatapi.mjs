@@ -12,6 +12,7 @@ import {
   bizResult, signInDeadline, signInHintText,
   seatNumberEquals, compareSeatNumber,
   filterMappableSeats, buildMapPoints,
+  emptySeatMapImages, isSeatMapImagesEmpty, mapImageForStatus, parseSeatMap,
 } from "../entry/src/main/ets/corelogic/SeatApiLogic.ts";
 
 let passed = 0;
@@ -228,6 +229,65 @@ function ok(cond, name) {
   // 全空坐标列表 → 空点位（UI 给「该区域无带坐标的座位」空态）
   eq(buildMapPoints([missing]).length, 0, "全无坐标 → 空");
   eq(buildMapPoints([]).length, 0, "空输入 → 空");
+
+  // ── 11b. 区域底图 parseSeatMap / mapImageForStatus / 裁图规格（M9-3 实测）──
+  // 2026-10-22 真机实测 raw（area id=3）：
+  const REAL_MAP = {
+    code: 1,
+    data: {
+      book: "https://seatlib.bit.edu.cn/home/images/web/area/3/seat-book.jpg",
+      close: "https://seatlib.bit.edu.cn/home/images/web/area/3/seat-close.jpg",
+      free: "https://seatlib.bit.edu.cn/home/images/web/area/3/seat-free.jpg",
+      leave: "https://seatlib.bit.edu.cn/home/images/web/area/3/seat-leave.jpg",
+      use: "https://seatlib.bit.edu.cn/home/images/web/area/3/seat-use.jpg",
+    },
+  };
+  const imgs = parseSeatMap(REAL_MAP.data);
+  eq(imgs.free, REAL_MAP.data.free, "free URL 直出");
+  eq(imgs.use, REAL_MAP.data.use, "use URL 直出");
+  ok(!isSeatMapImagesEmpty(imgs), "五图齐全 → 非空");
+  eq(isSeatMapImagesEmpty(emptySeatMapImages()), true, "空构造 → 空");
+  eq(parseSeatMap(null).free, "", "null → 全空串（不猜 URL）");
+  eq(parseSeatMap({}).book, "", "缺字段 → 空串");
+
+  // 按状态取图（对齐 Android SeatMapImages.forStatus）
+  eq(mapImageForStatus("AVAILABLE", imgs), imgs.free, "空闲→free");
+  eq(mapImageForStatus("RESERVED", imgs), imgs.book, "已预约→book");
+  eq(mapImageForStatus("IN_USE", imgs), imgs.use, "在用→use");
+  eq(mapImageForStatus("LEAVE", imgs), imgs.leave, "暂离→leave");
+  eq(mapImageForStatus("UNAVAILABLE", imgs), imgs.close, "停用→close");
+  eq(mapImageForStatus("AVAILABLE", emptySeatMapImages()), "", "无图 → 空串（回落色块）");
+
+  // 裁图规格数学：座位在容器 left=10% top=5% 宽 2.5% 高 2%
+  //   内层 Image 宽（相对座位框）= 100/2.5*100 = 4000.00%
+  //   高 = 100/2*100 = 5000.00%；偏移 = -10/2.5*100 = -400.00% / -5/2*100 = -250.00%
+  const tileSeat = [{
+    id: "9", no: "B07", statusRaw: "6", status: "IN_USE", statusName: "在用",
+    areaId: "3", pointX: 10, pointY: 5, width: 2.5, height: 2,
+  }];
+  const tpts = buildMapPoints(tileSeat, imgs);
+  eq(tpts.length, 1, "一个座位一个点位");
+  eq(tpts[0].tileUrl, imgs.use, "在用座位带 use 图");
+  eq(tpts[0].imgScaleX, "4000.00%", "内层宽 = 100/宽*100");
+  eq(tpts[0].imgScaleY, "5000.00%", "内层高 = 100/高*100");
+  eq(tpts[0].imgOffsetX, "-400.00%", "左偏移 = -left/宽*100");
+  eq(tpts[0].imgOffsetY, "-250.00%", "上偏移 = -top/高*100");
+  ok(!tpts[0].reservable, "在用不可预约");
+
+  // 不传 images（旧行为）：无裁图，UI 回落到色块
+  const npts = buildMapPoints(tileSeat);
+  eq(npts[0].tileUrl, "", "无 images → 无裁图");
+  eq(npts[0].imgScaleX, "100%", "兜底缩放 100%");
+  eq(npts[0].imgOffsetX, "0%", "兜底偏移 0");
+
+  // 零宽高（畸形数据）不算裁图规格，避免除零
+  const zero = [{
+    id: "10", no: "B08", statusRaw: "1", status: "AVAILABLE", statusName: "空闲",
+    areaId: "3", pointX: 0, pointY: 0, width: 0, height: 0,
+  }];
+  const zpts = buildMapPoints(zero, imgs);
+  eq(zpts[0].imgScaleX, "100%", "零宽高 → 兜底（防除零）");
+  eq(zpts[0].tileUrl, imgs.free, "但 tileUrl 仍按状态给（UI 层不裁即可）");
 }
 
 console.log("");

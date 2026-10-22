@@ -12,7 +12,7 @@
  * 实际"提交预约""取消预约"必须通过 Service 层，并由 UI 用户显式触发。
  */
 
-import { type DateTime } from './timeutil.ts';
+// ⚠️ 不 import timeutil 的 DateTime：本文件 140 行有同名内联定义（arkts-unique-names）
 
 // ── 内联定义（避免依赖 SessionStore 的 @kit.ArkData） ───────────────────────
 export interface SessionSnapshot {
@@ -175,12 +175,11 @@ export function timeOverlap(
          dateTimeToEpochMs(bStart) < dateTimeToEpochMs(aEnd);
 }
 
-/** 生成预约 ID（16 位十六进制，对齐 Android UUID 截断）。 */
-export function generateReservationId(): string {
-  const buf = new Uint8Array(8);
-  crypto.getRandomValues(buf);
-  return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
-}
+/**
+ * ⚠️ 2026-10-22 删除 `generateReservationId`：原实现用 `crypto.getRandomValues`
+ * （ArkTS 无全局 crypto，且本层是纯逻辑被 Node 单测 import，不能引 @kit），
+ * 且全仓零调用方。需要预约 ID 时由 service 层用 cryptoFramework 生成。
+ */
 
 /** 座位类型名称映射。 */
 export function seatTypeName(type: number): string {

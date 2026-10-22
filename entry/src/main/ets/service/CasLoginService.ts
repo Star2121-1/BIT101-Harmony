@@ -96,7 +96,7 @@ export class CasLoginService {
   static async login(context: Context, username: string, password: string): Promise<LoginOutcome> {
     const steps: string[] = [];
     const outcome: LoginOutcome = {
-      status: 'error', jwt: '', studentId: '', displayName: '', steps: steps, message: ''
+      status: LoginStatus.ERROR, jwt: '', studentId: '', displayName: '', steps: steps, message: ''
     };
 
     const session: rcp.Session = await RcpFactory.createSession(context, JAR_LOGIN);
@@ -294,7 +294,7 @@ export class CasLoginService {
   static async submitSmsCode(context: Context, code: string): Promise<LoginOutcome> {
     const steps: string[] = [];
     const outcome: LoginOutcome = {
-      status: 'error', jwt: '', studentId: '', displayName: '', steps: steps, message: ''
+      status: LoginStatus.ERROR, jwt: '', studentId: '', displayName: '', steps: steps, message: ''
     };
     const p: PendingLogin | null = pending;
     if (p === null) {

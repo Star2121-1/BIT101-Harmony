@@ -11,8 +11,9 @@
 import { type DateTime } from './timeutil.ts';
 import { num as jsonNum, str as jsonStr } from '../core/model/SchoolModels.ts';
 import type { JsonValue } from '../core/model/SchoolModels.ts';
-import { SeatStatus, type Seat } from '../model/SeatModel.ts';
-import { SeatStatus as LogicSeatStatus } from './SeatLogic.ts';
+// 展示状态统一用 SeatLogic 的 string enum（SeatModel 的数字 enum 是 wire 码，由 SeatApiLogic 的
+// WireSeatStatus 覆盖）；本文件不再直接依赖 model/SeatModel（Seat 类型未使用）
+import { SeatStatus } from './SeatLogic.ts';
 
 /**
  * 一条预约记录（来自服务端 /api/index/subscribe）。
@@ -56,11 +57,11 @@ export function getReservationStatus(record: ReservationRecord, now: DateTime): 
 
   let status: SeatStatus;
   if (record.isCheckedIn) {
-    status = LogicSeatStatus.CHECKED_IN;
+    status = SeatStatus.CHECKED_IN;
   } else if (isExpired) {
-    status = LogicSeatStatus.EXPIRED;
+    status = SeatStatus.EXPIRED;
   } else {
-    status = LogicSeatStatus.RESERVED_YOURS;
+    status = SeatStatus.RESERVED_YOURS;
   }
 
   return {

@@ -17,7 +17,7 @@
 import {
   SeatStatus, ReservationKind, SignInKind,
   dateTimeToEpochMs, epochMsToDateTime, minutesBetween,
-  timeOverlap, generateReservationId, seatTypeName,
+  timeOverlap, seatTypeName,
   statusText, statusColor, remainingSignInMinutes,
   isSignInUrgent, validateReserveRequest,
   isDefaulted, countDefaults, hitDefaultLimit,
@@ -137,14 +137,8 @@ function ok(cond, name) {
   ok(!timeOverlap(a1, a2, b1, b2), "无交集重叠 = false");
 }
 
-// ── 5. 预约 ID 生成 ───────────────────────────────────────────────────────────
-{
-  const id1 = generateReservationId();
-  const id2 = generateReservationId();
-  ok(id1.length === 16, "ID 长度 = 16");
-  ok(id1 !== id2, "两次生成不同");
-  ok(/^[0-9a-f]+$/.test(id1), "ID 为十六进制");
-}
+// ── 5. 预约 ID 生成 ── 2026-10-22 移除：SeatLogic 删除了 generateReservationId
+// （ArkTS 无全局 crypto 且纯逻辑层不能引 @kit；零调用方）。需要时由 service 层生成。
 
 // ── 6. 座位类型名称 ──────────────────────────────────────────────────────────
 {

@@ -32,8 +32,9 @@ import {
   buildMapPoints,
 } from "./SeatApiLogic.ts";
 import { courseTimeText, FALLBACK_TIME_TABLE } from "./TimeTableLogic.ts";
-import { pickDay, buildDayBlocks } from "./WidgetLogic.ts";
+import { pickDay, buildDayBlocks, type WidgetPage } from "./WidgetLogic.ts";
 import { statusText as seatModelStatusText, hasMapPosition, SeatStatus as ModelSeatStatus } from "../model/SeatModel.ts";
+import { SeatStatus, ReservationKind, SignInKind } from "./SeatLogic.ts";
 import { isActiveStatus, isTerminalStatus, TaskStatus as ProbeTaskStatus } from "../model/SeatTask.ts";
 import { isReservationActive, buildCancelBody } from "./SeatReservationLogic.ts";
 
@@ -88,8 +89,8 @@ export function runProbe(): string {
     (buildViolationVM([], 0).countText === "0/5" ? "viook" : "viobad") + "/" +
     (seminarVMs([]).length === 0 ? "semok" : "sembad") + "/" +
     (buildSlotOptions(480, 30, 480).maxDuration === 480 ? "slotmax" : "slotbadmax") +
-    "/" + (toSeatVM({ seatId: "x", seatName: "x", status: "FREE", reservationId: null,
-      otherName: null, timeRange: null, kind: "SINGLE", signInKind: "NFC_QR",
+    "/" + (toSeatVM({ seatId: "x", seatName: "x", status: SeatStatus.FREE, reservationId: null,
+      otherName: null, timeRange: null, kind: ReservationKind.SINGLE, signInKind: SignInKind.NFC_QR,
       signInDeadlineMinutes: null, isCheckedIn: false }).reservable ? "resv" : "resbad") +
     "/" + (myReservations([], { day: 0, minutes: 0 }).length === 0 ? "mineok" : "minebad"));
 
