@@ -1,31 +1,73 @@
 /**
- * 空教室页（M3-1/M3-2）
+ * 空教室页（M3-1/M3-2 + #85 UI 迁移）
  *
- * 三层：校区 → 教学楼 → 教室（逐节忙闲）。
- * 数据源：`SchoolService.getCampuses/getBuildings` + `ClassroomService.getClassrooms`。
+ * 三级：校区 → 教学楼 → 教室（逐节忙闲）。
+ * 数据源：`SchoolService.getBuildings('')`（一次拿全部校区的楼，客户端分组）
+ * + `ClassroomService.getClassrooms`（点哪栋拉哪栋）。
+ *
+ * ── #85 视觉迁移（对齐原版 BIT101，基准见 harmony/ui-ref/MIGRATION-BASELINE.md）──
+ * - 配色从 AppColors.palette() 切到 GridTokens（Warm 默认皮肤，真机实证）；
+ * - 校区卡 = surfaceVariant #F4EFE8（原版 surfaceContainerHigh，warm 下同值；
+ *   平板实测 ref-07 采样中位色严丝合缝）；
+ * - 教学楼卡 = mixHex(surface, primaryContainer, 0.25) = #FBE6D9（源码
+ *   FreeClassroomSearch.kt:183「用 primaryContainer 会糊按钮、secondaryContainer
+ *   会糊教室，手工调的颜色」；实测与公式一致）；
+ * - 教室项双色（ClassroomList.kt:79-95）：现在空闲 = secondaryContainer 薄荷底；
+ *   占用中 = mixHex(errorContainer, secondaryContainer, 0.5)（内容色同理混 on* 两个）；
+ * - 层级缩进：校区卡（页边 12）→ 教学楼卡（+25）→ 教室卡（再 +25），
+ *   与原版「色块明度 + 缩进 + 字号」的层级语言一致（原版注释：
+ *   不靠再加一种主题色区分层级）；
+ * - 校区分组纯函数 corelogic/CampusGrouping.ts 照搬原版 CampusGrouping.kt
+ *   （含实机栽过的「名字叫 null 的校区」bug 的清洗），当前校区排最前并自动展开。
  *
  * 铁律落实：
- * - 0.4 「今天第几周 / 哪一天」必须写在屏幕上 —— 空教室结果是**特定某天**的，不写日期等于骗人
- * - 「查不到」与「这栋楼全满」分开：前者是失败（红字 + 重试），后者是事实（灰字）
- * - 逐栋加载：点哪栋拉哪栋，不一开始就把全校几百间都拉下来
+ * - 0.4 「今天第几周 / 哪一天」必须写在屏幕上 —— 空教室结果是**特定某天**的，
+ *   不写日期等于骗人（顶栏 + 底部说明各一处）；
+ * - 「查不到」与「这栋楼全满」分开：前者是失败（红字 + 重试/登录入口），
+ *   后者是事实（照实显示）；
+ * - 逐栋加载：点哪栋拉哪栋，不一开始就把全校几百间都拉下来；
+ * - 「现在空闲 N 间」的 N 与卡片双色**同一口径**（同一次 nowMinutes 快照），
+ *   不一个按全天算一个按此刻算。
+ *
+ * 与原版的已知差异（如实记录，不装作一致）：
+ * - 本页是首页 push 进来的子页，顶栏是鸿蒙自有 chrome（原版在 5-tab 骨架里）；
+ * - 加载失败/空态鸿蒙用红字错误块（原版用 secondaryContainer  mint 卡），
+ *   错误可读性优先；
+ * - 原版 FAB 组（回到顶部 + 设置）与「隐藏非空闲」设置未搬（见 ROADMAP 待办）；
+ * - 「现在空闲」节次边界与原版 nextBusyTime>=now 差每节开头一瞬，取诚实侧
+ *   （corelogic/ClassroomFree.ts 注释与 test-classroomfree.mjs 钉死）。
  */
 
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { mixHex } from '../core/theme/colorUtil.ts';
 import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { SchoolService, SchoolAuthError } from '../service/SchoolService.ts';
 import { ClassroomService } from '../service/ClassroomService.ts';
-import { BuildingInfo, CampusInfo, ClassroomRow } from '../core/model/SchoolModels.ts';
+import { BuildingInfo, ClassroomRow } from '../core/model/SchoolModels.ts';
 import { CourseCache, CachedSchedule } from '../data/CourseCache.ts';
 import { Prefs } from '../data/Prefs.ts';
 import { SessionStore, SessionSnapshot } from '../data/SessionStore.ts';
-import { weeksContains, weekOf } from '../corelogic/CourseWeekdayLogic.ts';
+import { weekOf } from '../corelogic/CourseWeekdayLogic.ts';
 import { parseISODate } from '../corelogic/timeutil.ts';
+import { groupCampuses } from '../corelogic/CampusGrouping.ts';
+import type { CampusGroup } from '../corelogic/CampusGrouping.ts';
+import { isFreeNow } from '../corelogic/ClassroomFree.ts';
+import { FALLBACK_TIME_TABLE } from '../corelogic/TimeTableLogic.ts';
+import type { TimeTable } from '../corelogic/timeutil.ts';
+import { TimeTableStore } from '../data/TimeTableStore.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 const DAY_LABELS: string[] = ['一', '二', '三', '四', '五', '六', '日'];
 const SECTIONS: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+/** 卡片圆角（M3 shapes.medium = 12dp）。 */
+const CARD_RADIUS: number = 12;
+/** 页边距（校区卡左右）；教学楼/教室卡在此基础上按 25vp 一级缩进。 */
+const PAGE_GUTTER: number = 12;
+/** 层级缩进（原版 Column padding(start = 25.dp)，取 24vp 接近值）。 */
+const LEVEL_INDENT: number = 24;
 
 @Entry
 @Component
@@ -41,16 +83,21 @@ struct ClassroomPage {
   @State dateStr: string = '';
   /** 校区/楼的教学周是否确定（开学日未知时为空教室查询的前提不成立）。 */
   @State weekKnown: boolean = false;
-
-  @State campuses: CampusInfo[] = [];
-  @State campusCode: string = '';
-  @State buildings: BuildingInfo[] = [];
-  @State buildingsLoading: boolean = false;
-
+  /** 用户作息表（M6-2）；「现在空闲」的节次边界以它为准。 */
+  @State table: TimeTable = FALLBACK_TIME_TABLE;
+  /** 全部教学楼按校区分组（当前校区排最前）；原版 CampusGrouping 的移植。 */
+  @State groups: CampusGroup[] = [];
+  /** 设置里选的默认校区代码；只用于「· 默认」角标与自动展开，不筛列表。 */
+  @State defaultCampusCode: string = '';
+  /** 展开的校区（可多个，对齐原版 expandedCampuses）。 */
+  @State openCampuses: string[] = [];
+  /** 展开的教学楼（一次一栋）。 */
   @State openBuilding: string = '';
   @State rooms: ClassroomRow[] = [];
   @State roomsLoading: boolean = false;
   @State roomsError: string = '';
+  /** 拉教室时的「现在」（当天分钟数）；卡片双色与「现在空闲 N 间」同一口径。 */
+  @State nowMinutes: number = -1;
 
   aboutToAppear(): void {
     this.load();
@@ -83,38 +130,27 @@ struct ClassroomPage {
         const firstDay: string = await SchoolService.getFirstDay(ctx, this.term);
         this.applyDate(firstDay);
       }
-
-      const list: CampusInfo[] = await SchoolService.getCampuses(ctx);
-      this.campuses = list;
-      if (list.length > 0) {
-        // 优先用设置页里选的默认校区（M6-5）；
-        // 没设过才回退「良乡」（课程都在这边），再找不到就用第一个。
-        let pick: string = '';
-        try {
-          pick = await Prefs.getString('default_campus_code', '');
-        } catch (e) {
-          pick = '';
-        }
-        let found: boolean = false;
-        for (let i = 0; i < list.length; i++) {
-          if (pick.length > 0 && list[i].code === pick) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          pick = list[0].code;
-          for (let i = 0; i < list.length; i++) {
-            if (list[i].displayName.indexOf('良乡') >= 0) {
-              pick = list[i].code;
-              break;
-            }
-          }
-        }
-        await this.selectCampus(pick);
+      this.table = await TimeTableStore.load();
+      // 默认校区（设置页 M6-5 选的）；空 = 没设过
+      try {
+        this.defaultCampusCode = await Prefs.getString('default_campus_code', '');
+      } catch (e) {
+        this.defaultCampusCode = '';
       }
+      // 一次拿**全部校区**的教学楼，客户端分组（原版：每栋楼自带 XXXQDM，
+      // 不必为每个校区单独发请求；分组规则含「null 字面量」清洗，见 CampusGrouping）
+      const buildings: BuildingInfo[] = await SchoolService.getBuildings(ctx, '');
+      this.groups = groupCampuses(buildings, this.defaultCampusCode, '');
+      // 自动展开一个校区，少一次点击：默认校区 → 含「良乡」的组 → 第一组。
+      // ⚠️ 「良乡」只是没设过默认时的兜底顺序，不是给用户的承诺；
+      // 「· 默认」角标只认设置里真选过的（defaultCampusCode），兜底展开不给角标。
+      const auto: string = this.autoExpandCode();
+      this.openCampuses = auto.length > 0 ? [auto] : [];
+      this.openBuilding = '';
+      this.rooms = [];
+      this.roomsError = '';
       info('ClassroomPage loaded term=' + this.term + ' week=' + this.week +
-        ' dow=' + this.dayOfWeek + ' campuses=' + list.length);
+        ' dow=' + this.dayOfWeek + ' groups=' + this.groups.length);
     } catch (e) {
       if (e instanceof SchoolAuthError) {
         this.needLogin = true;
@@ -143,33 +179,45 @@ struct ClassroomPage {
     }
   }
 
-  private async selectCampus(code: string): Promise<void> {
-    if (code === this.campusCode && this.buildings.length > 0) {
-      return;
+  /** 自动展开哪个校区：默认校区 → 含「良乡」→ 第一组。 */
+  private autoExpandCode(): string {
+    if (this.groups.length === 0) {
+      return '';
     }
-    this.campusCode = code;
-    this.openBuilding = '';
-    this.rooms = [];
-    this.roomsError = '';
-    this.buildingsLoading = true;
-    try {
-      const ctx: Context = getContext(this) as Context;
-      this.buildings = await SchoolService.getBuildings(ctx, code);
-      info('ClassroomPage buildings campus=' + code + ' n=' + this.buildings.length);
-    } catch (e) {
-      this.buildings = [];
-      warn('ClassroomPage buildings fail: ' + JSON.stringify(e));
+    for (let i = 0; i < this.groups.length; i++) {
+      if (this.groups[i].isCurrent) {
+        return this.groups[i].campusCode;
+      }
     }
-    this.buildingsLoading = false;
+    for (let i = 0; i < this.groups.length; i++) {
+      if (this.groups[i].campusName.indexOf('良乡') >= 0) {
+        return this.groups[i].campusCode;
+      }
+    }
+    return this.groups[0].campusCode;
   }
 
-  private async toggleBuilding(code: string): Promise<void> {
-    if (this.openBuilding === code) {
+  /** 校区卡是否展开（可多个同时展开）。 */
+  private campusOpen(code: string): boolean {
+    return this.openCampuses.indexOf(code) >= 0;
+  }
+
+  private toggleCampus(code: string): void {
+    const idx: number = this.openCampuses.indexOf(code);
+    if (idx >= 0) {
+      this.openCampuses.splice(idx, 1);
+    } else {
+      this.openCampuses.push(code);
+    }
+  }
+
+  private async toggleBuilding(index: string): Promise<void> {
+    if (this.openBuilding === index) {
       this.openBuilding = '';
       this.rooms = [];
       return;
     }
-    this.openBuilding = code;
+    this.openBuilding = index;
     this.rooms = [];
     this.roomsError = '';
     if (!this.weekKnown) {
@@ -177,12 +225,14 @@ struct ClassroomPage {
       return;
     }
     this.roomsLoading = true;
+    // 「现在」快照：卡片双色与下方「现在空闲 N 间」共用，不各算各的
+    this.nowMinutes = this.currentMinutes();
     try {
       const ctx: Context = getContext(this) as Context;
       const rows: ClassroomRow[] = await ClassroomService.getClassrooms(
-        ctx, this.term, this.week, this.dayOfWeek, this.dateStr, code);
+        ctx, this.term, this.week, this.dayOfWeek, this.dateStr, index);
       this.rooms = rows;
-      info('ClassroomPage rooms building=' + code + ' n=' + rows.length);
+      info('ClassroomPage rooms building=' + index + ' n=' + rows.length);
       if (rows.length === 0) {
         this.roomsError = '这栋楼没有返回教室（可能该楼当天无数据）';
       }
@@ -193,14 +243,28 @@ struct ClassroomPage {
     this.roomsLoading = false;
   }
 
-  /** 一栋楼里当前时空闲的教室数（只在已加载时给，加载前不显示假数字）。 */
-  private freeCount(): number {
-    if (this.rooms.length === 0) {
+  /** 本地「现在」（当天分钟数）。 */
+  private currentMinutes(): number {
+    const d: Date = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  }
+
+  /** 这间教室现在是否空闲（与原版 isFreeNow 同语义，见 ClassroomFree.ts）。 */
+  private roomFree(r: ClassroomRow): boolean {
+    if (this.nowMinutes < 0) {
+      return true;
+    }
+    return isFreeNow(r.busySections, this.table, this.nowMinutes);
+  }
+
+  /** 现在空闲的教室数（与卡片双色同一 nowMinutes 口径）。 */
+  private freeNowCount(): number {
+    if (this.rooms.length === 0 || this.nowMinutes < 0) {
       return 0;
     }
     let n: number = 0;
     for (let i = 0; i < this.rooms.length; i++) {
-      if (this.rooms[i].busySections.length < SECTIONS.length) {
+      if (this.roomFree(this.rooms[i])) {
         n++;
       }
     }
@@ -233,148 +297,252 @@ struct ClassroomPage {
     return parts.join(', ') + ' 节占用';
   }
 
-  /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
-  private p(): Palette {
-    return palette(this.isDark);
+  // ── 配色（全部来自 GridTokens；派生色现算，不硬编码第二份）──
+
+  private tk(): GridTokens {
+    return gridTokens(this.isDark);
+  }
+
+  /** 校区卡底（原版 surfaceContainerHigh；warm 下与 surfaceVariant 同值）。 */
+  private campusCardBg(): string {
+    return this.tk().surfaceVariant;
+  }
+
+  /** 教学楼卡底 = mixColor(surface, primaryContainer, 0.25)（源码 + 实测 #FBE6D9）。 */
+  private buildingCardBg(): string {
+    const t: GridTokens = this.tk();
+    return mixHex(t.surface, t.primaryContainer, 0.25);
+  }
+
+  /** 教学楼卡内容色 = mixColor(onSurface, onPrimaryContainer, 0.25)。 */
+  private buildingCardInk(): string {
+    const t: GridTokens = this.tk();
+    return mixHex(t.onSurface, t.onPrimaryContainer, 0.25);
+  }
+
+  /** 教室卡底：空闲 secondaryContainer；占用 mix(errorContainer, secondaryContainer, 0.5)。 */
+  private roomCardBg(free: boolean): string {
+    const t: GridTokens = this.tk();
+    if (free) {
+      return t.secondaryContainer;
+    }
+    return mixHex(t.errorContainer, t.secondaryContainer, 0.5);
+  }
+
+  /** 教室卡内容色：空闲 onSecondaryContainer；占用混 on* 两个（0.5）。 */
+  private roomCardInk(free: boolean): string {
+    const t: GridTokens = this.tk();
+    if (free) {
+      return t.onSecondaryContainer;
+    }
+    return mixHex(t.onErrorContainer, t.onSecondaryContainer, 0.5);
   }
 
   build() {
     Column() {
+      // 顶栏（鸿蒙自有 chrome：本页由首页 push 进来）
       Row() {
-        Button('返回').height(32).fontSize(12).onClick(() => {
-          router.back();
-        })
+        Button('返回').height(32).fontSize(12)
+          .backgroundColor(Color.Transparent)
+          .fontColor(this.tk().primary)
+          .onClick(() => {
+            router.back();
+          })
         Column() {
-          Text('空教室').fontSize(16).fontWeight(FontWeight.Bold)
+          Text('空教室').fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
           Text('第 ' + this.week + ' 周 · 周' + DAY_LABELS[this.dayOfWeek - 1] +
             (this.dateStr.length > 0 ? ' · ' + this.dateStr : '') +
             (this.term.length > 0 ? ' · ' + this.term : ''))
-            .fontSize(11).fontColor(this.p().textMuted)
+            .fontSize(11).fontColor(this.tk().textPlaceholder)
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
         .margin({ left: 10 })
-        Button('刷新').height(32).fontSize(12).enabled(!this.loading).onClick(() => {
-          this.load();
-        })
+        Button('刷新').height(32).fontSize(12)
+          .backgroundColor(Color.Transparent)
+          .fontColor(this.tk().primary)
+          .enabled(!this.loading)
+          .onClick(() => {
+            this.load();
+          })
       }
-      .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 6 })
+      .width('100%').padding({ left: PAGE_GUTTER, right: PAGE_GUTTER, top: 10, bottom: 6 })
 
+      // 错误态：取不到 ≠ 没楼，红字说清 + 给登录/重试入口
       if (this.errorText.length > 0) {
         Column() {
-          Text(this.errorText).fontSize(13).fontColor(this.p().error).width('100%')
+          Text(this.errorText).fontSize(13).fontColor(this.tk().error).width('100%')
           if (this.needLogin) {
-            Button('去登录').height(40).margin({ top: 12 }).onClick(() => {
-              router.pushUrl({ url: 'pages/LoginPage' });
-            })
+            Button('去登录').height(40).margin({ top: 12 })
+              .backgroundColor(this.tk().primary)
+              .fontColor(this.tk().onPrimary)
+              .onClick(() => {
+                router.pushUrl({ url: 'pages/LoginPage' });
+              })
           }
         }
         .width('100%').padding({ left: 16, right: 16, top: 8 })
       }
 
-      // 校区 chips
-      if (this.campuses.length > 0) {
-        Scroll() {
-          Row() {
-            ForEach(this.campuses, (c: CampusInfo) => {
-              Text(c.displayName.length > 0 ? c.displayName : c.code)
-                .fontSize(12)
-                .fontColor(c.code === this.campusCode ? this.p().textOnAccent : this.p().textMuted)
-                .backgroundColor(c.code === this.campusCode ? this.p().accent : this.p().bgAlt)
-                .padding({ left: 12, right: 12, top: 5, bottom: 5 })
-                .borderRadius(13)
-                .margin({ right: 6 })
-                .onClick(() => {
-                  this.selectCampus(c.code);
-                })
-            }, (c: CampusInfo) => 'c_' + c.code)
-          }
-          .padding({ left: 12, right: 12 })
-        }
-        .scrollable(ScrollDirection.Horizontal)
-        .scrollBar(BarState.Off)
-        .width('100%')
-        .padding({ bottom: 8 })
-      }
-
       if (this.loading) {
-        Text('正在读校区与教学楼…').fontSize(13).fontColor(this.p().textMuted).width('100%').padding(16)
-      } else if (this.buildingsLoading) {
-        Text('正在读教学楼…').fontSize(13).fontColor(this.p().textMuted).width('100%').padding(16)
+        // 加载提示条（原版 LoadingTip：secondaryContainer 底 + onSecondaryContainer 字）
+        Row() {
+          LoadingProgress().width(18).height(18).color(this.tk().primary)
+          Text('正在拉取教学楼列表…').fontSize(12).fontColor(this.tk().onSecondaryContainer)
+            .margin({ left: 8 })
+        }
+        .width('100%').justifyContent(FlexAlign.Center)
+      } else if (this.groups.length === 0) {
+        // 空态：一句保守的话，不点名「哪个校区没有」（列表本来就是全部校区的）
+        Text('没有获取到教学楼（可以到设置里切换默认校区）')
+          .fontSize(12).fontColor(this.tk().onSecondaryContainer).textAlign(TextAlign.Center)
+          .width('100%').padding(12)
+          .backgroundColor(this.tk().secondaryContainer).borderRadius(CARD_RADIUS)
       } else {
-        List() {
-          ForEach(this.buildings, (b: BuildingInfo) => {
-            ListItem() {
+        Scroll() {
+          Column() {
+            ForEach(this.groups, (g: CampusGroup) => {
+              // ── 校区卡（三级折叠最外层）──
               Column() {
                 Row() {
-                  Text(b.buildingName.length > 0 ? b.buildingName : b.buildingIndex)
-                    .fontSize(14).fontWeight(FontWeight.Medium).layoutWeight(1)
-                  Text(this.openBuilding === b.buildingIndex ? '收起' : '展开')
-                    .fontSize(11).fontColor(this.p().accent)
+                  // 定位图标（原版 Icons.Outlined.Place 的极简还原：外点 + 内孔）
+                  Stack() {
+                    Circle().width(12).height(12).fill(this.tk().onSurface)
+                    Circle().width(4).height(4).fill(this.campusCardBg())
+                  }
+                  .width(12).height(12).margin({ right: 10 })
+
+                  Column() {
+                    Text(g.campusName)
+                      .fontSize(15).fontWeight(FontWeight.Bold)
+                      .fontColor(this.tk().onSurface).maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    Text(g.buildings.length + ' 栋教学楼' +
+                      (g.isCurrent ? ' · 默认' : ''))
+                      .fontSize(11).fontColor(this.tk().onSurface).maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+
+                  // 箭头（展开时旋转 90°，对齐原版 animateFloatAsState 的形态）
+                  Text('›').fontSize(17).fontColor(this.tk().onSurface)
+                    .rotate({ angle: this.campusOpen(g.campusCode) ? 90 : 0 })
                 }
                 .width('100%')
+                .padding({ left: 15, right: 15, top: 12, bottom: 12 })
                 .onClick(() => {
-                  this.toggleBuilding(b.buildingIndex);
+                  this.toggleCampus(g.campusCode);
                 })
 
-                if (this.openBuilding === b.buildingIndex) {
-                  if (this.roomsLoading) {
-                    Text('正在查这栋楼的教室（约 2~5 秒）…')
-                      .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
-                  } else if (this.roomsError.length > 0) {
-                    Text(this.roomsError)
-                      .fontSize(12).fontColor(this.p().error).width('100%').margin({ top: 6 })
-                  } else {
-                    Text('共 ' + this.rooms.length + ' 间教室 · 现在空闲 ' + this.freeCount() + ' 间')
-                      .fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 6, bottom: 4 })
-                    ForEach(this.rooms, (r: ClassroomRow) => {
-                      Row() {
-                        Column() {
-                          Text(r.JASMC.length > 0 ? r.JASMC : '（未命名）')
-                            .fontSize(12).width('100%')
-                          Text((r.JASLXDM_DISPLAY.length > 0 ? r.JASLXDM_DISPLAY : '教室') +
-                            (r.SKZWS.length > 0 ? ' · ' + r.SKZWS + ' 座' : ''))
-                            .fontSize(10).fontColor(this.p().textMuted).width('100%')
+                // ── 教学楼卡（展开校区才显示，缩进一级）──
+                if (this.campusOpen(g.campusCode)) {
+                  Column() {
+                    ForEach(g.buildings, (b: BuildingInfo) => {
+                      Column() {
+                        Row() {
+                          Column() {
+                            Text(b.buildingName.length > 0 ? b.buildingName : b.buildingIndex)
+                              .fontSize(15).fontWeight(FontWeight.Medium)
+                              .fontColor(this.buildingCardInk()).maxLines(1)
+                              .textOverflow({ overflow: TextOverflow.Ellipsis })
+                          }
+                          .alignItems(HorizontalAlign.Start)
+                          .layoutWeight(1)
+                          Text('›').fontSize(17).fontColor(this.buildingCardInk())
+                            .rotate({ angle: this.openBuilding === b.buildingIndex ? 90 : 0 })
                         }
-                        .alignItems(HorizontalAlign.Start)
-                        .layoutWeight(1)
-                        Text(this.busySummary(r))
-                          .fontSize(10)
-                          .fontColor(r.busySections.length === 0 ? this.p().success
-                            : (r.busySections.length >= SECTIONS.length ? this.p().error : this.p().warn))
-                          .maxLines(1)
-                          .textOverflow({ overflow: TextOverflow.Ellipsis })
-                          .width('46%')
-                          .textAlign(TextAlign.End)
+                        .width('100%')
+                        .padding({ left: 15, right: 12, top: 12, bottom: 12 })
+                        .onClick(() => {
+                          this.toggleBuilding(b.buildingIndex);
+                        })
+
+                        // ── 教室项（展开教学楼才显示，再缩进一级）──
+                        if (this.openBuilding === b.buildingIndex) {
+                          if (this.roomsLoading) {
+                            Row() {
+                              LoadingProgress().width(16).height(16).color(this.tk().primary)
+                              Text('正在获取教室列表…').fontSize(12)
+                                .fontColor(this.tk().onSecondaryContainer).margin({ left: 8 })
+                            }
+                            .width('100%').justifyContent(FlexAlign.Center)
+                          } else if (this.roomsError.length > 0) {
+                            Text(this.roomsError)
+                              .fontSize(12).fontColor(this.tk().error).width('100%')
+                              .margin({ top: 6 })
+                          } else {
+                            Text('共 ' + this.rooms.length + ' 间教室 · 现在空闲 ' +
+                              this.freeNowCount() + ' 间')
+                              .fontSize(11).fontColor(this.tk().textPlaceholder)
+                              .width('100%').margin({ top: 6, bottom: 4 })
+                            ForEach(this.rooms, (r: ClassroomRow) => {
+                              Column() {
+                                Row() {
+                                  Column() {
+                                    Text(r.JASMC.length > 0 ? r.JASMC : '（未命名）')
+                                      .fontSize(15).fontWeight(FontWeight.Medium)
+                                      .fontColor(this.roomCardInk(this.roomFree(r)))
+                                      .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+                                    Text((r.JASLXDM_DISPLAY.length > 0 ? r.JASLXDM_DISPLAY : '教室') +
+                                      (r.SKZWS.length > 0 ? ' · ' + r.SKZWS + ' 座' : ''))
+                                      .fontSize(11).fontColor(this.roomCardInk(this.roomFree(r)))
+                                      .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+                                  }
+                                  .alignItems(HorizontalAlign.Start)
+                                  .layoutWeight(1)
+                                  Text(this.busySummary(r))
+                                    .fontSize(11)
+                                    .fontColor(this.roomCardInk(this.roomFree(r)))
+                                    .maxLines(1)
+                                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                                    .width('46%')
+                                    .textAlign(TextAlign.End)
+                                }
+                                .width('100%')
+                              }
+                              .width('100%')
+                              .padding({ left: 15, right: 12, top: 10, bottom: 10 })
+                              .backgroundColor(this.roomCardBg(this.roomFree(r)))
+                              .borderRadius(CARD_RADIUS)
+                              .margin({ bottom: 6 })
+                            }, (r: ClassroomRow) => 'r_' + b.buildingIndex + '_' + r.JASMC)
+                          }
+                        }
                       }
                       .width('100%')
-                      .padding({ top: 5, bottom: 5 })
-                      .border({ width: { bottom: 0.5 }, color: this.p().bgAlt })
-                    }, (r: ClassroomRow) => 'r_' + b.buildingIndex + '_' + r.JASMC)
+                      .padding({ left: 15, right: 15, top: 12, bottom: 12 })
+                      .backgroundColor(this.buildingCardBg())
+                      .borderRadius(CARD_RADIUS)
+                      .margin({ bottom: 8 })
+                    }, (b: BuildingInfo) => 'b_' + g.campusCode + '_' + b.buildingIndex)
                   }
+                  .width('100%')
+                  .margin({ left: LEVEL_INDENT })
                 }
               }
               .width('100%')
-              .padding(12)
-              .backgroundColor(this.p().bgCard)
-              .borderRadius(8)
-              .border({ width: 0.5, color: this.p().bgAlt })
-            }
-            .margin({ bottom: 8 })
-          }, (b: BuildingInfo) => 'b_' + b.campusCode + '_' + b.buildingIndex)
+              .padding({ left: 15, right: 15, top: 12, bottom: 12 })
+              .backgroundColor(this.campusCardBg())
+              .borderRadius(CARD_RADIUS)
+              .margin({ left: PAGE_GUTTER, right: PAGE_GUTTER, bottom: 8 })
+            }, (g: CampusGroup) => 'g_' + g.campusCode)
+          }
+          .width('100%')
+          .padding({ bottom: 8 })
         }
         .layoutWeight(1)
         .width('100%')
-        .padding({ left: 12, right: 12 })
         .scrollBar(BarState.Auto)
       }
 
+      // 铁律 0.4：结果对应哪一天，写在屏幕上
       Text(this.weekKnown ? '空教室结果对应上面这一天' : '开学日未知，结果可能不准')
-        .fontSize(11).fontColor(this.p().textMuted)
+        .fontSize(11).fontColor(this.tk().textPlaceholder)
         .width('100%')
-        .padding({ left: 12, right: 12, top: 4, bottom: 8 })
+        .padding({ left: PAGE_GUTTER, right: PAGE_GUTTER, top: 4, bottom: 8 })
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgAlt)
+    .backgroundColor(this.tk().background)
   }
 }

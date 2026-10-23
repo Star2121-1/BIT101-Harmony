@@ -78,6 +78,31 @@ eq(withAlpha('#112369', 1), '#112369FF', 'withAlpha alpha=1');
 eq(withAlpha('#112369', 2).slice(-2), 'FF', 'withAlpha 越界(>1)收拢到 FF');
 eq(withAlpha('#112369', -1).slice(-2), '00', 'withAlpha 越界(<0)收拢到 00');
 
+console.log('\n=== 空教室页卡片色（#85，源码 FreeClassroomSearch.kt）===');
+const dark = gridTokens(true);
+// 校区卡 = surfaceVariant（原版 surfaceContainerHigh，warm 下同值）；实测 ref-07 采样 #F4EFE8
+eq(light.surfaceVariant, '#F4EFE8', '校区卡 = surfaceVariant #F4EFE8（真机实测）');
+// 教学楼卡 = mixColor(surface, primaryContainer, 0.25f)，源码 FreeClassroomSearch.kt:183
+// 实测 #FBE6D9（1504×2400 采样中位色；基准文档旧值 #FEF6F2 是采到了卡间隙，已纠正）
+eq(mixHex(light.surface, light.primaryContainer, 0.25), '#FBE6D9', '教学楼卡 = #FBE6D9（真机实测）');
+eq(mixHex(light.onSurface, light.onPrimaryContainer, 0.25), '#4D2C16', '教学楼卡内容色 = #4D2C16');
+// 教室项双色（ClassroomList.kt:79-95）：空闲 secondaryContainer；占用 mix(errorContainer, secondaryContainer, 0.5)
+eq(light.secondaryContainer, '#D5E9DF', '教室项空闲 = secondaryContainer #D5E9DF');
+eq(mixHex(light.errorContainer, light.secondaryContainer, 0.5), '#E8E5DE', '教室项占用底 = #E8E5DE');
+eq(mixHex(light.onErrorContainer, light.onSecondaryContainer, 0.5), '#4E3428', '教室项占用内容色 = #4E3428');
+// 暗色档同公式（值由 mixHex 现算，不硬编码）
+eq(mixHex(dark.surface, dark.primaryContainer, 0.25), '#3F2613', 'dark 教学楼卡');
+eq(mixHex(dark.onSurface, dark.onPrimaryContainer, 0.25), '#F0C2A7', 'dark 教学楼卡内容色');
+eq(mixHex(dark.errorContainer, dark.secondaryContainer, 0.5), '#3B2F27', 'dark 教室项占用底');
+// 双色必须**看得出来**：空闲/占用两张卡不能糊成一块（「看不出区别就等于没做」）
+const clsDiff = (a, b) => Math.abs(parseInt(a.slice(1, 3), 16) - parseInt(b.slice(1, 3), 16)) +
+  Math.abs(parseInt(a.slice(3, 5), 16) - parseInt(b.slice(3, 5), 16)) +
+  Math.abs(parseInt(a.slice(5, 7), 16) - parseInt(b.slice(5, 7), 16));
+ok(clsDiff(light.secondaryContainer, mixHex(light.errorContainer, light.secondaryContainer, 0.5)) > 20,
+  'light 教室项空闲/占用底色差 > 20');
+ok(clsDiff(dark.secondaryContainer, mixHex(dark.errorContainer, dark.secondaryContainer, 0.5)) > 20,
+  'dark 教室项空闲/占用底色差 > 20');
+
 console.log('\n=== tint 档位语义 ===');
 eq(HOLIDAY_TINT, 0.85, 'HOLIDAY_TINT=0.85（照搬源码）');
 eq(MAKEUP_TINT, 0.6, 'MAKEUP_TINT=0.6（照搬源码）');
