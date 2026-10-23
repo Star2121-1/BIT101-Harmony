@@ -99,6 +99,25 @@ export class SeatTaskRepository {
   }
 
   /**
+   * 标记发现空位（铁律 0.6：只记录，绝不自动预约）。
+   * 轮询循环看到 FOUND 态即退出；之后由用户显式确认预约。
+   */
+  markFound(id: string, seatId: string, seatNo: string): void {
+    const task = this.tasks.find(t => t.id === id);
+    if (!task || isTerminalStatus(task.status)) {
+      return;
+    }
+
+    task.status = TaskStatus.FOUND;
+    task.foundSeatId = seatId;
+    task.foundSeatNo = seatNo;
+    task.message = '发现空位 ' + seatNo + '，等待确认';
+    this.persist();
+    this.notifyChange();
+    info('SeatTaskRepository', `Task ${id} found seat ${seatNo} (${seatId}), awaiting user confirm`);
+  }
+
+  /**
    * 取消任务。
    */
   cancelTask(id: string): void {
@@ -160,12 +179,13 @@ export class SeatTaskRepository {
   /**
    * 终止所有活跃任务。
    *
-   * 用于认证失效等场景。
+   * 用于认证失效等场景。FOUND 态（等用户确认）也一并终止——
+   * 登录都没了，那个空位确认也无从谈起。
    */
   stopAll(reason: string): void {
     let changed = false;
     this.tasks.forEach(task => {
-      if (isActiveStatus(task.status)) {
+      if (isActiveStatus(task.status) || task.status === TaskStatus.FOUND) {
         task.status = TaskStatus.FAILED;
         task.message = reason;
         changed = true;

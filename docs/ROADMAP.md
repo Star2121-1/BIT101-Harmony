@@ -232,14 +232,20 @@
 |---|---|---|---|---|
 | M9-1 | 座位 JWT 换取 | — | seatlib 业务接口 `code=1`（M1 已证） | ✅ 完成 |
 | M9-2 | 座位树/楼层/区域 | M9-1 | 能列出校区→楼→楼层→区域 | 🔄 逻辑层（SeatTreeModel + SeatTreeService + SeatLogic 75 条）+ **UI 已建**（SeatPage 三级选择 campus/floor/area，groupTree 分组；test-seatview 58 条）；真机未验 |
-| M9-3 | 房间底图选座（5 张底图 + 百分比坐标） | M9-2 | 底图上座位点位与真实布局对得上，点选有反馈 | 🔄 **点位视图已建**（`buildMapPoints` 纯函数过滤有坐标座位 + 百分比定位，13 条单测 + compile-probe `map-ok`；SeatPage 加「列表/点位」切换，点位在 16:9 中性框里百分比定位，点空闲点位复用 `confirmSeat` 预约链路）；**底图 image 未画**（`/api/seat/map` 的 5 张状态图 data 形态与 URL 可达性未真机核对，铁律 0.9 不硬造）。真机未验 |
+| M9-3 | 房间底图选座（5 张底图 + 百分比坐标） | M9-2 | 底图上座位点位与真实布局对得上，点选有反馈 | 🔄 **底图已实测**（2026-10-22 真机：`/api/seat/map` 免认证可通，data = free/book/close/leave/use 五张 1920×1080 URL）+ **裁图渲染已实现**（SeatPage free 图铺底 + 逐座位状态图裁片，缩放/偏移百分比由纯逻辑层算，test-seatapi +24 条；色块兜底不假态）；⚠️ 真机渲染验证待登录（座位列表 `/api/Seat/seat` 必须活 JWT，实测死 JWT/无 JWT 均 HTTP 500） |
 | M9-4 | 预约提交（单次模式） | M9-3 | 真机提交后服务端「我的预约」里出现该记录 | 🔄 逻辑层完成（SeatReserveLogic 21 条 + buildSlotOptions/validateSlot 时段校验）；**契约层已对齐**（SeatApiLogic `buildConfirmBody` seat_id(int)+segment，铁律 0.9）；**预约交互已建**（SeatPage 点空闲座位行→二次确认→confirmSeat→刷新座位+我的预约，对称于取消，铁律 0.6 守门）；真机未验。⚠️ **隐患待清**：旧 `SeatReserveLogic.calcSignInDeadline`（开始**-15min**）与权威 `SeatApiLogic.signInDeadline`（当日=开始**+60min**/次日=09:00）方向相反，前者零业务引用（仅旧单测用），M9-4 接线时删 |
 | M9-5 | 我的预约 / 取消 | M9-4 | 取消后列表消失，服务端也消失 | 🔄 逻辑层（SeatReservationLogic 22 条）+ **UI 已建**（SeatPage 我的预约列表 + 取消二次确认，铁律 0.6 守门；取消走 `/api/Space/cancel` 传 record.id 非座位 id，契约层 SeatApiLogic 对齐）；真机未验 |
 | M9-6 | 违约计数（N/5 + 明细） | M9-1 | 显示「违约 N/5」，与图书馆接口一致 | 🔄 **违约 UI 已建**（SeatPage 拉 `/api/Member/reneges` type=1 → wire `RenegeRecord[]` 直出渲染，`renegeText` 纯函数组文案 + 8 条单测 + compile-probe，空态/加载/错误/列表四态齐备，不造假数据）；真机未验 |
 | M9-7 | 研讨间（看/取消） | M9-1 | 研讨间预约与座位**分开**计数 | ⬜ 逻辑层完成（SeminarLogic 15 条 + seminarVMs）；**UI 暂缓**——研讨间 wire 字段（`/api/Member/seminar`）未真机核对（铁律 0.9），SeatPage 诚实标注「暂不渲染，不造假数据」，待真机核对字段后再做 |
-| M9-8 | 前台监控（无后台轮询） | M9-4 | App 前台时能发现空位并提示；退到后台**明确提示不监控** | 🔄 逻辑层完成（SeatMonitorLogic 纯函数化 + SeatTask 模型 + SeatTaskStore + ISeatService 接口 + 26 条）；**UI 面板 + 前台生命周期接线待实现** |
+| M9-8 | 前台监控（无后台轮询） | M9-4 | App 前台时能发现空位并提示；退到后台**明确提示不监控** | 🔄 逻辑层完成（SeatMonitorLogic + SeatMonitorPolicy 纯决策函数 + SeatTask 模型 + SeatTaskStore + ISeatService 接口；轮询已改用 `decideNext` 守卫，test-seatmonitor 断言钉死「只 FOUND 不自动预约」）；**UI 面板 + 前台生命周期接线待实现** |
 
-**⚠️ M9 契约层（铁律 0.9，2026-10-22 补齐）**：早期 SeatService 用臆造端点（`/api/Seat/schedule`、`/reserve`、`/cancel`）+ 自造 body，与 Android 权威契约不符，对真实服务端全挂。现已建 `SeatApiLogic`（纯函数：端点表 `/api/Seat/seat` `/confirm`、`/api/Space/cancel`、`/api/index/subscribe`、`/api/Seat/date`、`/api/seat/map`、`/api/Member/reneges` `/seminar` + body 1:1 + 状态码映射 1→AVAILABLE/2,10,11→RESERVED/6,8,9→IN_USE/7→LEAVE/3,4,5→UNAVAILABLE + 签到截止当日=开始+60min/次日=09:00，78 条单测），SeatService 降为薄 @kit 壳（session+TLS CA+JAR_SEAT 罐+Bearer JWT 头），端点/body/解析全委托。SeatPage 已切 `WireSeat[]`/`MyReservation[]` 权威契约。⚠️ **真机未验**：JWT 头对 authed 端点（subscribe/cancel/reneges/seminar）是否全通需设备恢复后回归；若服务端只认 cookie，需把 JAR_SEAT 罐接入 CAS 登录链路。
+**⚠️ M9 契约层（铁律 0.9，2026-10-22 补齐 + 真机验证）**：早期 SeatService 用臆造端点（`/api/Seat/schedule`、`/reserve`、`/cancel`）+ 自造 body，与 Android 权威契约不符，对真实服务端全挂。现已建 `SeatApiLogic`（纯函数：端点表 `/api/Seat/seat` `/confirm`、`/api/Space/cancel`、`/api/index/subscribe`、`/api/Seat/date`、`/api/seat/map`、`/api/Member/reneges` `/seminar` + body 1:1 + 状态码映射 1→AVAILABLE/2,10,11→RESERVED/6,8,9→IN_USE/7→LEAVE/3,4,5→UNAVAILABLE + 签到截止当日=开始+60min/次日=09:00，102 条单测），SeatService 降为薄 @kit 壳（session+TLS CA+JAR_SEAT 罐+认证头），端点/body/解析全委托。
+
+**⚠️ 认证模型（2026-10-22 真机探针 + Android SeatApi.kt 核对，铁律 0.9）**：
+- authed 端点**两头都发**：① 头 `Authorization: bearer<jwt>`（**小写 bearer、无空格**，不是 RFC 的 `Bearer <jwt>`）② 请求体 JSON 带 `authorization: bearer<jwt>` 字段。原实现 `Bearer <jwt>` 且体不带字段 ⇒ 真机全部 10001，已修。
+- 免认证端点（tree/date/map）**完全不带 Authorization 键**——带空 `Bearer ` 反而 10001（服务端对「有头但无效」与「无头」两种处理）。
+- `/api/Seat/seat` **必须活 JWT**：无 token 或死 token 均 HTTP 500 + 空 body（真机实测，推翻了「seat 也许免认证」的假设）。
+- **JWT 会过期**：设备上 513 字符 JWT 是死 token；`silentRenewJwt`（只靠 phpCAS cookie）实测失败 ⇒ **需用户显式登录**（铁律 0.6：凭据登录必须用户发起）。证据：`harmony/evidence/m9-wire-probe/`。
 
 **⚠️ M9-4/M9-5 红线**：有对外副作用的动作（提交预约/取消）**绝不上自动路径**，必须用户显式点击且参数必填（MEMORY 铁律 0.6）。
 

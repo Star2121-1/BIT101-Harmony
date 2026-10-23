@@ -23,6 +23,8 @@ export enum TaskStatus {
   IDLE = 'IDLE',
   /** 运行中。 */
   RUNNING = 'RUNNING',
+  /** 发现空位，等用户确认预约（铁律 0.6：绝不自动预约）。 */
+  FOUND = 'FOUND',
   /** 成功。 */
   SUCCESS = 'SUCCESS',
   /** 失败。 */
@@ -31,16 +33,21 @@ export enum TaskStatus {
   CANCELLED = 'CANCELLED',
 }
 
-/** 任务是否处于活跃状态。 */
+/** 任务是否处于活跃状态（轮询中）。FOUND 已停轮询，不算活跃。 */
 export function isActiveStatus(status: TaskStatus): boolean {
   return status === TaskStatus.IDLE || status === TaskStatus.RUNNING;
 }
 
-/** 任务是否处于终态。 */
+/** 任务是否处于终态。FOUND 不是终态（用户还能确认或取消）。 */
 export function isTerminalStatus(status: TaskStatus): boolean {
   return status === TaskStatus.SUCCESS ||
          status === TaskStatus.FAILED ||
          status === TaskStatus.CANCELLED;
+}
+
+/** 是否在等用户确认预约（FOUND 态；UI 据此显示「去预约」按钮）。 */
+export function needsUserConfirm(status: TaskStatus): boolean {
+  return status === TaskStatus.FOUND;
 }
 
 /**
@@ -60,6 +67,7 @@ export function isTerminalStatus(status: TaskStatus): boolean {
  * - createdAt: 创建时间（毫秒时间戳）
  * - attempts: 已尝试次数
  * - lastAttemptAt: 最近一次尝试时间
+ * - foundSeatId/foundSeatNo: FOUND 态下发现的空位（用户确认预约时用；铁律 0.6）
  */
 export interface ReservationTask {
   id: string;
@@ -79,6 +87,10 @@ export interface ReservationTask {
   createdAt: number;
   attempts: number;
   lastAttemptAt: number;
+  /** FOUND 态：发现的空位 id（用户点「去预约」时确认用）。 */
+  foundSeatId: string;
+  /** FOUND 态：发现的空位编号（展示用）。 */
+  foundSeatNo: string;
 }
 
 /**
@@ -124,6 +136,8 @@ export function createTask(
     createdAt: Date.now(),
     attempts: 0,
     lastAttemptAt: 0,
+    foundSeatId: '',
+    foundSeatNo: '',
   };
 }
 
@@ -136,6 +150,8 @@ export function serializeTask(task: ReservationTask): string {
 
 /**
  * 反序列化任务。
+ * ⚠️ 旧存档没有 foundSeatId/foundSeatNo 字段（FOUND 态是后加的），
+ * 这里补齐空串，避免 UI 读 undefined。
  */
 export function deserializeTask(json: string): ReservationTask | null {
   try {
@@ -144,10 +160,18 @@ export function deserializeTask(json: string): ReservationTask | null {
     if (!parsed.id || !parsed.mode || !parsed.status) {
       return null;
     }
-    return parsed as ReservationTask;
+    const task: ReservationTask = parsed as ReservationTask;
+    backfillFound(task, parsed as Record<string, Object>);
+    return task;
   } catch {
     return null;
   }
+}
+
+/** 旧存档补齐 found 字段（FOUND 态后加，老数据没有这两个键）。 */
+function backfillFound(task: ReservationTask, raw: Record<string, Object>): void {
+  if (raw['foundSeatId'] === undefined) task.foundSeatId = '';
+  if (raw['foundSeatNo'] === undefined) task.foundSeatNo = '';
 }
 
 /**
@@ -177,7 +201,9 @@ export function deserializeTasks(json: string): ReservationTask[] {
       }
       const r: Record<string, Object> = t as Record<string, Object>;
       if (r['id'] !== undefined && r['mode'] !== undefined && r['status'] !== undefined) {
-        out.push(t as ReservationTask);
+        const task: ReservationTask = t as ReservationTask;
+        backfillFound(task, r);
+        out.push(task);
       }
     }
     return out;

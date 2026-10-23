@@ -9,6 +9,7 @@
  */
 
 import { TaskMode, TaskStatus, createTask, isActiveStatus, isTerminalStatus } from "../entry/src/main/ets/model/SeatTask.ts";
+import { decideNext } from "../entry/src/main/ets/corelogic/SeatMonitorPolicy.ts";
 
 let passed = 0;
 let failed = 0;
@@ -124,6 +125,36 @@ function makeMockService(overrides = {}) {
   // 终态不可再更新（模拟）
   const wasTerminal = isTerminalStatus(task.status);
   ok(wasTerminal, "SUCCESS 是终态");
+}
+
+// ── 7. 铁律 0.6 守卫：发现空位只 FOUND，绝不自动预约 ──────────────────────────
+{
+  // MONITOR：命中指定座位号 → FOUND，且只回座位信息，不含任何「已预约」标记
+  const monTask = createTask(TaskMode.MONITOR, 'area_1', 'seg_001', 'A12', '2026-10-22', '08:00', '09:00');
+  const seats = [{ id: 's1', no: 'A12' }, { id: 's2', no: 'B3' }];
+  const d = decideNext(monTask, seats);
+  ok(d.kind === 'FOUND', "MONITOR 命中指定座位 → FOUND");
+  if (d.kind === 'FOUND') {
+    eq(d.seat.id, 's1', "FOUND 返回正确空位 id");
+    eq(d.seat.no, 'A12', "FOUND 返回正确空位号");
+  }
+
+  // 无空位 → WAIT（继续轮询，不报错、不预约）
+  const empty = decideNext(createTask(TaskMode.MONITOR, 'a', 's', 'x', '2026-10-22', '08:00', '09:00'), []);
+  ok(empty.kind === 'WAIT', "无空位 → WAIT");
+
+  // PREFER：按偏好列表顺序命中
+  const preferTask = createTask(TaskMode.PREFER, 'a', 's', '', '2026-10-22', '08:00', '09:00', '', '', '', ['B3']);
+  const pd = decideNext(preferTask, [{ id: 'x', no: 'A1' }, { id: 'y', no: 'B3' }]);
+  ok(pd.kind === 'FOUND' && pd.seat.no === 'B3', "PREFER 按偏好列表命中");
+
+  // 守卫本质：返回值类型只有 WAIT / FOUND 两种，结构上不存在 auto-confirm 分支
+  const kinds = [
+    decideNext(monTask, seats).kind,
+    decideNext(monTask, []).kind,
+    decideNext(preferTask, [{ id: 'x', no: 'A1' }, { id: 'y', no: 'B3' }]).kind,
+  ];
+  ok(kinds.every(k => k === 'WAIT' || k === 'FOUND'), "决策类型只有 WAIT/FOUND（无自动预约分支）");
 }
 
 // ── 结果 ─────────────────────────────────────────────────────────────────────
