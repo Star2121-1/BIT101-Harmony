@@ -5,12 +5,19 @@
  * 已移到**设置页 → 开发者选项**（默认收起）。
  * 理由：那是验证件，不是功能；留在首页会让 App 看起来像半成品。
  * 相关 service 文件都保留，随时能复跑。
+ *
+ * ── 视觉对齐 ─────────────────────────────────────────────
+ * 本页已切换到《一格 GRID》设计 token（core/theme/GridTokens.ts），与 Android 原版 BIT101
+ * 同一套语义色（warm 默认 palette：primary 棕 / accent 银杏金 / surface 白 …）。
+ * 卡片用 GridCard，按钮用 GridButton，颜色全部来自 gridTokens()，页面内不再写十六进制。
  */
 
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { GridCard } from '../core/theme/components/GridCard.ets';
+import { GridButton } from '../core/theme/components/GridButton.ets';
 import { StudySpotService } from '../service/StudySpotService.ts';
 import { Plan, SpotCard, studySpotCardOf } from '../corelogic/StudySpotLogic.ts';
 import { DdlStore } from '../data/DdlStore.ts';
@@ -38,9 +45,9 @@ struct Index {
   /** 未完成作业（M4-3 首页卡片用；从 DDLStore 读，杀进程不丢）。 */
   @State ddlTodo: DdlEntry[] = [];
 
-  /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
-  private p(): Palette {
-    return palette(this.isDark);
+  /** 当前配色（语义色见 core/theme/GridTokens.ts）。 */
+  private tk() {
+    return gridTokens(this.isDark);
   }
 
   /** 算一次「现在去哪儿自习」（逐栋并发查空教室，约 15~20 秒）。 */
@@ -102,173 +109,155 @@ struct Index {
 
   build() {
     Column() {
-      // 四个业务入口（「我」页里有账号状态、三卡摘要与设置入口；未登录时自习卡也会给「去登录」）
+      // 四个业务入口（课表 / 空教室 / 班车 / 我）
       Row() {
-        Button('课表')
-          .height(38).fontSize(13).layoutWeight(1)
-          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
-          .onClick(() => {
-            this.go('pages/SchedulePage', '课表');
-          })
-        Button('空教室')
-          .height(38).fontSize(13).layoutWeight(1)
-          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
-          .onClick(() => {
-            this.go('pages/ClassroomPage', '空教室');
-          })
-        Button('班车')
-          .height(38).fontSize(13).layoutWeight(1)
-          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
-          .onClick(() => {
-            this.go('pages/ShuttlePage', '班车');
-          })
-        Button('我')
-          .height(38).fontSize(13).layoutWeight(1)
-          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
-          .onClick(() => {
-            this.go('pages/MePage', '我');
-          })
+        GridButton({ label: '课表', variant: 'filled', onTap: () => { this.go('pages/SchedulePage', '课表'); } })
+          .layoutWeight(1)
+        GridButton({ label: '空教室', variant: 'filled', onTap: () => { this.go('pages/ClassroomPage', '空教室'); } })
+          .layoutWeight(1).margin({ left: 8 })
+        GridButton({ label: '班车', variant: 'filled', onTap: () => { this.go('pages/ShuttlePage', '班车'); } })
+          .layoutWeight(1).margin({ left: 8 })
+        GridButton({ label: '我', variant: 'filled', onTap: () => { this.go('pages/MePage', '我'); } })
+          .layoutWeight(1).margin({ left: 8 })
       }
       .width('100%')
       .padding({ left: 12, right: 12, top: 12, bottom: 4 })
 
       // 「现在去哪儿自习」卡片
       Column() {
-        Row() {
-          Text('现在去哪儿自习')
-            .fontSize(14).fontWeight(FontWeight.Bold)
-            .fontColor(this.p().textPrimary)
-            .layoutWeight(1)
-          if (this.spotMeta.length > 0) {
-            Text(this.spotMeta).fontSize(9).fontColor(this.p().textFaint)
+        GridCard({ onTap: null }) {
+        Column() {
+          Row() {
+            Text('现在去哪儿自习')
+              .fontSize(14).fontWeight(FontWeight.Bold)
+              .fontColor(this.tk().onSurface)
+              .layoutWeight(1)
+            if (this.spotMeta.length > 0) {
+              Text(this.spotMeta).fontSize(9).fontColor(this.tk().textPlaceholder)
+            }
           }
+          .width('100%')
+
+          // 用的是上次的课表缓存 ⇒ 必须标注，不许当正常结果展示
+          if (this.spotStale && !this.spotLoading) {
+            Text('没确认到当前学期，下面按上次的课表算，周次可能不准')
+              .fontSize(10).fontColor(this.tk().stateAttention).width('100%').margin({ top: 4 })
+          }
+
+          if (this.spotLoading) {
+            Text('正在逐栋查空教室（约 20 秒）…')
+              .fontSize(12).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 6 })
+          } else if (this.spotCard !== null) {
+            // ⚠️ 卡片优先于错误：降级时 card 里装的是**本地课表算出来的信息**，
+            // 不该因为「查不了空教室」就整块消失（M3-5）。
+            Text(this.spotCard.title)
+              .fontSize(15).fontWeight(FontWeight.Medium)
+              .fontColor(this.tk().onSurface)
+              .width('100%').margin({ top: 6 })
+            if (this.spotCard.detail !== null) {
+              Text(this.spotCard.detail)
+                .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').margin({ top: 2 })
+            }
+            // 有 card 又有 error ⇒ 是降级：如实说清缺了什么，不装作一切正常。
+            // ⚠️ 去重：降级时 card.detail 本身就是原因文案，再渲染一次会连着出现两遍。
+            if (this.spotError.length > 0 && this.spotError !== this.spotCard.detail) {
+              Text(this.spotError)
+                .fontSize(10).fontColor(this.tk().stateAttention).width('100%').margin({ top: 4 })
+            }
+          } else if (this.spotError.length > 0) {
+            Text(this.spotError)
+              .fontSize(12).fontColor(this.tk().error).width('100%').margin({ top: 6 })
+          } else {
+            Text('点「算一下」看看现在能去哪个教室')
+              .fontSize(12).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 6 })
+          }
+
+          Row() {
+            GridButton({
+              label: this.spotCard === null ? '算一下' : '重新算',
+              variant: 'filled',
+              isEnabled: !this.spotLoading,
+              onTap: () => { this.computeSpot(); },
+            })
+            if (this.spotPlan !== null && this.spotPlan.options.length > 1) {
+              GridButton({
+                label: '换一个',
+                variant: 'outlined',
+                onTap: () => { this.nextSpot(); },
+              })
+              .margin({ left: 8 })
+            }
+            // 卡片只显示一个候选；排名全貌在详情页（M3-4）
+            if (this.spotPlan !== null && this.spotPlan.options.length > 0) {
+              GridButton({
+                label: '全部 ' + this.spotPlan.options.length + ' 个',
+                variant: 'outlined',
+                onTap: () => { this.go('pages/SpotDetailPage', '详情'); },
+              })
+              .margin({ left: 8 })
+            }
+            // 会话失效 ⇒ 直接把登录入口给到手，别让用户自己去找
+            if (this.spotErrorKind === 'nologin') {
+              GridButton({
+                label: '去登录',
+                variant: 'filled',
+                onTap: () => { this.go('pages/LoginPage', '登录'); },
+              })
+              .margin({ left: 8 })
+            }
+          }
+          .margin({ top: 8 })
         }
         .width('100%')
-
-        // 用的是上次的课表缓存 ⇒ 必须标注，不许当正常结果展示
-        if (this.spotStale && !this.spotLoading) {
-          Text('没确认到当前学期，下面按上次的课表算，周次可能不准')
-            .fontSize(10).fontColor(this.p().warn).width('100%').margin({ top: 4 })
+        .alignItems(HorizontalAlign.Start)
         }
-
-        if (this.spotLoading) {
-          Text('正在逐栋查空教室（约 20 秒）…')
-            .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
-        } else if (this.spotCard !== null) {
-          // ⚠️ 卡片优先于错误：降级时 card 里装的是**本地课表算出来的信息**，
-          // 不该因为「查不了空教室」就整块消失（M3-5）。
-          Text(this.spotCard.title)
-            .fontSize(15).fontWeight(FontWeight.Medium)
-            .fontColor(this.p().textPrimary)
-            .width('100%').margin({ top: 6 })
-          if (this.spotCard.detail !== null) {
-            Text(this.spotCard.detail)
-              .fontSize(12).fontColor(this.p().textSecondary)
-              .width('100%').margin({ top: 2 })
-          }
-          // 有 card 又有 error ⇒ 是降级：如实说清缺了什么，不装作一切正常。
-          // ⚠️ 去重：降级时 card.detail 本身就是原因文案，再渲染一次会连着出现两遍。
-          if (this.spotError.length > 0 && this.spotError !== this.spotCard.detail) {
-            Text(this.spotError)
-              .fontSize(10).fontColor(this.p().warn).width('100%').margin({ top: 4 })
-          }
-        } else if (this.spotError.length > 0) {
-          Text(this.spotError)
-            .fontSize(12).fontColor(this.p().error).width('100%').margin({ top: 6 })
-        } else {
-          Text('点「算一下」看看现在能去哪个教室')
-            .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
-        }
-
-        Row() {
-          Button(this.spotCard === null ? '算一下' : '重新算')
-            .height(30).fontSize(12)
-            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
-            .enabled(!this.spotLoading)
-            .onClick(() => {
-              this.computeSpot();
-            })
-          if (this.spotPlan !== null && this.spotPlan.options.length > 1) {
-            Button('换一个')
-              .height(30).fontSize(12)
-            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
-              .onClick(() => {
-                this.nextSpot();
-              })
-          }
-          // 卡片只显示一个候选；排名全貌在详情页（M3-4）
-          if (this.spotPlan !== null && this.spotPlan.options.length > 0) {
-            Button('全部 ' + this.spotPlan.options.length + ' 个')
-              .height(30).fontSize(12)
-            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
-              .onClick(() => {
-                this.go('pages/SpotDetailPage', '详情');
-              })
-          }
-          // 会话失效 ⇒ 直接把登录入口给到手，别让用户自己去找
-          if (this.spotErrorKind === 'nologin') {
-            Button('去登录')
-              .height(30).fontSize(12)
-            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent).margin({ left: 8 })
-              .onClick(() => {
-                this.go('pages/LoginPage', '登录');
-              })
-          }
-        }
-        .margin({ top: 8 })
       }
-      .width('100%')
-      .padding(12)
       .margin({ left: 12, right: 12, top: 10 })
-      .backgroundColor(this.p().bgCard)
-      .borderRadius(10)
-      .alignItems(HorizontalAlign.Start)
 
       // 作业卡片（M4-3：最近一个未完成作业 + 计数；点整卡进 DDL 页）
       if (this.ddlTodo.length > 0) {
         Column() {
-          Row() {
-            Text('作业')
-              .fontSize(14).fontWeight(FontWeight.Bold)
-              .fontColor(this.p().textPrimary)
-              .layoutWeight(1)
-            Text(this.ddlTodo.length + ' 项未完成')
-              .fontSize(9).fontColor(this.p().textFaint)
+          GridCard({ onTap: () => { this.go('pages/DdlPage', '作业'); } }) {
+          Column() {
+            Row() {
+              Text('作业')
+                .fontSize(14).fontWeight(FontWeight.Bold)
+                .fontColor(this.tk().onSurface)
+                .layoutWeight(1)
+              Text(this.ddlTodo.length + ' 项未完成')
+                .fontSize(9).fontColor(this.tk().textPlaceholder)
+            }
+            .width('100%')
+
+            Text(this.ddlTodo[0].title)
+              .fontSize(15).fontWeight(FontWeight.Medium)
+              .fontColor(this.tk().onSurface)
+              .width('100%').margin({ top: 6 })
+            Text((this.ddlTodo[0].text.length > 0 ? this.ddlTodo[0].text + ' · ' : '') +
+              deadlineShort({ day: this.ddlTodo[0].day, minutes: this.ddlTodo[0].minutes }) +
+              ' · ' + remainTime({ day: this.ddlTodo[0].day, minutes: this.ddlTodo[0].minutes }, this.nowDt()))
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+              .width('100%').margin({ top: 2 })
+
+            GridButton({
+              label: '看全部',
+              variant: 'outlined',
+              onTap: () => { this.go('pages/DdlPage', '作业'); },
+            })
+            .margin({ top: 8 })
           }
           .width('100%')
-
-          Text(this.ddlTodo[0].title)
-            .fontSize(15).fontWeight(FontWeight.Medium)
-            .fontColor(this.p().textPrimary)
-            .width('100%').margin({ top: 6 })
-          Text((this.ddlTodo[0].text.length > 0 ? this.ddlTodo[0].text + ' · ' : '') +
-            deadlineShort({ day: this.ddlTodo[0].day, minutes: this.ddlTodo[0].minutes }) +
-            ' · ' + remainTime({ day: this.ddlTodo[0].day, minutes: this.ddlTodo[0].minutes }, this.nowDt()))
-            .fontSize(12).fontColor(this.p().textSecondary)
-            .width('100%').margin({ top: 2 })
-
-          Button('看全部')
-            .height(30).fontSize(12).margin({ top: 8 })
-            .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
-            .onClick(() => {
-              this.go('pages/DdlPage', '作业');
-            })
+          .alignItems(HorizontalAlign.Start)
+          }
         }
-        .width('100%')
-        .padding(12)
         .margin({ left: 12, right: 12, top: 10 })
-        .backgroundColor(this.p().bgCard)
-        .borderRadius(10)
-        .alignItems(HorizontalAlign.Start)
-        .onClick(() => {
-          this.go('pages/DdlPage', '作业');
-        })
       }
 
       // 底部留白 + 一句说明（首页内容还少，空着比堆调试入口好）
       Column() {
         Text('课表、空教室、班车都在上面。更多功能在推进中。')
-          .fontSize(11).fontColor(this.p().textMuted)
+          .fontSize(11).fontColor(this.tk().textPlaceholder)
           .width('100%').textAlign(TextAlign.Center)
       }
       .width('100%')
@@ -278,6 +267,6 @@ struct Index {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.tk().surface2)
   }
 }

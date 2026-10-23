@@ -27,7 +27,7 @@ if [ "${major:-0}" -lt 22 ] || { [ "${major:-0}" -eq 22 ] && [ "${minor:-0}" -lt
   exit 1
 fi
 
-suites="test-parser test-teaching test-edges test-shuttle test-colors test-timetable test-eclass test-ddl test-libborrow test-routes test-card test-net test-overlay test-netalert test-notify test-schedule test-settings test-score test-seat test-seatapi test-seatmap test-seatreserve test-seatviolation test-seatreservation test-seatmonitor test-seminar test-seatview test-widget test-enums"
+suites="test-parser test-teaching test-edges test-shuttle test-colors test-gridtokens test-gridcomponents test-timetable test-eclass test-ddl test-libborrow test-routes test-card test-net test-overlay test-netalert test-notify test-schedule test-settings test-score test-seat test-seatapi test-seatmap test-seatreserve test-seatviolation test-seatreservation test-seatmonitor test-seminar test-seatview test-widget test-enums"
 total=0
 passed=0
 failed_suites=""
