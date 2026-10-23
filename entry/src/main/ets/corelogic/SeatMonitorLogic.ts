@@ -22,10 +22,11 @@
  */
 
 import type { ReservationTask } from '../model/SeatTask.ts';
-import { TaskMode, TaskStatus } from '../model/SeatTask.ts';
+import { TaskMode, TaskStatus, isTerminalStatus } from '../model/SeatTask.ts';
 import { getTaskRepository } from '../data/SeatTaskStore.ts';
 import { type ISeatService } from './ISeatService.ts';
 import { decideNext, type MonitorSeat } from './SeatMonitorPolicy.ts';
+import { isForegroundNow } from '../core/AppForegroundState.ts';
 
 /** 最大运行时长（2小时）。 */
 const MAX_TASK_DURATION_MS = 2 * 60 * 60 * 1000;
@@ -35,6 +36,9 @@ const BASE_POLL_INTERVAL_MS = 10_000;
 const PREFER_POLL_INTERVAL_MS = 5_000;
 /** 最大轮询间隔（5分钟）。 */
 const MAX_POLL_INTERVAL_MS = 5 * 60 * 1000;
+
+/** 正在运行的轮询循环（防重入：同一任务不重复起第二个循环）。 */
+const runningLoops = new Set<string>();
 
 /**
  * 启动座位监控任务。
@@ -46,8 +50,19 @@ const MAX_POLL_INTERVAL_MS = 5 * 60 * 1000;
 export async function startSeatMonitor(task: ReservationTask, seatService: ISeatService): Promise<boolean> {
   const repo = getTaskRepository();
 
-  // 先保存任务
-  repo.addTask(task);
+  // 防重入：同一任务已在轮询循环中，不再起第二个
+  if (runningLoops.has(task.id)) {
+    return true;
+  }
+
+  const existing = repo.getTask(task.id);
+  if (existing === null) {
+    // 先保存任务
+    repo.addTask(task);
+  } else if (isTerminalStatus(existing.status)) {
+    // 终态任务不能从原 id 直接重启（SUCCESS/FAILED/CANCELLED）
+    return false;
+  }
 
   // 检查是否已登录
   const isLoggedIn = await seatService.checkLoginStatus();
@@ -57,8 +72,23 @@ export async function startSeatMonitor(task: ReservationTask, seatService: ISeat
   }
 
   // 开始轮询（前台运行）
+  runningLoops.add(task.id);
   runPollingLoop(task, seatService);
   return true;
+}
+
+/**
+ * 恢复监控（M9-8 前台生命周期）：App 回到前台后，用户点「继续监控」时调用。
+ * 仅对活跃/暂停（IDLE/RUNNING/FOUND）态任务生效；终态与已运行的防重入。
+ */
+export function resumeMonitor(taskId: string, seatService: ISeatService): void {
+  const repo = getTaskRepository();
+  const task = repo.getTask(taskId);
+  if (task === null || isTerminalStatus(task.status) || runningLoops.has(taskId)) {
+    return;
+  }
+  runningLoops.add(taskId);
+  runPollingLoop(task, seatService);
 }
 
 /**
@@ -118,48 +148,65 @@ async function runPollingLoop(task: ReservationTask, seatService: ISeatService):
   const startTime = Date.now();
   let interval = task.mode === TaskMode.PREFER ? PREFER_POLL_INTERVAL_MS : BASE_POLL_INTERVAL_MS;
 
-  while (Date.now() - startTime < MAX_TASK_DURATION_MS) {
-    // 检查任务是否被取消
-    const currentTask = repo.getTask(task.id);
-    if (!currentTask || currentTask.status === TaskStatus.CANCELLED) {
-      break;
-    }
+  try {
+    while (Date.now() - startTime < MAX_TASK_DURATION_MS) {
+      // 检查任务是否被取消
+      const currentTask = repo.getTask(task.id);
+      if (!currentTask || currentTask.status === TaskStatus.CANCELLED) {
+        break;
+      }
 
-    try {
-      // 获取可用座位
-      const seats = await seatService.getAvailableSeats(task.areaId, task.segment, task.reserveDate);
+      // 前台监控铁律：App 退后台立即暂停轮询，避免后台抢座（鸿蒙限制 + 铁律 0.6）。
+      // 任务保留 RUNNING 态，由 UI 状态条明确提示「已暂停」，回前台后用户点「继续监控」恢复。
+      if (!isForegroundNow()) {
+        repo.updateStatus(task.id, TaskStatus.RUNNING, 'App 在后台，监控已暂停（回到前台后点「继续监控」）');
+        break;
+      }
 
-      // 决策完全交给纯函数 decideNext（铁律 0.6 守卫）：
-      // 返回值只有 WAIT / FOUND 两种，不存在「自动预约」分支；
-      // 要预约只能走 confirmMonitoredSeat（用户显式点击）。
-      const decision = decideNext(task, seats.map(s => ({ id: s.id, no: s.no })));
-      if (decision.kind === 'WAIT') {
-        repo.updateStatus(task.id, TaskStatus.RUNNING, '暂无空闲座位，继续监控...');
+      try {
+        // 获取可用座位
+        const seats = await seatService.getAvailableSeats(
+          task.areaId, task.segment, task.reserveDate, task.startTime, task.endTime
+        );
+
+        // 决策完全交给纯函数 decideNext（铁律 0.6 守卫）：
+        // 返回值只有 WAIT / FOUND 两种，不存在「自动预约」分支；
+        // 要预约只能走 confirmMonitoredSeat（用户显式点击）。
+        const decision = decideNext(task, seats.map(s => ({ id: s.id, no: s.no })));
+        if (decision.kind === 'WAIT') {
+          repo.updateStatus(task.id, TaskStatus.RUNNING, '暂无空闲座位，继续监控...');
+          interval = Math.min(interval * 2, MAX_POLL_INTERVAL_MS);
+          await sleep(interval);
+          continue;
+        }
+
+        // FOUND：**只记录，不预约**（铁律 0.6）。任务转 FOUND 态停在这里，
+        // 等用户在界面上点「去预约」（confirmMonitoredSeat 是唯一预约入口）。
+        repo.markFound(task.id, decision.seat.id, decision.seat.no);
+        return;
+      } catch (e) {
+        // 处理认证失效
+        const errorMsg = String(e);
+        if (errorMsg.includes('TOKEN_EXPIRED') || errorMsg.includes('未登录')) {
+          repo.stopAll('登录已失效，请重新登录');
+          return;
+        }
+
+        repo.updateStatus(task.id, TaskStatus.RUNNING, `查询失败，${Math.floor(interval / 1000)}秒后重试...`);
         interval = Math.min(interval * 2, MAX_POLL_INTERVAL_MS);
         await sleep(interval);
-        continue;
       }
-
-      // FOUND：**只记录，不预约**（铁律 0.6）。任务转 FOUND 态停在这里，
-      // 等用户在界面上点「去预约」（confirmMonitoredSeat 是唯一预约入口）。
-      repo.markFound(task.id, decision.seat.id, decision.seat.no);
-      return;
-    } catch (e) {
-      // 处理认证失效
-      const errorMsg = String(e);
-      if (errorMsg.includes('TOKEN_EXPIRED') || errorMsg.includes('未登录')) {
-        repo.stopAll('登录已失效，请重新登录');
-        return;
-      }
-
-      repo.updateStatus(task.id, TaskStatus.RUNNING, `查询失败，${Math.floor(interval / 1000)}秒后重试...`);
-      interval = Math.min(interval * 2, MAX_POLL_INTERVAL_MS);
-      await sleep(interval);
     }
+  } finally {
+    // 无论正常结束 / 取消 / 后台暂停 / 超时 / 异常，都清理运行标记，允许后续 resume
+    runningLoops.delete(task.id);
   }
 
-  // 超时停止
-  repo.updateStatus(task.id, TaskStatus.FAILED, '已超过最长运行时长（2小时），任务自动停止');
+  // 超时收尾：仅当确实跑满时长且仍处活跃态（未被取消、未后台暂停、未发现空位）
+  const cur = repo.getTask(task.id);
+  if (cur !== null && cur.status === TaskStatus.RUNNING && Date.now() - startTime >= MAX_TASK_DURATION_MS) {
+    repo.updateStatus(task.id, TaskStatus.FAILED, '已超过最长运行时长（2小时），任务自动停止');
+  }
 }
 
 /**

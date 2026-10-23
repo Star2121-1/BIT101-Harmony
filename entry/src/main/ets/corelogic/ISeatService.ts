@@ -25,8 +25,10 @@ export interface ISeatService {
   /** 检查登录状态。 */
   checkLoginStatus(): Promise<boolean>;
 
-  /** 获取可用座位列表。 */
-  getAvailableSeats(areaId: string, segment: string, reserveDate: string): Promise<SeatData[]>;
+  /** 获取可用座位列表。reserveDate 为日期(day)，startTime/endTime 为当日时段。 */
+  getAvailableSeats(
+    areaId: string, segment: string, reserveDate: string, startTime: string, endTime: string
+  ): Promise<SeatData[]>;
 
   /** 确认预约。 */
   confirmReservation(seatId: string, segmentId: string, startTime: string, endTime: string): Promise<ReserveResult>;

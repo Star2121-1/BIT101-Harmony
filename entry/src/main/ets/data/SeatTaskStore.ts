@@ -12,7 +12,8 @@
  * 在前台 Service 或 Worker 中实现。
  */
 
-import { ReservationTask, TaskStatus, isActiveStatus, isTerminalStatus, serializeTasks, deserializeTasks } from '../model/SeatTask.ts';
+import type { ReservationTask } from '../model/SeatTask.ts';
+import { TaskStatus, isActiveStatus, isTerminalStatus, serializeTasks, deserializeTasks } from '../model/SeatTask.ts';
 import { Prefs } from './Prefs.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
@@ -38,10 +39,10 @@ export class SeatTaskRepository {
       const stored = await this.loadFromStorage();
       if (stored && stored.length > 0) {
         this.tasks = stored;
-        info('SeatTaskRepository', `Loaded ${stored.length} tasks from storage`);
+        info('SeatTaskRepository: ' + `Loaded ${stored.length} tasks from storage`);
       }
     } catch (e) {
-      warn('SeatTaskRepository', `Failed to load tasks: ${e}`);
+      warn('SeatTaskRepository: ' + `Failed to load tasks: ${e}`);
     }
 
     this.loaded = true;
@@ -75,7 +76,7 @@ export class SeatTaskRepository {
     this.tasks.push(task);
     this.persist();
     this.notifyChange();
-    info('SeatTaskRepository', `Added task ${task.id}`);
+    info('SeatTaskRepository: ' + `Added task ${task.id}`);
   }
 
   /**
@@ -95,7 +96,7 @@ export class SeatTaskRepository {
     task.message = message;
     this.persist();
     this.notifyChange();
-    info('SeatTaskRepository', `Updated task ${id} to ${status}: ${message}`);
+    info('SeatTaskRepository: ' + `Updated task ${id} to ${status}: ${message}`);
   }
 
   /**
@@ -114,7 +115,7 @@ export class SeatTaskRepository {
     task.message = '发现空位 ' + seatNo + '，等待确认';
     this.persist();
     this.notifyChange();
-    info('SeatTaskRepository', `Task ${id} found seat ${seatNo} (${seatId}), awaiting user confirm`);
+    info('SeatTaskRepository: ' + `Task ${id} found seat ${seatNo} (${seatId}), awaiting user confirm`);
   }
 
   /**
@@ -130,7 +131,7 @@ export class SeatTaskRepository {
     task.message = '已手动取消';
     this.persist();
     this.notifyChange();
-    info('SeatTaskRepository', `Cancelled task ${id}`);
+    info('SeatTaskRepository: ' + `Cancelled task ${id}`);
   }
 
   /**
@@ -147,7 +148,7 @@ export class SeatTaskRepository {
     task.attempts += 1;
     task.lastAttemptAt = Date.now();
     this.persist();
-    info('SeatTaskRepository', `Marked attempt for task ${id}, total: ${task.attempts}`);
+    info('SeatTaskRepository: ' + `Marked attempt for task ${id}, total: ${task.attempts}`);
   }
 
   /**
@@ -222,7 +223,7 @@ export class SeatTaskRepository {
       const json = serializeTasks(this.tasks);
       await Prefs.putString(STORAGE_KEY, json);
     } catch (e) {
-      warn('SeatTaskRepository', `Failed to persist tasks: ${e}`);
+      warn('SeatTaskRepository: ' + `Failed to persist tasks: ${e}`);
     }
   }
 
@@ -237,7 +238,7 @@ export class SeatTaskRepository {
       }
       return deserializeTasks(json);
     } catch (e) {
-      warn('SeatTaskRepository', `Failed to load from storage: ${e}`);
+      warn('SeatTaskRepository: ' + `Failed to load from storage: ${e}`);
       return null;
     }
   }

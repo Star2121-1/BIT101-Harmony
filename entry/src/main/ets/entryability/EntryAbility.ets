@@ -23,6 +23,7 @@ import { ThemeStore } from '../data/ThemeStore.ts';
 import { ReminderScheduler } from '../service/ReminderScheduler.ts';
 import { setDumpDir } from '../core/log/DebugDump.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
+import { setForeground } from '../core/AppForegroundState.ts';
 
 const DOMAIN = 0x0000;
 
@@ -138,6 +139,8 @@ export default class EntryAbility extends UIAbility {
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
     this.keepScreenOn(true);
+    // M9-8 前台监控生命周期：App 回到前台，解除监控暂停
+    setForeground(true);
   }
 
   onBackground(): void {
@@ -145,6 +148,8 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
     // 退后台就交还系统正常休眠，避免整机耗电
     this.keepScreenOn(false);
+    // M9-8 前台监控生命周期：App 退后台，监控轮询必须暂停（鸿蒙限制 + 铁律 0.6 禁止后台抢座）
+    setForeground(false);
   }
 
   /** 常亮开关（测试辅助）。仅作用于主窗口，前后台自动切换。

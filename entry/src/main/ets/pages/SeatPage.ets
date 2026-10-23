@@ -379,6 +379,26 @@ struct SeatPage {
 
       Scroll() {
         Column() {
+          // ── 座位监控入口（M9-8）──
+          Row() {
+            Text('座位监控')
+              .fontSize(14)
+              .fontWeight(FontWeight.Medium)
+              .layoutWeight(1)
+              .fontColor(this.p().textSecondary)
+            Text('›')
+              .fontSize(16)
+              .fontColor(this.p().textMuted)
+          }
+          .width('100%')
+          .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+          .backgroundColor(this.p().bgAlt)
+          .borderRadius(10)
+          .margin({ bottom: 6 })
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/SeatMonitorPage' });
+          })
+
           // ── 三级选择 ──
           Text('选择场地（校区 / 楼层 / 区域）')
             .fontSize(12).fontColor(this.p().textMuted).width('100%')
