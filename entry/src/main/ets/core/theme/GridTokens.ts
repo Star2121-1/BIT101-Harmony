@@ -93,8 +93,32 @@ export interface GridTokens {
   onSurface: string;
   /** 面之上的次要文字（副标题）。 */
   onSurfaceVariant: string;
+  /** 面色（网格线、次级分割）。warm 亮=#F4EFE8（与 surface2 同值）。 */
+  surfaceVariant: string;
+  /** 页面底（App 背景）。warm 亮=暖白 #FBF8F4。 */
+  background: string;
+  /** 页面底之上的正文（与 onSurface 同值）。 */
+  onBackground: string;
+  /** 描边（控件轮廓）。 */
+  outline: string;
   /** 描边变体（Outlined 按钮禁用态描边）。 */
   outlineVariant: string;
+  /** 次级主色（底部导航选中 pill 底、列头渐变）。warm 亮=青绿 #1E6B55。 */
+  secondary: string;
+  /** 次级主色上的文字。 */
+  onSecondary: string;
+  /** 次级容器底（底部导航选中 pill、普通列头渐变、双卡片）。warm 亮=薄荷 #D5E9DF。 */
+  secondaryContainer: string;
+  /** 次级容器上的文字（底部导航选中项）。warm 亮=深绿 #0F4A38。 */
+  onSecondaryContainer: string;
+  /** 第三色（调课横幅底、补课 tint 目标）。warm 亮=#8A5A00。 */
+  tertiary: string;
+  /** 第三色上的文字。 */
+  onTertiary: string;
+  /** 第三色容器底（调课横幅）。warm 亮=#FBEBCC。 */
+  tertiaryContainer: string;
+  /** 第三色容器上的文字。warm 亮=#8A5A00。 */
+  onTertiaryContainer: string;
 
   // ── 面色族 + 文字档 + 按压档（warm 默认 palette；随 palette 变，对应 `PaletteScheme`）──
   /** 次级面（Chip 未选底、提示条底）。 */
@@ -161,7 +185,19 @@ const GRID_TOKENS_LIGHT: GridTokens = {
   surface: '#FFFFFF',
   onSurface: '#1E1A16',
   onSurfaceVariant: '#5F564E',
+  surfaceVariant: '#F4EFE8',
+  background: '#FBF8F4',
+  onBackground: '#1E1A16',
+  outline: '#9C8F82',
   outlineVariant: '#EAE3DA',
+  secondary: '#1E6B55',
+  onSecondary: '#FFFFFF',
+  secondaryContainer: '#D5E9DF',
+  onSecondaryContainer: '#0F4A38',
+  tertiary: '#8A5A00',
+  onTertiary: '#FFFFFF',
+  tertiaryContainer: '#FBEBCC',
+  onTertiaryContainer: '#8A5A00',
   // 面色族 + 文字档 + 按压档（warm 默认 palette 亮色）
   surface2: '#F4EFE8',
   surface3: '#EAE3DA',
@@ -208,7 +244,19 @@ const GRID_TOKENS_DARK: GridTokens = {
   surface: '#1E1A16',
   onSurface: '#F3EDE6',
   onSurfaceVariant: '#C4B8AA',
+  surfaceVariant: '#272219',
+  background: '#16130F',
+  onBackground: '#F3EDE6',
+  outline: '#7A7069',
   outlineVariant: '#322C26',
+  secondary: '#86D9C0',
+  onSecondary: '#06352A',
+  secondaryContainer: '#1F4A3D',
+  onSecondaryContainer: '#B5E8D8',
+  tertiary: '#F2BE55',
+  onTertiary: '#3D2A00',
+  tertiaryContainer: '#3A2E12',
+  onTertiaryContainer: '#F2BE55',
   // 面色族 + 文字档 + 按压档（warm 默认 palette 暗色）
   surface2: '#272219',
   surface3: '#332C24',

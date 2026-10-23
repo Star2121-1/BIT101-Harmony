@@ -45,6 +45,10 @@ const EXPECTED_LIGHT = {
   // M3 角色（warm 默认 palette 亮色）
   primary: '#8A4E26', onPrimary: '#FFFFFF', primaryContainer: '#F9DECC', onPrimaryContainer: '#5C3216',
   surface: '#FFFFFF', onSurface: '#1E1A16', onSurfaceVariant: '#5F564E', outlineVariant: '#EAE3DA',
+  // 补全的 M3 角色（WarmColor.kt lightScheme 逐值）
+  surfaceVariant: '#F4EFE8', background: '#FBF8F4', onBackground: '#1E1A16', outline: '#9C8F82',
+  secondary: '#1E6B55', onSecondary: '#FFFFFF', secondaryContainer: '#D5E9DF', onSecondaryContainer: '#0F4A38',
+  tertiary: '#8A5A00', onTertiary: '#FFFFFF', tertiaryContainer: '#FBEBCC', onTertiaryContainer: '#8A5A00',
   // 面色族 + 文字档 + 按压档（warm 亮色）
   surface2: '#F4EFE8', surface3: '#EAE3DA', disabledBg: '#E3DBD1', skeleton: '#E7E0D7',
   textPlaceholder: '#726759', textDisabled: '#8A7F72', pressed: '#73401E', pressedHeld: '#6A3A1B',
@@ -59,6 +63,10 @@ const EXPECTED_DARK = {
   // M3 角色（warm 默认 palette 暗色）
   primary: '#EFB392', onPrimary: '#3D1F08', primaryContainer: '#4A2A12', onPrimaryContainer: '#EFB392',
   surface: '#1E1A16', onSurface: '#F3EDE6', onSurfaceVariant: '#C4B8AA', outlineVariant: '#322C26',
+  // 补全的 M3 角色（WarmColor.kt darkScheme 逐值）
+  surfaceVariant: '#272219', background: '#16130F', onBackground: '#F3EDE6', outline: '#7A7069',
+  secondary: '#86D9C0', onSecondary: '#06352A', secondaryContainer: '#1F4A3D', onSecondaryContainer: '#B5E8D8',
+  tertiary: '#F2BE55', onTertiary: '#3D2A00', tertiaryContainer: '#3A2E12', onTertiaryContainer: '#F2BE55',
   // 面色族 + 文字档 + 按压档（warm 暗色）
   surface2: '#272219', surface3: '#332C24', disabledBg: '#2A251F', skeleton: '#231F1A',
   textPlaceholder: '#A79A8C', textDisabled: '#857B72', pressed: '#D6A98A', pressedHeld: '#E6C3A8',
