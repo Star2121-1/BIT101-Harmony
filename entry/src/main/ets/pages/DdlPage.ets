@@ -23,7 +23,7 @@ import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { DdlStore } from '../data/DdlStore.ts';
 import { EclassSyncService } from '../service/EclassSyncService.ts';
 import { EclassService } from '../service/EclassService.ts';
@@ -37,6 +37,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 struct DdlPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   @State entries: DdlEntry[] = [];
   @State status: string = '';
@@ -45,7 +46,7 @@ struct DdlPage {
   @State hasSession: boolean = false;
 
   private tk(): GridTokens {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 本地「现在」（展示层 impure 边界：文案现算）。 */

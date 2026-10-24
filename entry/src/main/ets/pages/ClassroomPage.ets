@@ -42,7 +42,7 @@ import { router } from '@kit.ArkUI';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { mixHex } from '../core/theme/colorUtil.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { SchoolService, SchoolAuthError } from '../service/SchoolService.ts';
 import { ClassroomService } from '../service/ClassroomService.ts';
@@ -74,6 +74,7 @@ const LEVEL_INDENT: number = 24;
 struct ClassroomPage {
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   @State loading: boolean = true;
   @State errorText: string = '';
   @State needLogin: boolean = false;
@@ -300,7 +301,7 @@ struct ClassroomPage {
   // ── 配色（全部来自 GridTokens；派生色现算，不硬编码第二份）──
 
   private tk(): GridTokens {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 校区卡底（原版 surfaceContainerHigh；warm 下与 surfaceVariant 同值）。 */

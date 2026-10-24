@@ -20,7 +20,7 @@ import { router } from '@kit.ArkUI';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { withAlpha } from '../core/theme/colorUtil.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import type { HourGroup } from '../corelogic/ShuttleLogic.ts';
 import {
   Stop, DayType,
@@ -39,6 +39,7 @@ import {
 @Component
 struct ShuttleChip {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   label: string = '';
   selected: boolean = false;
@@ -46,7 +47,7 @@ struct ShuttleChip {
   onTap: () => void = () => {};
 
   private p(): GridTokens {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   build() {
@@ -81,6 +82,7 @@ struct ShuttleChip {
 struct ShuttlePage {
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   @State stop: string = Stop.LIBRARY;
   /** 自动按星期推出来的日类型（未手动覆盖时用）。 */
@@ -185,7 +187,7 @@ struct ShuttlePage {
 
   /** 当前配色（语义色见 core/theme/GridTokens.ts）。 */
   private p(): GridTokens {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 小节标题（原版 SectionLabel：labelMedium + onSurfaceVariant + 下距 6dp）。 */

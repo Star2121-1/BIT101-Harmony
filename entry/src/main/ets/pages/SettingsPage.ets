@@ -6,7 +6,8 @@
  *
  * ## 深色怎么生效
  * 本页改的是 `ThemeStore`，它往 `AppStorage` 广播 `ui_dark`；
- * 其它页面用 `@StorageLink('ui_dark')` 订阅 + 从 `palette()` 取色。
+ * 其它页面用 `@StorageLink('ui_dark')` + `@StorageLink('ui_palette')` 订阅，
+ * 从 `gridTokens(isDark, palette)` 取色（#89 起 palette 轴可切）。
  * 颜色值本身在 `core/theme/AppColors.ts`，对比度由 `tools/test-colors.mjs` 钉住。
  *
  * ## 登出的边界（重要）
@@ -18,8 +19,14 @@
 import { router } from '@kit.ArkUI';
 import { Context } from '@kit.AbilityKit';
 import { bundleManager } from '@kit.AbilityKit';
-import { palette, Palette } from '../core/theme/AppColors.ts';
-import { ThemeStore, STORAGE_DARK, MODE_AUTO, MODE_LIGHT, MODE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import type { PaletteName } from '../core/theme/GridTokens.ts';
+import {
+  ThemeStore, STORAGE_DARK, STORAGE_PALETTE, getPalette,
+  MODE_AUTO, MODE_LIGHT, MODE_DARK,
+  PALETTE_BRAND, PALETTE_CLASSIC, PALETTE_WARM
+} from '../data/ThemeStore.ts';
 import { SessionStore } from '../data/SessionStore.ts';
 import { SchoolCookieStore } from '../data/SchoolCookieStore.ts';
 import { EclassCookieStore } from '../data/EclassCookieStore.ts';
@@ -43,6 +50,7 @@ export const KEY_DEFAULT_CAMPUS_NAME: string = 'default_campus_name';
 struct SettingsPage {
   /** 订阅全局深浅色：设置页自己也要立刻跟着变（用户就在这页点）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   @State mode: string = MODE_AUTO;
   @State studentId: string = '';
@@ -60,8 +68,8 @@ struct SettingsPage {
   /** 作息是否为自定义（从 TimeTableStore 读）。 */
   @State ttCustom: boolean = false;
 
-  private p(): Palette {
-    return palette(this.isDark);
+  private p(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   aboutToAppear(): void {
@@ -71,6 +79,7 @@ struct SettingsPage {
 
   private async refresh(): Promise<void> {
     this.mode = ThemeStore.mode();
+    this.paletteName = ThemeStore.palette();
     try {
       const snap = await SessionStore.snapshot();
       this.studentId = snap.studentId;
@@ -115,6 +124,24 @@ struct SettingsPage {
     await ThemeStore.setMode(ctx, m);
     this.mode = m;
     info('Settings mode -> ' + m);
+  }
+
+  /**
+   * 切换配色（palette 轴，1:1 原版 ThemeSettingPage「配色方案」项）。
+   * ⚠️ 原版是 AlertDialog + RadioButton 单选列表；鸿蒙按本页深浅色的
+   * **chip 惯例**落成同款可点 chip（#86/#87 已证原版各页 chip 形态本就不统一，
+   * 逐页按实测/本页惯例，不跨页套用）。「动态适配系统主题 / 自动旋转」
+   * 两项鸿蒙无对应系统能力，不迁（见 #89 提交说明）。
+   */
+  private async changePalette(v: string): Promise<void> {
+    const name: PaletteName = v as PaletteName;
+    if (name !== PALETTE_BRAND && name !== PALETTE_CLASSIC && name !== PALETTE_WARM) {
+      return;
+    }
+    const ctx: Context = getContext(this) as Context;
+    await ThemeStore.setPalette(ctx, name);
+    this.paletteName = name;
+    info('Settings palette -> ' + name);
   }
 
   private async loadCampuses(): Promise<void> {
@@ -227,7 +254,7 @@ struct SettingsPage {
   groupTitle(text: string) {
     Text(text)
       .fontSize(11)
-      .fontColor(this.p().textMuted)
+      .fontColor(this.p().textPlaceholder)
       .width('100%')
       .padding({ left: 4, top: 18, bottom: 6 })
   }
@@ -236,8 +263,8 @@ struct SettingsPage {
   modeChip(label: string, value: string) {
     Text(label)
       .fontSize(13)
-      .fontColor(this.mode === value ? this.p().textOnAccent : this.p().textSecondary)
-      .backgroundColor(this.mode === value ? this.p().accent : this.p().bgPage)
+      .fontColor(this.mode === value ? this.p().onPrimary : this.p().onSurfaceVariant)
+      .backgroundColor(this.mode === value ? this.p().primary : this.p().background)
       .borderRadius(14)
       .padding({ left: 14, right: 14, top: 6, bottom: 6 })
       .margin({ right: 8 })
@@ -246,18 +273,41 @@ struct SettingsPage {
       })
   }
 
+  /** 配色 chip：与 modeChip 同范式（选中 primary 实底 / 未选 surface2 底）。 */
+  @Builder
+  paletteChip(label: string, value: string, note: string) {
+    Row() {
+      Text(label)
+        .fontSize(13)
+        .fontColor(this.paletteName === value ? this.p().onPrimary : this.p().onSurfaceVariant)
+      if (note.length > 0) {
+        Text(note)
+          .fontSize(10)
+          .fontColor(this.paletteName === value ? this.p().onPrimary : this.p().textPlaceholder)
+          .margin({ left: 6 })
+      }
+    }
+    .backgroundColor(this.paletteName === value ? this.p().primary : this.p().surface2)
+    .borderRadius(14)
+    .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+    .margin({ right: 8, bottom: 8 })
+    .onClick(() => {
+      this.changePalette(value);
+    })
+  }
+
   build() {
     Column() {
       // 顶部
       Row() {
         Text('‹ 返回')
-          .fontSize(14).fontColor(this.p().accent)
+          .fontSize(14).fontColor(this.p().primary)
           .onClick(() => {
             router.back();
           })
         Text('设置')
           .fontSize(16).fontWeight(FontWeight.Bold)
-          .fontColor(this.p().textPrimary)
+          .fontColor(this.p().onSurface)
           .layoutWeight(1).textAlign(TextAlign.Center)
         Text('    ').fontSize(14)
       }
@@ -271,9 +321,9 @@ struct SettingsPage {
           Column() {
             Row() {
               Text('深浅色')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Text(this.mode === MODE_AUTO ? '跟随系统' : (this.mode === MODE_DARK ? '深色' : '浅色'))
-                .fontSize(12).fontColor(this.p().textMuted)
+                .fontSize(12).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ bottom: 10 })
 
@@ -283,28 +333,51 @@ struct SettingsPage {
               this.modeChip('深色', MODE_DARK)
             }
             .width('100%')
+
+            Row() {
+              Text('配色方案')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(this.paletteName === PALETTE_BRAND ? 'BIT101经典配色'
+                : (this.paletteName === PALETTE_CLASSIC ? '暖棕配色' : '清新青绿配色'))
+                .fontSize(12).fontColor(this.p().textPlaceholder)
+            }
+            .width('100%').padding({ top: 12, bottom: 10 })
+
+            // 纵向 chip（原版 ThemeSettingPage 是 AlertDialog 纵向单选列表，
+            // 标签长 ⇒ 横向排不下，纵向同时贴合原版列表形态）
+            Column() {
+              this.paletteChip('BIT101经典配色', PALETTE_BRAND, '（实验性）')
+              this.paletteChip('暖棕配色', PALETTE_CLASSIC, '')
+              this.paletteChip('清新青绿配色', PALETTE_WARM, '')
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Start)
+
+            Text('BIT101经典配色为深蓝占位（未验证），暖棕/青绿为已落地两套')
+              .fontSize(10).fontColor(this.p().textPlaceholder)
+              .width('100%').padding({ top: 2 })
           }
           .width('100%').padding(12)
-          .backgroundColor(this.p().bgCard)
-          .borderRadius(10)
+          .backgroundColor(this.p().secondaryContainer)
+          .borderRadius(12)
 
           // ── 账号 ──
           this.groupTitle('账号')
           Column() {
             Row() {
               Text('学号')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Text(this.maskedId())
-                .fontSize(13).fontColor(this.p().textSecondary)
+                .fontSize(13).fontColor(this.p().onSurfaceVariant)
             }
             .width('100%').padding({ bottom: 8 })
 
             Row() {
               Text('状态')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Text(this.loggedIn ? '已登录' : '未登录')
                 .fontSize(13)
-                .fontColor(this.loggedIn ? this.p().textSecondary : this.p().warn)
+                .fontColor(this.loggedIn ? this.p().onSurfaceVariant : this.p().stateAttention)
             }
             .width('100%').padding({ bottom: 10 })
 
@@ -312,7 +385,7 @@ struct SettingsPage {
               Button('退出登录')
                 .fontSize(13).height(34)
                 .width('100%')
-                .backgroundColor(this.p().bgSubtle)
+                .backgroundColor(this.p().surface2)
                 .fontColor(this.p().error)
                 .enabled(!this.busy)
                 .onClick(() => {
@@ -331,18 +404,18 @@ struct SettingsPage {
             }
           }
           .width('100%').padding(12)
-          .backgroundColor(this.p().bgCard)
-          .borderRadius(10)
+          .backgroundColor(this.p().secondaryContainer)
+          .borderRadius(12)
 
           // ── 查找 ──
           this.groupTitle('查找')
           Column() {
             Row() {
               Text('作息时间')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Text(this.ttCustom ? '自定义' : '学校官方')
-                .fontSize(13).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ bottom: 10 })
             .onClick(() => {
@@ -353,9 +426,9 @@ struct SettingsPage {
 
             Row() {
               Text('手动改课表')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text('改 / 藏 / 新增').fontSize(13).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('改 / 藏 / 新增').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ bottom: 10 })
             .onClick(() => {
@@ -366,9 +439,9 @@ struct SettingsPage {
 
             Row() {
               Text('作业（DDL）')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text('延河课堂').fontSize(13).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('延河课堂').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ bottom: 10 })
             .onClick(() => {
@@ -379,9 +452,9 @@ struct SettingsPage {
 
             Row() {
               Text('课程动态')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text('延河课堂').fontSize(13).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('延河课堂').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%')
             .onClick(() => {
@@ -392,9 +465,9 @@ struct SettingsPage {
 
             Row() {
               Text('图书馆借阅')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text('我的借阅').fontSize(13).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('我的借阅').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ top: 10 })
             .onClick(() => {
@@ -405,9 +478,9 @@ struct SettingsPage {
 
             Row() {
               Text('一卡通')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text('余额与趋势').fontSize(13).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('余额与趋势').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ top: 10 })
             .onClick(() => {
@@ -418,9 +491,9 @@ struct SettingsPage {
 
             Row() {
               Text('校园网')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text('流量与余额').fontSize(13).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('流量与余额').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ top: 10 })
             .onClick(() => {
@@ -430,18 +503,18 @@ struct SettingsPage {
             })
           }
           .width('100%').padding(12)
-          .backgroundColor(this.p().bgCard)
-          .borderRadius(10)
+          .backgroundColor(this.p().secondaryContainer)
+          .borderRadius(12)
 
           this.groupTitle('空教室')
           Column() {
             Row() {
               Text('空教室默认校区')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Text(this.campusName.length > 0 ? this.campusName : '未设置（默认良乡）')
-                .fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(13).fontColor(this.p().textPlaceholder)
               Text(' ›')
-                .fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%')
             .onClick(() => {
@@ -456,12 +529,12 @@ struct SettingsPage {
                   Row() {
                     Text('恢复默认（良乡）')
                       .fontSize(13)
-                      .fontColor(this.p().textMuted)
+                      .fontColor(this.p().textPlaceholder)
                       .layoutWeight(1)
                   }
                   .width('100%')
                   .padding({ top: 8, bottom: 8 })
-                  .border({ width: { bottom: 0.5 }, color: this.p().divider })
+                  .border({ width: { bottom: 0.5 }, color: this.p().outlineVariant })
                   .onClick(() => {
                     this.resetCampus();
                   })
@@ -470,15 +543,15 @@ struct SettingsPage {
                   Row() {
                     Text(c.displayName)
                       .fontSize(13)
-                      .fontColor(c.code === this.campusCode ? this.p().accent : this.p().textPrimary)
+                      .fontColor(c.code === this.campusCode ? this.p().primary : this.p().onSurface)
                       .layoutWeight(1)
                     if (c.code === this.campusCode) {
-                      Text('✓').fontSize(13).fontColor(this.p().accent)
+                      Text('✓').fontSize(13).fontColor(this.p().primary)
                     }
                   }
                   .width('100%')
                   .padding({ top: 8, bottom: 8 })
-                  .border({ width: { bottom: 0.5 }, color: this.p().divider })
+                  .border({ width: { bottom: 0.5 }, color: this.p().outlineVariant })
                   .onClick(() => {
                     this.pickCampus(c);
                   })
@@ -489,39 +562,39 @@ struct SettingsPage {
             }
           }
           .width('100%').padding(12)
-          .backgroundColor(this.p().bgCard)
-          .borderRadius(10)
+          .backgroundColor(this.p().secondaryContainer)
+          .borderRadius(12)
 
           // ── 关于 ──
           this.groupTitle('关于')
           Column() {
             Row() {
-              Text('版本').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text(this.versionText).fontSize(13).fontColor(this.p().textSecondary)
+              Text('版本').fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(this.versionText).fontSize(13).fontColor(this.p().onSurfaceVariant)
             }
             .width('100%').padding({ bottom: 8 })
 
             Row() {
-              Text('项目主页').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+              Text('项目主页').fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Text('github.com/Star2121-1/BIT101-Harmony')
-                .fontSize(11).fontColor(this.p().textMuted)
+                .fontSize(11).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ bottom: 8 })
 
             Text('非官方客户端，与学校无关。学号密码只在登录请求里用一次，不保存。')
-              .fontSize(11).fontColor(this.p().textMuted)
+              .fontSize(11).fontColor(this.p().textPlaceholder)
               .width('100%')
           }
           .width('100%').padding(12)
-          .backgroundColor(this.p().bgCard)
-          .borderRadius(10)
+          .backgroundColor(this.p().secondaryContainer)
+          .borderRadius(12)
 
           // ── 开发者选项（默认收起）──
           Row() {
             Text('开发者选项')
-              .fontSize(11).fontColor(this.p().textMuted).layoutWeight(1)
+              .fontSize(11).fontColor(this.p().textPlaceholder).layoutWeight(1)
             Text(this.devOpen ? '收起' : '展开')
-              .fontSize(11).fontColor(this.p().accent)
+              .fontSize(11).fontColor(this.p().primary)
           }
           .width('100%')
           .padding({ left: 4, top: 18, bottom: 6 })
@@ -532,11 +605,11 @@ struct SettingsPage {
           if (this.devOpen) {
             Column() {
               Text('M1/M2 的验证件。日常用不到，排查接口问题时才打开。')
-                .fontSize(11).fontColor(this.p().textMuted).width('100%')
+                .fontSize(11).fontColor(this.p().textPlaceholder).width('100%')
 
               Row() {
                 Text('教务接口诊断（403 变体矩阵）')
-                  .fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
+                  .fontSize(13).fontColor(this.p().onSurface).layoutWeight(1)
                 Button('跑一遍')
                   .height(28).fontSize(11)
                   .enabled(!this.busy)
@@ -548,7 +621,7 @@ struct SettingsPage {
 
               Row() {
                 Text('R1 风险闸（CAS 页 Web 组件探测）')
-                  .fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
+                  .fontSize(13).fontColor(this.p().onSurface).layoutWeight(1)
                 Button('打开')
                   .height(28).fontSize(11)
                   .onClick(() => {
@@ -561,7 +634,7 @@ struct SettingsPage {
 
               Row() {
                 Text('延河课堂登录（M4-1：Web 登录 → 抽 cookie → 验接口）')
-                  .fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
+                  .fontSize(13).fontColor(this.p().onSurface).layoutWeight(1)
                 Button('打开')
                   .height(28).fontSize(11)
                   .onClick(() => {
@@ -574,7 +647,7 @@ struct SettingsPage {
 
               Row() {
                 Text('裸协议探针（阶段A：rcp + AES 自证）')
-                  .fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
+                  .fontSize(13).fontColor(this.p().onSurface).layoutWeight(1)
                 Button('打开')
                   .height(28).fontSize(11)
                   .onClick(() => {
@@ -587,7 +660,7 @@ struct SettingsPage {
 
               Row() {
                 Text('座位 wire 探针（map/seminar 字段实测）')
-                  .fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
+                  .fontSize(13).fontColor(this.p().onSurface).layoutWeight(1)
                 Button('打开')
                   .height(28).fontSize(11)
                   .onClick(() => {
@@ -600,18 +673,18 @@ struct SettingsPage {
 
               if (this.diagText.length > 0) {
                 Text(this.diagText)
-                  .fontSize(10).fontColor(this.p().textMuted)
+                  .fontSize(10).fontColor(this.p().textPlaceholder)
                   .width('100%').margin({ top: 8 })
               }
             }
             .width('100%').padding(12)
-            .backgroundColor(this.p().bgCard)
+            .backgroundColor(this.p().surface)
             .borderRadius(10)
           }
 
           if (this.toast.length > 0) {
             Text(this.toast)
-              .fontSize(11).fontColor(this.p().textMuted)
+              .fontSize(11).fontColor(this.p().textPlaceholder)
               .width('100%').margin({ top: 10 })
           }
 
@@ -627,6 +700,6 @@ struct SettingsPage {
       .align(Alignment.Top)
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.p().background)
   }
 }

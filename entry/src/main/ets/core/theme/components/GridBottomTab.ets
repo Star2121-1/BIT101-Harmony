@@ -16,7 +16,7 @@
  */
 
 import { gridTokens } from '../GridTokens.ts';
-import { STORAGE_DARK } from '../../../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../../../data/ThemeStore.ts';
 import {
   resolveTabStyle,
   TAB_INDICATOR_W,
@@ -37,6 +37,7 @@ export interface GridTabItem {
 @Component
 struct GridBottomTabItemView {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   label: string = '';
   iconText: string = '';
   selected: boolean = false;
@@ -45,12 +46,12 @@ struct GridBottomTabItemView {
 
   /** 当前配色 token（行内取）。 */
   private tokens() {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** Tab 项状态 → tint/指示条（原版 GridBottomTabItem §5.5 判定）。 */
   private style() {
-    return resolveTabStyle(gridTokens(this.isDark), { enabled: this.isEnabled, selected: this.selected });
+    return resolveTabStyle(gridTokens(this.isDark, getPalette(this.paletteName)), { enabled: this.isEnabled, selected: this.selected });
   }
 
   build() {
@@ -99,6 +100,7 @@ struct GridBottomTabItemView {
 @Component
 export struct GridBottomTabRow {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   items: GridTabItem[] = [];
 
   build() {
@@ -116,7 +118,7 @@ export struct GridBottomTabRow {
     }
     .width('100%')
     .padding({ top: 4, bottom: 4 })
-    .backgroundColor(gridTokens(this.isDark).surface)
-    .border({ width: 0.5, color: gridTokens(this.isDark).outlineVariant })
+    .backgroundColor(gridTokens(this.isDark, getPalette(this.paletteName)).surface)
+    .border({ width: 0.5, color: gridTokens(this.isDark, getPalette(this.paletteName)).outlineVariant })
   }
 }

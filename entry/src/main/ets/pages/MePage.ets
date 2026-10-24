@@ -20,8 +20,9 @@
 
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { SessionSnapshot, SessionStore } from '../data/SessionStore.ts';
 import { CampusCardService } from '../service/CampusCardService.ts';
 import { CampusCardStore } from '../data/CampusCardStore.ts';
@@ -40,6 +41,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 struct MePage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   @State studentId: string = '';
   @State loggedIn: boolean = false;
@@ -52,8 +54,8 @@ struct MePage {
 
   @State busy: boolean = false;
 
-  private p(): Palette {
-    return palette(this.isDark);
+  private p(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 本地「现在」（展示层 impure 边界：到期文案现算）。 */
@@ -186,35 +188,65 @@ struct MePage {
   build() {
     // ⚠️ build() 根部不声明局部变量（编译器只认根节点起手）
     Column() {
+      // ── 顶栏：‹ 返回 + 右侧三图标（刷新/通知/设置）──
+      // 原版「我」是底部 tab 页无返回键（ref-03）；鸿蒙是 push 子页，
+      // 保留返回；三图标 1:1 原版顶栏。
       Row() {
-        Button('‹ 返回')
+        Text('‹ 返回')
+          .fontSize(14).fontColor(this.p().primary)
           .onClick(() => {
             router.back();
           })
-        Text('我').fontSize(16).fontWeight(FontWeight.Bold).layoutWeight(1)
-          .textAlign(TextAlign.Center)
-        Button('刷新').fontSize(13)
-          .enabled(!this.busy)
+        Blank().layoutWeight(1)
+        Text('↻')
+          .fontSize(18).fontColor(this.p().onSurfaceVariant)
+          .margin({ right: 16 })
           .onClick(() => {
             this.refresh();
           })
-      }.width('100%').padding(12)
+        Text('🔔')
+          .fontSize(15).fontColor(this.p().onSurfaceVariant)
+          .margin({ right: 16 })
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/NotifyListPage' }).catch((e: Error) => {
+              warn('me -> notify fail: ' + JSON.stringify(e));
+            });
+          })
+        Text('⚙')
+          .fontSize(16).fontColor(this.p().onSurfaceVariant)
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
+              warn('me -> settings fail: ' + JSON.stringify(e));
+            });
+          })
+      }
+      .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 4 })
 
       Scroll() {
         Column() {
-          // ── 账号 ──
+          // ── 账号区（ref-03：头像 + 账号 + 状态）──
           Column() {
             Row() {
-              Text('学校账号')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text(this.loggedIn ? (this.studentId.length > 0 ? this.studentId : '已登录') : '未登录')
-                .fontSize(13).fontColor(this.p().textMuted)
+              // 头像圆：primaryContainer 底 + 主色人形字（无头像图源，用字符兜底）
+              Text('👤')
+                .fontSize(22)
+                .width(48).height(48)
+                .textAlign(TextAlign.Center)
+                .backgroundColor(this.p().primaryContainer)
+                .borderRadius(24)
+              Column() {
+                Text(this.loggedIn ? (this.studentId.length > 0 ? this.studentId : '已登录') : '未登录')
+                  .fontSize(16).fontWeight(FontWeight.Medium).fontColor(this.p().onSurface)
+                Text('学校账号')
+                  .fontSize(11).fontColor(this.p().textPlaceholder).margin({ top: 2 })
+              }
+              .alignItems(HorizontalAlign.Start).layoutWeight(1).margin({ left: 12 })
             }
             .width('100%')
             if (!this.loggedIn) {
               Button('去登录')
-                .height(30).fontSize(12).margin({ top: 8 })
-                .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
+                .height(32).fontSize(13).margin({ top: 10 })
+                .backgroundColor(this.p().primary).fontColor(this.p().onPrimary)
                 .onClick(() => {
                   router.pushUrl({ url: 'pages/LoginPage' }).catch((e: Error) => {
                     warn('me -> login fail: ' + JSON.stringify(e));
@@ -222,75 +254,73 @@ struct MePage {
                 })
             }
           }
-          .width('100%').padding(12).margin({ top: 4 })
-          .backgroundColor(this.p().bgCard).borderRadius(10)
+          .width('100%').padding(14).margin({ top: 4 })
+          .backgroundColor(this.p().surface).borderRadius(12)
           .alignItems(HorizontalAlign.Start)
 
-          // ── 一卡通 ──
-          Column() {
-            Row() {
+          // ── 双卡横排：一卡通 + 校园网（ref-03：secondaryContainer 底双卡）──
+          Row() {
+            Column() {
               Text('一卡通')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text(this.cardLine()).fontSize(14).fontColor(this.p().textPrimary)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(12).fontColor(this.p().onSecondaryContainer).layoutWeight(1)
+              Text(this.cardLine())
+                .fontSize(20).fontWeight(FontWeight.Medium)
+                .fontColor(this.p().onSecondaryContainer).margin({ top: 6 })
+              if (this.cardTrendLine().length > 0) {
+                Text(this.cardTrendLine())
+                  .fontSize(10).fontColor(this.p().onSecondaryContainer)
+                  .width('100%').margin({ top: 4 })
+              }
             }
-            .width('100%')
-            if (this.cardTrendLine().length > 0) {
-              Text(this.cardTrendLine())
-                .fontSize(11).fontColor(this.p().textSecondary)
-                .width('100%').margin({ top: 4 })
-            }
-          }
-          .width('100%').padding(12).margin({ top: 10 })
-          .backgroundColor(this.p().bgCard).borderRadius(10)
-          .alignItems(HorizontalAlign.Start)
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/CardPage' }).catch((e: Error) => {
-              warn('me -> card fail: ' + JSON.stringify(e));
-            });
-          })
+            .width('48%').padding(12)
+            .backgroundColor(this.p().secondaryContainer).borderRadius(12)
+            .alignItems(HorizontalAlign.Start)
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/CardPage' }).catch((e: Error) => {
+                warn('me -> card fail: ' + JSON.stringify(e));
+              });
+            })
 
-          // ── 校园网 ──
-          Column() {
-            Row() {
+            Column() {
               Text('校园网')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text(this.netLine()).fontSize(13).fontColor(this.p().textPrimary)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(12).fontColor(this.p().onSecondaryContainer).layoutWeight(1)
+              Text(this.netLine())
+                .fontSize(15).fontWeight(FontWeight.Medium)
+                .fontColor(this.p().onSecondaryContainer).margin({ top: 6 })
+              if (this.netSubLine().length > 0) {
+                Text(this.netSubLine())
+                  .fontSize(10).fontColor(this.p().onSecondaryContainer)
+                  .width('100%').margin({ top: 4 })
+              }
             }
-            .width('100%')
-            if (this.netSubLine().length > 0) {
-              Text(this.netSubLine())
-                .fontSize(11).fontColor(this.p().textSecondary)
-                .width('100%').margin({ top: 4 })
-            }
+            .width('48%').padding(12)
+            .backgroundColor(this.p().secondaryContainer).borderRadius(12)
+            .alignItems(HorizontalAlign.Start)
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/NetPage' }).catch((e: Error) => {
+                warn('me -> net fail: ' + JSON.stringify(e));
+              });
+            })
           }
-          .width('100%').padding(12).margin({ top: 10 })
-          .backgroundColor(this.p().bgCard).borderRadius(10)
-          .alignItems(HorizontalAlign.Start)
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/NetPage' }).catch((e: Error) => {
-              warn('me -> net fail: ' + JSON.stringify(e));
-            });
-          })
+          .width('100%').margin({ top: 10 })
 
-          // ── 图书馆 ──
+          // ── 图书馆单卡 ──
           Column() {
             Row() {
               Text('图书馆')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text(this.libLine()).fontSize(13).fontColor(this.p().textPrimary)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(this.libLine()).fontSize(14).fontColor(this.p().onSurface)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%')
             if (this.libSubLine().length > 0) {
               Text(this.libSubLine())
-                .fontSize(11).fontColor(this.p().textSecondary)
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
                 .width('100%').margin({ top: 4 })
             }
           }
           .width('100%').padding(12).margin({ top: 10 })
-          .backgroundColor(this.p().bgCard).borderRadius(10)
+          .backgroundColor(this.p().surface).borderRadius(12)
           .alignItems(HorizontalAlign.Start)
           .onClick(() => {
             router.pushUrl({ url: 'pages/LibBorrowPage' }).catch((e: Error) => {
@@ -298,33 +328,12 @@ struct MePage {
             });
           })
 
-          // ── 座位（M9：选座 / 我的预约 / 取消）──
-          Column() {
-            Row() {
-              Text('座位预约')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text('选座 / 我的预约').fontSize(11).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
-            }
-            .width('100%')
-            Text('需登录 seatlib；取消为对外操作，二次确认')
-              .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 4 })
-          }
-          .width('100%').padding(12).margin({ top: 10 })
-          .backgroundColor(this.p().bgCard).borderRadius(10)
-          .alignItems(HorizontalAlign.Start)
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/SeatPage' }).catch((e: Error) => {
-              warn('me -> seat fail: ' + JSON.stringify(e));
-            });
-          })
-
-          // ── 作业 / 设置 ──
+          // ── 功能入口组（原版走底部 tab/设置页；鸿蒙无 tab 框架，入口收在这）──
           Column() {
             Row() {
               Text('作业（DDL）')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%')
             .onClick(() => {
@@ -334,10 +343,23 @@ struct MePage {
             })
 
             Row() {
+              Text('座位预约')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('选座 / 我的预约').fontSize(11).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
+            }
+            .width('100%').padding({ top: 12 })
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/SeatPage' }).catch((e: Error) => {
+                warn('me -> seat fail: ' + JSON.stringify(e));
+              });
+            })
+
+            Row() {
               Text('通知')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text('提醒记录').fontSize(13).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('提醒记录').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ top: 12 })
             .onClick(() => {
@@ -348,9 +370,9 @@ struct MePage {
 
             Row() {
               Text('提醒设置')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text('开关 / 提前量').fontSize(13).fontColor(this.p().textMuted)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('开关 / 提前量').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ top: 12 })
             .onClick(() => {
@@ -361,8 +383,9 @@ struct MePage {
 
             Row() {
               Text('设置')
-                .fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
-              Text(' ›').fontSize(13).fontColor(this.p().textMuted)
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('外观 / 账号 / 校区').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
             }
             .width('100%').padding({ top: 12 })
             .onClick(() => {
@@ -372,7 +395,8 @@ struct MePage {
             })
           }
           .width('100%').padding(12).margin({ top: 10 })
-          .backgroundColor(this.p().bgCard).borderRadius(10)
+          .backgroundColor(this.p().surface).borderRadius(12)
+          .alignItems(HorizontalAlign.Start)
         }
         .width('100%').padding({ left: 12, right: 12, bottom: 24 })
         .align(Alignment.Top)
@@ -380,6 +404,6 @@ struct MePage {
       .layoutWeight(1)
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.p().background)
   }
 }

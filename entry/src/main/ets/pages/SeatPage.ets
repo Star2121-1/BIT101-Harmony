@@ -13,7 +13,7 @@
 import { router } from '@kit.ArkUI';
 import { Context } from '@kit.AbilityKit';
 import { gridTokens } from '../core/theme/GridTokens.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { SeatTreeNode } from '../model/SeatTreeModel.ts';
 import { SeatService } from '../service/SeatService.ts';
 import { SeatTreeService } from '../service/SeatTreeService.ts';
@@ -36,6 +36,7 @@ import { isTerminalStatus } from '../model/SeatTask.ts';
 @Component
 struct SeatPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   /** 座位页两个视图（对齐原版顶部「预约/列表」双 chip）：'book' 预约 / 'list' 列表。 */
   @State seatTab: string = 'book';
@@ -94,7 +95,7 @@ struct SeatPage {
 
   /** 当前配色（语义色见 core/theme/GridTokens.ts；皮肤切换只换 token 档，页面不动）。 */
   private tk() {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 当前时间（展示层 impure 边界，铁律 0.8：现算，不缓存）。 */
@@ -915,13 +916,14 @@ struct SeatPage {
 @Component
 struct SeatChip {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   label: string = '';
   selected: boolean = false;
   onTap: () => void = () => {};
 
   private tk() {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   build() {

@@ -15,7 +15,7 @@
  */
 
 import { gridTokens, gridCourse } from '../GridTokens.ts';
-import { STORAGE_DARK } from '../../../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../../../data/ThemeStore.ts';
 import {
   resolveCardStyle,
   CARD_RADIUS,
@@ -29,6 +29,7 @@ import {
 @Component
 export struct GridCard {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   /** 卡片正文（由调用方在 @Builder 里写）。 */
   @BuilderParam content: () => void;
@@ -44,14 +45,14 @@ export struct GridCard {
 
   /** 当前配色 token（行内取，避免 build 根部局部变量）。 */
   private tokens() {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 卡片状态 → 配色/边框/竖条/勾选（原版 GridCard §5.1 判定）。 */
   private cardStyle() {
     const ink: string | null =
       this.courseColorIndex >= 0 ? gridCourse(this.courseColorIndex, this.isDark).ink : null;
-    return resolveCardStyle(gridTokens(this.isDark), {
+    return resolveCardStyle(gridTokens(this.isDark, getPalette(this.paletteName)), {
       selected: this.selected,
       disabled: this.isDisabled,
       courseColorIndex: this.courseColorIndex,

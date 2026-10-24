@@ -5,14 +5,17 @@
  * `features/theme/GridTokens.kt`（SharedGridTokens）的 1:1 照搬，
  * 而不是「看着像」——任意一处色值不一致就红。
  *
- * 判据来源：直接读 `F:/Agent_Work/BIT-102/BIT101-seat/features/theme/src/.../GridTokens.kt`
- * 的 `sharedGridTokensLight` / `sharedGridTokensDark` 常量，下方 EXPECTED 即其逐值转录。
+ * 判据来源：直接读 `F:/Agent_Work/BIT-102/BIT101-seat/features/theme/src/...`：
+ * - 共享段 → `GridTokens.kt` 的 `sharedGridTokensLight` / `sharedGridTokensDark`；
+ * - 随 palette 三套 → `palette/ClassicColor.kt` / `palette/WarmColor.kt` /
+ *   `palette/BrandColor.kt`（明暗各一，只转录鸿蒙 GridTokens interface 有的字段）。
+ * 下方 EXPECTED 即其逐值转录。
  *
  * 跑法（与 tools/test-colors.mjs 同源）：
  *   node --experimental-transform-types --experimental-loader ./tools/node-loader.mjs tools/test-gridtokens.mjs
  */
 
-import { gridTokens, allGridTokens } from '../entry/src/main/ets/core/theme/GridTokens.ts';
+import { gridTokens, allGridTokens, getPaletteName } from '../entry/src/main/ets/core/theme/GridTokens.ts';
 import { contrastRatio } from '../entry/src/main/ets/core/theme/AppColors.ts';
 
 let failed = 0;
@@ -72,6 +75,49 @@ const EXPECTED_DARK = {
   textPlaceholder: '#A79A8C', textDisabled: '#857B72', pressed: '#D6A98A', pressedHeld: '#E6C3A8',
 };
 
+// ── Classic 档逐值转录（Android palette/ClassicColor.kt，展示名「暖棕配色」）──
+const EXPECTED_CLASSIC_LIGHT = {
+  primary: '#8B4F26', onPrimary: '#FFFFFF', primaryContainer: '#FFDBC8', onPrimaryContainer: '#6F3810',
+  secondary: '#755847', onSecondary: '#FFFFFF', secondaryContainer: '#FFDBC8', onSecondaryContainer: '#5C4131',
+  tertiary: '#616033', onTertiary: '#FFFFFF', tertiaryContainer: '#E8E5AC', onTertiaryContainer: '#49491E',
+  surface: '#FFF8F5', onSurface: '#221A15', onSurfaceVariant: '#52443C', surfaceVariant: '#F4DED3',
+  background: '#FFF8F5', onBackground: '#221A15', outline: '#85746B', outlineVariant: '#D7C2B8',
+  surface2: '#F4DED3', surface3: '#D7C2B8', disabledBg: '#CDB7A7', skeleton: '#E5D0C5',
+  textPlaceholder: '#61524A', textDisabled: '#74645C', pressed: '#74411E', pressedHeld: '#6B3B1B',
+};
+
+const EXPECTED_CLASSIC_DARK = {
+  primary: '#FFB68A', onPrimary: '#522300', primaryContainer: '#6F3810', onPrimaryContainer: '#FFDBC8',
+  secondary: '#E5BFA9', onSecondary: '#432B1C', secondaryContainer: '#5C4131', onSecondaryContainer: '#FFDBC8',
+  tertiary: '#CBC992', onTertiary: '#323209', tertiaryContainer: '#49491E', onTertiaryContainer: '#E8E5AC',
+  surface: '#1A120D', onSurface: '#F0DFD7', onSurfaceVariant: '#D7C2B8', surfaceVariant: '#52443C',
+  background: '#1A120D', onBackground: '#F0DFD7', outline: '#9F8D84', outlineVariant: '#52443C',
+  surface2: '#52443C', surface3: '#5F5049', disabledBg: '#3D332D', skeleton: '#2A211B',
+  textPlaceholder: '#C1ADA4', textDisabled: '#A7958C', pressed: '#E6AC82', pressedHeld: '#F6C6A0',
+};
+
+// ── Brand 档逐值转录（Android palette/BrandColor.kt，展示名「BIT101经典配色」）──
+// ⚠️ 深蓝占位表，全部未验证（无官方 VI 手册；Android 侧 experimental=true）。
+const EXPECTED_BRAND_LIGHT = {
+  primary: '#1B4F9C', onPrimary: '#FFFFFF', primaryContainer: '#D6E2F5', onPrimaryContainer: '#10315E',
+  secondary: '#4A5B75', onSecondary: '#FFFFFF', secondaryContainer: '#DEE4EE', onSecondaryContainer: '#2E3A4E',
+  tertiary: '#7A5A00', onTertiary: '#FFFFFF', tertiaryContainer: '#F5E7C6', onTertiaryContainer: '#4A3800',
+  surface: '#FFFFFF', onSurface: '#191C21', onSurfaceVariant: '#454C58', surfaceVariant: '#E4E9F1',
+  background: '#F7F9FC', onBackground: '#191C21', outline: '#757D8B', outlineVariant: '#C6CEDA',
+  surface2: '#E4E9F1', surface3: '#C6CEDA', disabledBg: '#D3DAE6', skeleton: '#DCE3EE',
+  textPlaceholder: '#5A626E', textDisabled: '#737B88', pressed: '#173F7E', pressedHeld: '#123466',
+};
+
+const EXPECTED_BRAND_DARK = {
+  primary: '#A8C6F5', onPrimary: '#10315E', primaryContainer: '#2C4E7C', onPrimaryContainer: '#D6E2F5',
+  secondary: '#A9B7CC', onSecondary: '#25303F', secondaryContainer: '#3A4657', onSecondaryContainer: '#C7D3E5',
+  tertiary: '#E3BC63', onTertiary: '#3D2E00', tertiaryContainer: '#4F3D14', onTertiaryContainer: '#E3BC63',
+  surface: '#161B21', onSurface: '#E2E6EC', onSurfaceVariant: '#BEC5D0', surfaceVariant: '#262D37',
+  background: '#101418', onBackground: '#E2E6EC', outline: '#8B93A0', outlineVariant: '#39414C',
+  surface2: '#262D37', surface3: '#39414C', disabledBg: '#1F252D', skeleton: '#1A2027',
+  textPlaceholder: '#A6AEBA', textDisabled: '#818995', pressed: '#C2D8F9', pressedHeld: '#D6E5FC',
+};
+
 const EXPECTED_NUM = {
   numLg: { fontSize: 44, lineHeight: 52, fontWeight: 700 },
   numMd: { fontSize: 22, lineHeight: 30, fontWeight: 700 },
@@ -79,12 +125,12 @@ const EXPECTED_NUM = {
 };
 
 console.log('=== 与原版逐值比对（light）===');
-const light = gridTokens(false);
+const light = gridTokens(false, 'warm');
 for (const k of Object.keys(EXPECTED_LIGHT)) {
   eq(light[k], EXPECTED_LIGHT[k], 'light.' + k);
 }
 console.log('\n=== 与原版逐值比对（dark）===');
-const dark = gridTokens(true);
+const dark = gridTokens(true, 'warm');
 for (const k of Object.keys(EXPECTED_DARK)) {
   eq(dark[k], EXPECTED_DARK[k], 'dark.' + k);
 }
@@ -112,8 +158,82 @@ eq(light.stateCalm !== light.stateAttention, true, 'light stateCalm ≠ stateAtt
 eq(light.stateAttention !== light.stateUrgent, true, 'light stateAttention ≠ stateUrgent');
 eq(dark.stateCalm !== dark.stateUrgent, true, 'dark stateCalm ≠ stateUrgent');
 
+console.log('\n=== Classic 档逐值比对（Android ClassicColor.kt）===');
+const classicL = gridTokens(false, 'classic');
+const classicD = gridTokens(true, 'classic');
+for (const k of Object.keys(EXPECTED_CLASSIC_LIGHT)) {
+  eq(classicL[k], EXPECTED_CLASSIC_LIGHT[k], 'classic.light.' + k);
+}
+for (const k of Object.keys(EXPECTED_CLASSIC_DARK)) {
+  eq(classicD[k], EXPECTED_CLASSIC_DARK[k], 'classic.dark.' + k);
+}
+
+console.log('\n=== Brand 档逐值比对（Android BrandColor.kt，占位表）===');
+const brandL = gridTokens(false, 'brand');
+const brandD = gridTokens(true, 'brand');
+for (const k of Object.keys(EXPECTED_BRAND_LIGHT)) {
+  eq(brandL[k], EXPECTED_BRAND_LIGHT[k], 'brand.light.' + k);
+}
+for (const k of Object.keys(EXPECTED_BRAND_DARK)) {
+  eq(brandD[k], EXPECTED_BRAND_DARK[k], 'brand.dark.' + k);
+}
+
+console.log('\n=== 分层正确性：共享字段跨 palette 恒定（§5.2 语义色不随品牌变）===');
+for (const k of ['success', 'successContainer', 'onSuccessContainer',
+  'accent', 'accentText', 'accentContainer', 'onAccentContainer',
+  'infoContainer', 'onInfoContainer',
+  'stateCalm', 'stateAttention', 'stateUrgent',
+  'error', 'onError', 'errorContainer', 'onErrorContainer',
+  'numLg', 'numMd', 'numSm']) {
+  eq(light[k], classicL[k], 'light vs classic.light 共享.' + k);
+  eq(light[k], brandL[k], 'light vs brand.light 共享.' + k);
+  eq(dark[k], classicD[k], 'dark vs classic.dark 共享.' + k);
+  eq(dark[k], brandD[k], 'dark vs brand.dark 共享.' + k);
+}
+
+console.log('\n=== 分层正确性：随 palette 字段跨 palette 必不同（否则等于没分层）===');
+for (const k of ['primary', 'primaryContainer', 'secondary', 'secondaryContainer',
+  'surface', 'background', 'outline', 'surface2', 'pressed']) {
+  // 相邻对互异即证明「值来自对应表」——⚠️ 不要求三套全互异：
+  // 原版 warm.light.surface 与 brand.light.surface 同为 #FFFFFF（巧合同值，
+  // 逐值转录事实），断言全异会假红。
+  eq(light[k] !== classicL[k] && classicL[k] !== brandL[k],
+    true, 'light warm≠classic 且 classic≠brand.' + k);
+  eq(dark[k] !== classicD[k] && classicD[k] !== brandD[k],
+    true, 'dark warm≠classic 且 classic≠brand.' + k);
+}
+
+console.log('\n=== 容器对比度自检（classic/brand，Android 侧同款 WCAG 项）===');
+rate(contrastRatio(classicL.onSecondaryContainer, classicL.secondaryContainer), 4.5, 'classic.light onSecondaryContainer');
+rate(contrastRatio(brandL.onSecondaryContainer, brandL.secondaryContainer), 4.5, 'brand.light onSecondaryContainer');
+rate(contrastRatio(classicD.onSecondaryContainer, classicD.secondaryContainer), 4.5, 'classic.dark onSecondaryContainer');
+rate(contrastRatio(brandD.onSecondaryContainer, brandD.secondaryContainer), 4.5, 'brand.dark onSecondaryContainer');
+
+console.log('\n=== palette 名收敛（getPaletteName：脏值回落显式默认 warm）===');
+eq(getPaletteName('brand'), 'brand', '合法值 brand 恒等');
+eq(getPaletteName('classic'), 'classic', '合法值 classic 恒等');
+eq(getPaletteName('warm'), 'warm', '合法值 warm 恒等');
+eq(getPaletteName('grid'), 'warm', '脏值 grid 回落 warm（不是 brand！）');
+eq(getPaletteName(''), 'warm', '空串回落 warm');
+eq(getPaletteName('WARM'), 'warm', '大小写不宽容（WARM ≠ warm，回落默认）');
+
+console.log('\n=== 缺档 fail-fast（对齐 Android Palettes.error()，不许静默回退）===');
+let threwRight = false;
+try {
+  gridTokens(false, 'dirty-palette');
+} catch (e) {
+  // ⚠️ 断言对着语义写：光「抛错」不够——把 throw 拆掉后
+  // `undefined.dark` 也会抛 TypeError，照样能骗过「抛了就算过」。
+  // 必须抛的是**缺档语义错误**（消息含「缺档」与 palette 名）。
+  threwRight = typeof e.message === 'string'
+    && e.message.indexOf('缺档') >= 0
+    && e.message.indexOf('dirty-palette') >= 0;
+}
+eq(threwRight, true, '脏 palette 抛「缺档」语义错（含 palette 名，不是随便什么 TypeError）');
+eq(gridTokens(false).primary, light.primary, '不传 palette 默认 = warm 档');
+
 console.log('\n=== 访问器契约 ===');
-eq(allGridTokens().length, 2, 'allGridTokens 返回明暗两档');
+eq(allGridTokens().length, 6, 'allGridTokens 返回 3 palette × 明暗两档');
 
 console.log('\n' + (failed === 0 ? 'ALL PASS' : 'FAILED') + '  pass=' + passed + ' fail=' + failed);
 process.exit(failed === 0 ? 0 : 1);

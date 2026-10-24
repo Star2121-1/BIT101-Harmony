@@ -24,7 +24,7 @@ import { gridTokens } from '../core/theme/GridTokens.ts';
 import { mixHex } from '../core/theme/colorUtil.ts';
 import { tintedCourseColors } from '../corelogic/ScheduleTint.ts';
 import type { ScheduleTint } from '../corelogic/ScheduleTint.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { SchoolService, SchoolAuthError } from '../service/SchoolService.ts';
 import { SessionStore, SessionSnapshot } from '../data/SessionStore.ts';
@@ -78,6 +78,7 @@ interface ColumnResult {
 struct SchedulePage {
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   @State loading: boolean = true;
   @State statusText: string = '正在读取课表…';
   @State errorText: string = '';
@@ -612,7 +613,7 @@ struct SchedulePage {
 
   /** 当前配色（语义色见 core/theme/GridTokens.ts，#84 起从 palette() 切到 gridTokens()）。 */
   private p() {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /**

@@ -14,7 +14,7 @@
  */
 
 import { gridTokens } from '../GridTokens.ts';
-import { STORAGE_DARK } from '../../../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../../../data/ThemeStore.ts';
 import {
   resolveChipStyle,
   CHIP_HEIGHT,
@@ -27,6 +27,7 @@ import {
 @Component
 export struct GridChip {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   label: string = '';
   selected: boolean = false;
@@ -37,7 +38,7 @@ export struct GridChip {
 
   /** Chip 状态 → 配色（原版 GridFilterChip §5.3 判定）。 */
   private style() {
-    return resolveChipStyle(gridTokens(this.isDark), { enabled: this.isEnabled, selected: this.selected });
+    return resolveChipStyle(gridTokens(this.isDark, getPalette(this.paletteName)), { enabled: this.isEnabled, selected: this.selected });
   }
 
   build() {

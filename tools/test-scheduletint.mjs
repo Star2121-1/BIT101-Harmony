@@ -131,6 +131,28 @@ for (const dark of [false, true]) {
     (dark ? 'dark' : 'light') + ' makeup 与常态差 > 40');
 }
 
+console.log('\n=== palette 轴（#89：tint 容器色随 palette 变）===');
+// 同一 holiday tint，三套 palette 的容器色不同 ⇒ 混色结果必须不同
+// （证明第四参真的接到 palette 表上，不是摆设）
+for (const dark of [false, true]) {
+  const tc = tintedCourseColors(2, dark, 'holiday', 'classic');
+  const tb = tintedCourseColors(2, dark, 'holiday', 'brand');
+  const tw = tintedCourseColors(2, dark, 'holiday', 'warm');
+  const cDiff = (a, b) => Math.abs(parseInt(a.slice(1, 3), 16) - parseInt(b.slice(1, 3), 16)) +
+    Math.abs(parseInt(a.slice(3, 5), 16) - parseInt(b.slice(3, 5), 16)) +
+    Math.abs(parseInt(a.slice(5, 7), 16) - parseInt(b.slice(5, 7), 16));
+  ok(cDiff(tw.fill, tc.fill) > 5,
+    (dark ? 'dark' : 'light') + ' holiday warm≠classic（palette 轴生效）');
+  ok(cDiff(tw.fill, tb.fill) > 5,
+    (dark ? 'dark ' : 'light ') + ' holiday warm≠brand（palette 轴生效）');
+  // 不传第四参 = warm（默认），与显式 warm 一致
+  eq(tintedCourseColors(2, dark, 'holiday').fill, tw.fill,
+    (dark ? 'dark' : 'light') + ' holiday 不传 palette = warm');
+  // 脏 palette 名收敛到 warm（与显式 warm 一致，不许崩）
+  eq(tintedCourseColors(2, dark, 'holiday', 'grid').fill, tw.fill,
+    (dark ? 'dark' : 'light') + ' holiday 脏 palette 收敛 = warm');
+}
+
 console.log('\n=== 全部 12 色号都能取到 tint 变体（不崩、不回退恒等）===');
 for (let i = 0; i < 12; i++) {
   const base = courseColors(i, false);

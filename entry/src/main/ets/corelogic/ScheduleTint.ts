@@ -22,7 +22,7 @@
 import { courseColors } from '../core/theme/CoursePalette.ts';
 import type { CourseColors } from '../core/theme/CoursePalette.ts';
 import { mixHex } from '../core/theme/colorUtil.ts';
-import { gridTokens } from '../core/theme/GridTokens.ts';
+import { gridTokens, getPaletteName } from '../core/theme/GridTokens.ts';
 
 /** 调休色调档（源码 CourseScheduleCalendar.kt:419-420 私有常量）。 */
 export const HOLIDAY_TINT: number = 0.85;
@@ -37,12 +37,12 @@ export type ScheduleTint = 'normal' | 'holiday' | 'makeup';
  * 容器色取 theme token（与源码一致：放假→surfaceVariant/onSurfaceVariant，
  * 补课→tertiaryContainer/onTertiaryContainer）。
  */
-export function tintedCourseColors(index: number, isDark: boolean, tint: ScheduleTint): CourseColors {
+export function tintedCourseColors(index: number, isDark: boolean, tint: ScheduleTint, paletteName: string = 'warm'): CourseColors {
   const base: CourseColors = courseColors(index, isDark);
   if (tint === 'normal') {
     return base;
   }
-  const t = gridTokens(isDark);
+  const t = gridTokens(isDark, getPaletteName(paletteName));
   let ratio: number;
   let container: string;
   let onContainer: string;

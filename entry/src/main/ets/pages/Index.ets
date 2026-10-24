@@ -15,7 +15,7 @@
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
 import { gridTokens } from '../core/theme/GridTokens.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { GridCard } from '../core/theme/components/GridCard.ets';
 import { GridButton } from '../core/theme/components/GridButton.ets';
 import { StudySpotService } from '../service/StudySpotService.ts';
@@ -30,6 +30,7 @@ import type { DateTime } from '../corelogic/timeutil.ts';
 struct Index {
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   // 「现在去哪儿自习」
   @State spotCard: SpotCard | null = null;
@@ -47,7 +48,7 @@ struct Index {
 
   /** 当前配色（语义色见 core/theme/GridTokens.ts）。 */
   private tk() {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 算一次「现在去哪儿自习」（逐栋并发查空教室，约 15~20 秒）。 */

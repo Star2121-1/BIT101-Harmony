@@ -21,7 +21,7 @@ import type { ReservationTask } from '../model/SeatTask.ts';
 import { confirmMonitoredSeat, stopSeatMonitor, resumeMonitor } from '../corelogic/SeatMonitorLogic.ts';
 import { AppForegroundState, isForegroundNow } from '../core/AppForegroundState.ts';
 import { gridTokens } from '../core/theme/GridTokens.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 
 /** 监控任务状态徽章文案。 */
 function statusText(s: TaskStatus): string {
@@ -37,8 +37,8 @@ function statusText(s: TaskStatus): string {
 }
 
 /** 监控任务状态徽章字色（GridTokens 语义色：等待灰 / 监控主色 / 发现金 / 成功绿 / 失败红 / 取消淡）。 */
-function statusColor(s: TaskStatus, isDark: boolean): string {
-  const t = gridTokens(isDark);
+function statusColor(s: TaskStatus, isDark: boolean, paletteName: string): string {
+  const t = gridTokens(isDark, getPalette(paletteName));
   switch (s) {
     case TaskStatus.IDLE: return t.onSurfaceVariant;
     case TaskStatus.RUNNING: return t.primary;
@@ -83,6 +83,7 @@ function fmtAgo(ms: number, now: number): string {
 @Component
 struct TaskMonitorCard {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   @Prop task: ReservationTask = {} as ReservationTask;
   @Prop foreground: boolean = true;
   @Prop now: number = 0;
@@ -93,14 +94,14 @@ struct TaskMonitorCard {
   onDelete?: (id: string) => void;
 
   private tk() {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   @Builder
   badge() {
     Text(statusText(this.task.status))
       .fontSize(11)
-      .fontColor(statusColor(this.task.status, this.isDark))
+      .fontColor(statusColor(this.task.status, this.isDark, this.paletteName))
       .backgroundColor(this.tk().surface2)
       .padding({ left: 8, right: 8, top: 3, bottom: 3 })
       .borderRadius(6);
@@ -217,13 +218,14 @@ struct TaskMonitorCard {
 @Component
 struct SeatMonitorPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   @State tasks: ReservationTask[] = [];
   @State foreground: boolean = true;
   @State now: number = Date.now();
   @State busyId: string = '';
 
   private tk() {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   private svc: ISeatService | null = null;

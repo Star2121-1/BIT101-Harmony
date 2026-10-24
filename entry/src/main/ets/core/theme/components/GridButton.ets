@@ -17,7 +17,7 @@
  */
 
 import { gridTokens } from '../GridTokens.ts';
-import { STORAGE_DARK } from '../../../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../../../data/ThemeStore.ts';
 import {
   resolveButtonStyle,
   BUTTON_HEIGHT,
@@ -30,6 +30,7 @@ import {
 @Component
 export struct GridButton {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   label: string = '';
   variant: string = 'filled';
@@ -40,12 +41,12 @@ export struct GridButton {
 
   /** 当前配色 token（行内取）。 */
   private tokens() {
-    return gridTokens(this.isDark);
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 按钮状态 → 配色（原版 GridButton §5.2 判定）。 */
   private style() {
-    return resolveButtonStyle(gridTokens(this.isDark), this.variant, {
+    return resolveButtonStyle(gridTokens(this.isDark, getPalette(this.paletteName)), this.variant, {
       enabled: this.isEnabled,
       selected: this.selected,
     });
@@ -58,7 +59,7 @@ export struct GridButton {
 
   /** 按压底色：filled 且可用时过渡到 pressedHeld，其余用常态底色。 */
   private pressBg(): string {
-    const t = gridTokens(this.isDark);
+    const t = gridTokens(this.isDark, getPalette(this.paletteName));
     return this.variant === 'filled' && this.isEnabled && !this.loading ? t.pressedHeld : this.style().container;
   }
 
