@@ -41,6 +41,42 @@ jobs:
           set -e
           test -s entry/src/main/resources/rawfile/seatlib_tls_intermediate.pem \
             || { echo "❌ 缺 TLS 中间证书（运行期会静默降级）"; exit 1; }
-          test -s entry/src/main/resources/base/media/startIcon.png \
-            || { echo "❌ 缺启动图"; exit 1; }
-          echo "✅ pem 与 media 资源都在"
+          echo "✅ pem 在位"
+      - name: 图标三件套必须是真图（两处 × 三个，非 1x1 占位）
+        # 2026-10-24 栽过：app.json5 的 app 级 icon 解析 **AppScope** 资源，
+        # 只换了 entry 的那套 ⇒ 合并后 HAP 内 background/foreground 仍是 1x1
+        # 占位（65 字节），桌面图标渲染成灰块。旧守卫只查 entry 的 startIcon
+        # 且只查非空（-s），占位图轻松过关 —— 核验方法不对 = 假否定。
+        # 新守卫：AppScope（background/foreground，app 级图标）+
+        # entry（background/foreground/startIcon，ability 图标 + 启动窗），
+        # 全部要求是合法 PNG 且边长 ≥64（占位图恒 1x1）。
+        run: |
+          set -e
+          python3 - <<'PY'
+          import struct, sys
+          # 目录 → 该目录下必须存在的图标文件
+          plan = {
+              'AppScope/resources/base/media': ['background.png', 'foreground.png'],
+              'entry/src/main/resources/base/media': ['background.png', 'foreground.png', 'startIcon.png'],
+          }
+          bad = []
+          for d, names in plan.items():
+              for n in names:
+                  p = f'{d}/{n}'
+                  try:
+                      with open(p, 'rb') as f:
+                          head = f.read(24)
+                  except FileNotFoundError:
+                      bad.append(f'{p} 缺失')
+                      continue
+                  if len(head) < 24 or head[:8] != b'\x89PNG\r\n\x1a\n':
+                      bad.append(f'{p} 不是 PNG')
+                      continue
+                  w, h = struct.unpack('>II', head[16:24])
+                  if w < 64 or h < 64:
+                      bad.append(f'{p} 是 {w}x{h} 占位图')
+          if bad:
+              print('\n'.join('❌ ' + b for b in bad))
+              sys.exit(1)
+          print('✅ AppScope/entry 两处图标三件套均为真图')
+          PY
