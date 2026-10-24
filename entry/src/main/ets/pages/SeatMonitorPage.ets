@@ -20,14 +20,10 @@ import { TaskMode, TaskStatus, isActiveStatus, needsUserConfirm } from '../model
 import type { ReservationTask } from '../model/SeatTask.ts';
 import { confirmMonitoredSeat, stopSeatMonitor, resumeMonitor } from '../corelogic/SeatMonitorLogic.ts';
 import { AppForegroundState, isForegroundNow } from '../core/AppForegroundState.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK } from '../data/ThemeStore.ts';
 
-// ── 配色（随暗色主题切换；状态色为语义色不随主题变）──
-function bgMain(dark: boolean): string { return dark ? '#0E0E0E' : '#F2F2F7'; }
-function cardBg(dark: boolean): string { return dark ? '#1C1C1E' : '#FFFFFF'; }
-function textMain(dark: boolean): string { return dark ? '#EDEDED' : '#1C1C1E'; }
-function textSub(dark: boolean): string { return dark ? '#9A9A9A' : '#6B6B6B'; }
-
+/** 监控任务状态徽章文案。 */
 function statusText(s: TaskStatus): string {
   switch (s) {
     case TaskStatus.IDLE: return '等待中';
@@ -39,15 +35,18 @@ function statusText(s: TaskStatus): string {
     default: return '未知';
   }
 }
-function statusColor(s: TaskStatus): string {
+
+/** 监控任务状态徽章字色（GridTokens 语义色：等待灰 / 监控主色 / 发现金 / 成功绿 / 失败红 / 取消淡）。 */
+function statusColor(s: TaskStatus, isDark: boolean): string {
+  const t = gridTokens(isDark);
   switch (s) {
-    case TaskStatus.IDLE: return '#9E9E9E';
-    case TaskStatus.RUNNING: return '#4A8CFF';
-    case TaskStatus.FOUND: return '#34C759';
-    case TaskStatus.SUCCESS: return '#34C759';
-    case TaskStatus.FAILED: return '#FF453A';
-    case TaskStatus.CANCELLED: return '#8A8A8E';
-    default: return '#9E9E9E';
+    case TaskStatus.IDLE: return t.onSurfaceVariant;
+    case TaskStatus.RUNNING: return t.primary;
+    case TaskStatus.FOUND: return t.accentText;
+    case TaskStatus.SUCCESS: return t.success;
+    case TaskStatus.FAILED: return t.error;
+    case TaskStatus.CANCELLED: return t.textPlaceholder;
+    default: return t.onSurfaceVariant;
   }
 }
 function modeText(m: TaskMode): string {
@@ -80,7 +79,7 @@ function fmtAgo(ms: number, now: number): string {
   return fmtDuration(d) + '前';
 }
 
-/** 单个监控任务卡片（信息架构对齐 Android TaskCard）。 */
+/** 单个监控任务卡片（信息架构对齐 Android TaskCard；视觉 GridTokens，M9-8 面板改 Material3 风）。 */
 @Component
 struct TaskMonitorCard {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
@@ -93,12 +92,16 @@ struct TaskMonitorCard {
   onResume?: (id: string) => void;
   onDelete?: (id: string) => void;
 
+  private tk() {
+    return gridTokens(this.isDark);
+  }
+
   @Builder
   badge() {
     Text(statusText(this.task.status))
       .fontSize(11)
-      .fontColor(statusColor(this.task.status))
-      .backgroundColor(this.isDark ? '#2A2A2E' : '#EFEFF4')
+      .fontColor(statusColor(this.task.status, this.isDark))
+      .backgroundColor(this.tk().surface2)
       .padding({ left: 8, right: 8, top: 3, bottom: 3 })
       .borderRadius(6);
   }
@@ -122,11 +125,11 @@ struct TaskMonitorCard {
           Text(this.task.areaName.length > 0 ? this.task.areaName : (this.task.areaId.length > 0 ? this.task.areaId : '座位任务'))
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor(textMain(this.isDark));
+            .fontColor(this.tk().onSurface);
           if (this.subText().length > 0) {
             Text(this.subText())
               .fontSize(11)
-              .fontColor(textSub(this.isDark))
+              .fontColor(this.tk().onSurfaceVariant)
               .margin({ top: 2 });
           }
         }
@@ -140,20 +143,20 @@ struct TaskMonitorCard {
       // 日期 + 时段
       Text(`${this.task.reserveDate.length > 0 ? this.task.reserveDate : '-'} ${this.task.startTime}~${this.task.endTime}`)
         .fontSize(11)
-        .fontColor(textSub(this.isDark))
+        .fontColor(this.tk().onSurfaceVariant)
         .margin({ top: 8 });
 
       // 座位 + 模式
       Text(`${seatText(this.task)} · 模式 ${modeText(this.task.mode)}`)
         .fontSize(11)
-        .fontColor(textSub(this.isDark))
+        .fontColor(this.tk().onSurfaceVariant)
         .margin({ top: 4 });
 
       // 存活信息：仅前台 + 监控中
       if (this.task.status === TaskStatus.RUNNING && this.foreground) {
         Text(this.livenessText())
           .fontSize(11)
-          .fontColor(textSub(this.isDark))
+          .fontColor(this.tk().onSurfaceVariant)
           .margin({ top: 6 });
       }
 
@@ -161,7 +164,7 @@ struct TaskMonitorCard {
       if (this.task.message.length > 0) {
         Text(this.task.message)
           .fontSize(11)
-          .fontColor(textSub(this.isDark))
+          .fontColor(this.tk().onSurfaceVariant)
           .margin({ top: 6 });
       }
 
@@ -169,12 +172,12 @@ struct TaskMonitorCard {
       if (needsUserConfirm(this.task.status)) {
         Row() {
           Button('去预约')
-            .backgroundColor('#34C759')
-            .fontColor('#FFFFFF')
+            .backgroundColor(this.tk().primary)
+            .fontColor(this.tk().onPrimary)
             .enabled(!this.busy)
             .onClick(() => this.onConfirm?.(this.task.id));
           Button('取消')
-            .fontColor('#FF453A')
+            .fontColor(this.tk().error)
             .backgroundColor('#00000000')
             .onClick(() => this.onCancel?.(this.task.id));
         }
@@ -183,20 +186,20 @@ struct TaskMonitorCard {
         .margin({ top: 10 });
       } else if (this.task.status === TaskStatus.RUNNING && !this.foreground) {
         Button('继续监控')
-          .backgroundColor('#4A8CFF')
-          .fontColor('#FFFFFF')
+          .backgroundColor(this.tk().primary)
+          .fontColor(this.tk().onPrimary)
           .enabled(!this.busy)
           .onClick(() => this.onResume?.(this.task.id))
           .margin({ top: 10 });
       } else if (isActiveStatus(this.task.status)) {
         Button('取消监控')
-          .fontColor('#FF453A')
+          .fontColor(this.tk().error)
           .backgroundColor('#00000000')
           .onClick(() => this.onCancel?.(this.task.id))
           .margin({ top: 10 });
       } else {
         Button('删除记录')
-          .fontColor(textSub(this.isDark))
+          .fontColor(this.tk().onSurfaceVariant)
           .backgroundColor('#00000000')
           .onClick(() => this.onDelete?.(this.task.id))
           .margin({ top: 10 });
@@ -204,7 +207,7 @@ struct TaskMonitorCard {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor(cardBg(this.isDark))
+    .backgroundColor(this.tk().surface)
     .borderRadius(12)
     .margin({ bottom: 10 });
   }
@@ -218,6 +221,10 @@ struct SeatMonitorPage {
   @State foreground: boolean = true;
   @State now: number = Date.now();
   @State busyId: string = '';
+
+  private tk() {
+    return gridTokens(this.isDark);
+  }
 
   private svc: ISeatService | null = null;
   private unsubRepo: (() => void) | null = null;
@@ -305,31 +312,31 @@ struct SeatMonitorPage {
         Row() {
           Text('已暂停：App 在后台时不轮询监控（不会后台抢座）')
             .fontSize(12)
-            .fontColor('#EDEDED');
+            .fontColor(this.tk().onAccentContainer);
         }
         .width('100%')
         .padding(10)
-        .backgroundColor('#3A2E12')
+        .backgroundColor(this.tk().accentContainer)
         .margin({ left: 12, right: 12, top: 4, bottom: 4 });
       } else if (this.activeCount() > 0) {
         Row() {
           Text(`监控中：正在为 ${this.activeCount()} 个任务轮询空位（仅前台）`)
             .fontSize(12)
-            .fontColor('#EDEDED');
+            .fontColor(this.tk().onSuccessContainer);
         }
         .width('100%')
         .padding(10)
-        .backgroundColor('#13351F')
+        .backgroundColor(this.tk().successContainer)
         .margin({ left: 12, right: 12, top: 4, bottom: 4 });
       } else {
         Row() {
           Text('监控就绪（当前没有进行中的任务）')
             .fontSize(12)
-            .fontColor('#EDEDED');
+            .fontColor(this.tk().onSurfaceVariant);
         }
         .width('100%')
         .padding(10)
-        .backgroundColor('#232325')
+        .backgroundColor(this.tk().surfaceVariant)
         .margin({ left: 12, right: 12, top: 4, bottom: 4 });
       }
 
@@ -338,12 +345,12 @@ struct SeatMonitorPage {
           if (this.tasks.length === 0) {
             Text('还没有监控任务')
               .fontSize(13)
-              .fontColor(textSub(this.isDark))
+              .fontColor(this.tk().onSurfaceVariant)
               .width('100%')
               .margin({ top: 40 });
             Text('在座位页选好区域后，可在此监控空位（仅前台，不退后台抢座）')
               .fontSize(11)
-              .fontColor(textSub(this.isDark))
+              .fontColor(this.tk().onSurfaceVariant)
               .width('100%')
               .margin({ top: 6 });
           } else {
@@ -369,6 +376,6 @@ struct SeatMonitorPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(bgMain(this.isDark));
+    .backgroundColor(this.tk().background);
   }
 }

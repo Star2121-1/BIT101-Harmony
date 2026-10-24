@@ -105,7 +105,11 @@ export function runProbe(): string {
     (seatNumberEquals("001", "1") ? "eq-ok" : "eq-bad") + "/" +
     (parseSeats([{ id: "1", no: "001", status: "1" }], "a").length === 1 ? "ps-ok" : "ps-bad") + "/" +
     (wireStatusText(WireSeatStatus.AVAILABLE) === "空闲" ? "wst-ok" : "wst-bad") + "/" +
-    (wireStatusColor(WireSeatStatus.LEAVE, false) === "#B45309" ? "wsc-ok" : "wsc-bad") + "/" +
+    (wireStatusColor(WireSeatStatus.LEAVE) === "#9E9E9E" ? "wsc-ok" : "wsc-bad") + "/" +
+    (wireStatusColor(WireSeatStatus.AVAILABLE) === "#4CAF50" &&
+     wireStatusColor(WireSeatStatus.RESERVED) === "#FF9800" &&
+     wireStatusColor(WireSeatStatus.IN_USE) === "#9E9E9E" &&
+     wireStatusColor(WireSeatStatus.UNAVAILABLE) === "#FDD835" ? "wsc2-ok" : "wsc2-bad") + "/" +
     (renegeText({ nameMerge: "徐特立馆-三层-阅览室", name: "018", time: "2026-09-18 09:00", status: "1", statusName: "已违约" })
       === "徐特立馆-三层-阅览室 · 2026-09-18 09:00 · 已违约" ? "rt-ok" : "rt-bad") + "/" +
     (buildMapPoints([{

@@ -88,15 +88,23 @@ export function wireStatusText(status: WireSeatStatus): string {
   }
 }
 
-/** 归一状态 → 展示色（浅/深各一档，对齐 statusColor 的既有配色风格）。 */
-export function wireStatusColor(status: WireSeatStatus, isDark: boolean): string {
+/**
+ * 归一状态 → 展示色。**1:1 照搬原版 SeatColors.kt**（功能语义色，不随皮肤/主题变）：
+ *
+ * - AVAILABLE `#4CAF50`：原版注释明示「与服务端底图里『可用座位』的绿色一致（实测）」——
+ *   底图是服务端图片、不随 App 主题变，所以这个色也**不分明暗两档**；
+ *   曾经这里自造过一套（蓝预约/棕在用/灰蓝停用），与原版不符，已按原版纠正。
+ * - RESERVED `#FF9800` / IN_USE `#9E9E9E` / LEAVE `#9E9E9E` / UNAVAILABLE `#FDD835`
+ *   同为原版常量（原版另有 MINE `#2E7D32`，鸿蒙枚举无 MINE 态——「我的」走预约列表交叉，不设色）。
+ */
+export function wireStatusColor(status: WireSeatStatus): string {
   switch (status) {
-    case WireSeatStatus.AVAILABLE: return isDark ? '#2E7D32' : '#4CAF50';
-    case WireSeatStatus.RESERVED: return isDark ? '#1565C0' : '#1976D2';
-    case WireSeatStatus.IN_USE: return isDark ? '#6D4C41' : '#8D6E63';
-    case WireSeatStatus.LEAVE: return isDark ? '#B45309' : '#B45309';
-    case WireSeatStatus.UNAVAILABLE: return isDark ? '#546E7A' : '#78909C';
-    default: return isDark ? '#546E7A' : '#78909C';
+    case WireSeatStatus.AVAILABLE: return '#4CAF50';
+    case WireSeatStatus.RESERVED: return '#FF9800';
+    case WireSeatStatus.IN_USE: return '#9E9E9E';
+    case WireSeatStatus.LEAVE: return '#9E9E9E';
+    case WireSeatStatus.UNAVAILABLE: return '#FDD835';
+    default: return '#FDD835';
   }
 }
 
@@ -426,9 +434,8 @@ export interface MapPointVM {
   seatId: string;
   no: string;
   status: WireSeatStatus;
-  /** 浅/深两档状态色（UI 按主题取）。 */
-  colorLight: string;
-  colorDark: string;
+  /** 状态色（wireStatusColor 单档——功能语义色，不随皮肤/主题变）。 */
+  color: string;
   /** 百分比定位/尺寸（相对 1920×1080 底图 16:9，UI 容器 aspectRatio(16/9)）。 */
   leftPct: string;
   topPct: string;
@@ -436,7 +443,7 @@ export interface MapPointVM {
   heightPct: string;
   /** 是否可预约（仅空闲）。 */
   reservable: boolean;
-  /** M9-3：该状态对应的底图 URL（'' = 无图，UI 回落到 colorLight 色块）。 */
+  /** M9-3：该状态对应的底图 URL（'' = 无图，UI 回落到 color 色块）。 */
   tileUrl: string;
   /** M9-3 裁图规格：内层 Image 相对**座位框**的宽/高（%）与负偏移（%）。
    *  语义：座位框内放一张「容器全尺寸」的状态图，用负偏移把对应区域移进框内。
@@ -457,7 +464,7 @@ export function filterMappableSeats(seats: WireSeat[]): WireSeat[] {
  * 把座位列表转成点位渲染规格（纯函数，可离线证伪）。
  * - 只画有完整坐标的座位（filterMappableSeats）。
  * - 百分比字符串用 toFixed(2) 落值，避免 69.10688… 长尾直接进 UI。
- * - 颜色取浅/深两档（复用 wireStatusColor），reservable = isFree。
+ * - 颜色取 wireStatusColor 单档（不随主题变，对齐原版 SeatColors 常量口径）。
  * - images 非空时按状态带裁图规格（tileUrl + 内层 Image 的缩放/偏移百分比），
  *   UI 用「座位框内放一张容器尺寸的 Image、负偏移回退」实现逐座位裁图
  *   （对齐 Android SeatMapCanvas.drawSeatTile 的 srcOffset/srcSize 裁剪）。
@@ -475,8 +482,7 @@ export function buildMapPoints(seats: WireSeat[], images?: SeatMapImages): MapPo
       seatId: s.id,
       no: s.no.length > 0 ? s.no : s.id,
       status: s.status,
-      colorLight: wireStatusColor(s.status, false),
-      colorDark: wireStatusColor(s.status, true),
+      color: wireStatusColor(s.status),
       leftPct: px.toFixed(2) + '%',
       topPct: py.toFixed(2) + '%',
       widthPct: w.toFixed(2) + '%',

@@ -13,6 +13,7 @@ import {
   seatNumberEquals, compareSeatNumber,
   filterMappableSeats, buildMapPoints,
   emptySeatMapImages, isSeatMapImagesEmpty, mapImageForStatus, parseSeatMap,
+  wireStatusColor,
 } from "../entry/src/main/ets/corelogic/SeatApiLogic.ts";
 
 let passed = 0;
@@ -61,6 +62,32 @@ function ok(cond, name) {
   ok(isFree('AVAILABLE') === true, "AVAILABLE 可约");
   ok(isFree('RESERVED') === false, "RESERVED 不可约");
   ok(isFree('IN_USE') === false, "IN_USE 不可约");
+}
+
+// ── 2b. 状态色（1:1 原版 SeatColors.kt，#87 纠正自造值）──────────────────
+{
+  // 原版常量逐值锚定（SeatColors.kt:21-26）
+  eq(wireStatusColor('AVAILABLE'), "#4CAF50", "空闲 = #4CAF50（原版：与服务端底图「可用」绿一致，实测值）");
+  eq(wireStatusColor('RESERVED'), "#FF9800", "已预约 = #FF9800（原版 reserved）");
+  eq(wireStatusColor('IN_USE'), "#9E9E9E", "在用 = #9E9E9E（原版 inUse）");
+  eq(wireStatusColor('LEAVE'), "#9E9E9E", "暂离 = #9E9E9E（原版 leave）");
+  eq(wireStatusColor('UNAVAILABLE'), "#FDD835", "停用 = #FDD835（原版 unavailable）");
+
+  // 语义断言（不是抄值）：可约态唯一且为绿——「能点的座位是绿的」这条用户可感知的规则
+  ok(wireStatusColor('AVAILABLE') === "#4CAF50" && isFree('AVAILABLE'),
+    "可约态 = AVAILABLE，其色为绿（用户可感知：绿点才可约）");
+  // 原版 inUse/leave 就是同色（都是「人不在但占着」的灰）⇒ 不断言互异，如实钉死
+  ok(wireStatusColor('IN_USE') === wireStatusColor('LEAVE'),
+    "在用与暂离同色（原版如此：同为占座灰，不靠颜色区分）");
+  // 其余三态必须互异，否则状态点失去分辨力
+  const set = new Set([wireStatusColor('AVAILABLE'), wireStatusColor('RESERVED'),
+    wireStatusColor('UNAVAILABLE')]);
+  ok(set.size === 3, "空闲/已预约/停用三色互异（状态点要有分辨力）");
+  // 曾经的错误值（#1976D2 蓝预约 / #8D6E63 棕在用 / #78909C 灰蓝停用）不许回归
+  ok(wireStatusColor('RESERVED') !== "#1976D2" &&
+    wireStatusColor('IN_USE') !== "#8D6E63" &&
+    wireStatusColor('UNAVAILABLE') !== "#78909C",
+    "自造三色（蓝/棕/灰蓝）不许回归");
 }
 
 // ── 3. 座位解析（status 字符串、坐标为字符串浮点）────────────────────────
@@ -221,8 +248,7 @@ function ok(cond, name) {
   eq(pts[0].topPct, "25.50%", "topPct = pointY.toFixed(2)");
   eq(pts[0].widthPct, "4.20%", "widthPct");
   eq(pts[0].heightPct, "3.80%", "heightPct");
-  eq(pts[0].colorLight, "#4CAF50", "空闲浅档色");
-  eq(pts[0].colorDark, "#2E7D32", "空闲深档色");
+  eq(pts[0].color, "#4CAF50", "空闲状态色（原版 SeatColors 常量，不随主题变）");
   ok(pts[0].reservable, "空闲座位 reservable=true");
   eq(pts[0].no, "A01", "no 直出");
 

@@ -12,7 +12,7 @@
 
 import { router } from '@kit.ArkUI';
 import { Context } from '@kit.AbilityKit';
-import { palette, Palette } from '../core/theme/AppColors.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { SeatTreeNode } from '../model/SeatTreeModel.ts';
 import { SeatService } from '../service/SeatService.ts';
@@ -29,11 +29,16 @@ import {
   emptySeatMapImages, isSeatMapImagesEmpty,
 } from '../corelogic/SeatApiLogic.ts';
 import { warn } from '../core/log/BitLog.ts';
+import { getTaskRepository } from '../data/SeatTaskStore.ts';
+import { isTerminalStatus } from '../model/SeatTask.ts';
 
 @Entry
 @Component
 struct SeatPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+
+  /** 座位页两个视图（对齐原版顶部「预约/列表」双 chip）：'book' 预约 / 'list' 列表。 */
+  @State seatTab: string = 'book';
 
   @State camps: CampusGroup[] = [];
   // ⚠️ 三级选择各用独立扁平 @State：ArkUI 里嵌套对象属性修改不触发刷新（除非 class+@Observed）
@@ -79,12 +84,17 @@ struct SeatPage {
   @State reneges: RenegeRecord[] = [];
   @State renLoading: boolean = false;
   @State renErr: string = '';
+  /** 研讨间卡内的如实提示（研讨间接口未接通，铁律 0.9 不造假数据）。 */
+  @State seminarHint: string = '';
+  /** 任务卡操作结果提示（清除终态任务的条数）。 */
+  @State taskHint: string = '';
 
   private svc: SeatService = new SeatService();
   private treeSvc: SeatTreeService = new SeatTreeService();
 
-  private p(): Palette {
-    return palette(this.isDark);
+  /** 当前配色（语义色见 core/theme/GridTokens.ts；皮肤切换只换 token 档，页面不动）。 */
+  private tk() {
+    return gridTokens(this.isDark);
   }
 
   /** 当前时间（展示层 impure 边界，铁律 0.8：现算，不缓存）。 */
@@ -95,6 +105,24 @@ struct SeatPage {
       day: Math.floor((d.getTime() - offsetMs) / 86400000),
       minutes: d.getHours() * 60 + d.getMinutes()
     };
+  }
+
+  /** 终态监控任务数（「已结束 N」；本地存储直出，不造数据）。 */
+  private finishedTaskCount(): number {
+    const all = getTaskRepository().getTasks();
+    let n: number = 0;
+    for (let i = 0; i < all.length; i++) {
+      if (isTerminalStatus(all[i].status)) {
+        n++;
+      }
+    }
+    return n;
+  }
+
+  /** 清除终态任务记录（本地存储删除，无对外副作用；返回删除数供文案用）。 */
+  private clearFinishedTasks(): void {
+    const removed: number = getTaskRepository().clearFinished();
+    this.taskHint = removed > 0 ? '已清除 ' + removed + ' 条结束的任务' : '没有可清除的任务';
   }
 
   /** 楼层列表（当前校区下）。 */
@@ -373,167 +401,170 @@ struct SeatPage {
           })
         Text('座位预约').fontSize(16).fontWeight(FontWeight.Bold).layoutWeight(1)
           .textAlign(TextAlign.Center)
-        Text(this.nowText).fontSize(11).fontColor(this.p().textMuted)
+        Text(this.nowText).fontSize(11).fontColor(this.tk().onSurfaceVariant)
       }
       .width('100%').padding(12)
 
+      // 「预约 / 列表」双 chip（对齐原版顶部双 tab）
+      Row() {
+        SeatChip({
+          label: '预约',
+          selected: this.seatTab === 'book',
+          onTap: () => {
+            this.seatTab = 'book';
+          },
+        })
+        SeatChip({
+          label: '列表',
+          selected: this.seatTab === 'list',
+          onTap: () => {
+            this.seatTab = 'list';
+          },
+        })
+          .margin({ left: 8 })
+      }
+      .width('100%').padding({ left: 12, right: 12, bottom: 4 })
+
       Scroll() {
         Column() {
-          // ── 座位监控入口（M9-8）──
-          Row() {
-            Text('座位监控')
-              .fontSize(14)
-              .fontWeight(FontWeight.Medium)
-              .layoutWeight(1)
-              .fontColor(this.p().textSecondary)
-            Text('›')
-              .fontSize(16)
-              .fontColor(this.p().textMuted)
-          }
-          .width('100%')
-          .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-          .backgroundColor(this.p().bgAlt)
-          .borderRadius(10)
-          .margin({ bottom: 6 })
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/SeatMonitorPage' });
-          })
-
-          // ── 三级选择 ──
-          Text('选择场地（校区 / 楼层 / 区域）')
-            .fontSize(12).fontColor(this.p().textMuted).width('100%')
-          if (this.treeLoading) {
-            Text('加载座位树…').fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
-          } else if (this.treeErr.length > 0) {
-            Text(this.treeErr).fontSize(11).fontColor(this.p().error).width('100%').margin({ top: 6 })
-          } else if (this.camps.length === 0) {
-            Text('没有可用的座位树').fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
-          } else {
-            // 校区
-            Text('校区').fontSize(11).fontColor(this.p().textFaint).width('100%').margin({ top: 8 })
-            Flex({ wrap: FlexWrap.Wrap }) {
-              ForEach(this.camps, (c: CampusGroup) => {
-                Text(c.name)
-                  .fontSize(12).padding({ left: 10, right: 10, top: 5, bottom: 5 })
-                  .margin(3).borderRadius(6)
-                  .fontColor(this.selCampus === c.id ? this.p().textOnAccent : this.p().textSecondary)
-                  .backgroundColor(this.selCampus === c.id ? this.p().accent : this.p().bgAlt)
-                  .onClick(() => {
-                    this.selCampus = c.id;
-                    this.selFloor = '';
-                    this.selArea = '';
-                  })
-              }, (c: CampusGroup) => 'camp' + c.id)
-            }
-            .width('100%')
-
-            // 楼层
-            Text('楼层').fontSize(11).fontColor(this.p().textFaint).width('100%').margin({ top: 10 })
-            Flex({ wrap: FlexWrap.Wrap }) {
-              ForEach(this.floorsOf(this.selCampus), (f: FloorGroup) => {
-                Text(f.name)
-                  .fontSize(12).padding({ left: 10, right: 10, top: 5, bottom: 5 })
-                  .margin(3).borderRadius(6)
-                  .fontColor(this.selFloor === f.id ? this.p().textOnAccent : this.p().textSecondary)
-                  .backgroundColor(this.selFloor === f.id ? this.p().accent : this.p().bgAlt)
-                  .onClick(() => {
-                    this.selFloor = f.id;
-                    this.selArea = '';
-                  })
-              }, (f: FloorGroup) => 'floor' + f.id)
-            }
-            .width('100%')
-
-            // 区域
-            Text('区域').fontSize(11).fontColor(this.p().textFaint).width('100%').margin({ top: 10 })
-            Flex({ wrap: FlexWrap.Wrap }) {
-              ForEach(this.areasOf(this.selFloor), (a: AreaGroup) => {
-                Text(a.name)
-                  .fontSize(12).padding({ left: 10, right: 10, top: 5, bottom: 5 })
-                  .margin(3).borderRadius(6)
-                  .fontColor(this.selArea === a.id ? this.p().textOnAccent : this.p().textSecondary)
-                  .backgroundColor(this.selArea === a.id ? this.p().accent : this.p().bgAlt)
-                  .onClick(() => {
-                    this.selectArea(a.id);
-                  })
-              }, (a: AreaGroup) => 'area' + a.id)
-            }
-            .width('100%')
-          }
-
-          // ── 座位状态（当前区域）──
-          Text('座位状态' + (this.selArea.length > 0 ? '（' + this.selArea + '）' : ''))
-            .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 16 })
-          if (this.seatsLoading) {
-            Text('拉取座位状态…').fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
-          } else if (this.seatsErr.length > 0) {
-            Text(this.seatsErr).fontSize(11).fontColor(this.p().error).width('100%').margin({ top: 6 })
-          } else if (this.selArea.length > 0 && this.seats.length === 0) {
-            Text('该区域暂未查到座位').fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 6 })
-          } else if (this.selArea.length > 0) {
-            Text(this.freeText())
-              .fontSize(12).fontColor(this.p().textSecondary).width('100%').margin({ top: 6 })
-            // 视图切换（列表 / 点位）
-            Row() {
-              Text('列表')
-                .fontSize(11).padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                .borderRadius(6).margin({ right: 6, top: 6 })
-                .fontColor(this.viewMode === 'list' ? this.p().textOnAccent : this.p().textSecondary)
-                .backgroundColor(this.viewMode === 'list' ? this.p().accent : this.p().bgAlt)
-                .onClick(() => {
-                  this.viewMode = 'list';
-                })
-              Text('点位')
-                .fontSize(11).padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                .borderRadius(6).margin({ top: 6 })
-                .fontColor(this.viewMode === 'map' ? this.p().textOnAccent : this.p().textSecondary)
-                .backgroundColor(this.viewMode === 'map' ? this.p().accent : this.p().bgAlt)
-                .onClick(() => {
-                  this.viewMode = 'map';
-                  this.loadMapImages();
-                })
-            }
-            .width('100%')
-            if (this.viewMode === 'list') {
-              ForEach(this.seats, (s: WireSeat) => {
-                this.seatRow(s)
-              }, (s: WireSeat) => 'seat' + s.id)
+          if (this.seatTab === 'book') {
+            // ── 三级选择 ──
+            Text('选择场地（校区 / 楼层 / 区域）')
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%')
+            if (this.treeLoading) {
+              Text('加载座位树…').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+            } else if (this.treeErr.length > 0) {
+              Text(this.treeErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 6 })
+            } else if (this.camps.length === 0) {
+              Text('没有可用的座位树').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
             } else {
-              this.mapView()
+              // 校区
+              Text('校区').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 8 })
+              Flex({ wrap: FlexWrap.Wrap }) {
+                ForEach(this.camps, (c: CampusGroup) => {
+                  SeatChip({
+                    label: c.name,
+                    selected: this.selCampus === c.id,
+                    onTap: () => {
+                      this.selCampus = c.id;
+                      this.selFloor = '';
+                      this.selArea = '';
+                    },
+                  })
+                }, (c: CampusGroup) => 'camp' + c.id)
+              }
+              .width('100%')
+
+              // 楼层
+              Text('楼层').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 10 })
+              Flex({ wrap: FlexWrap.Wrap }) {
+                ForEach(this.floorsOf(this.selCampus), (f: FloorGroup) => {
+                  SeatChip({
+                    label: f.name,
+                    selected: this.selFloor === f.id,
+                    onTap: () => {
+                      this.selFloor = f.id;
+                      this.selArea = '';
+                    },
+                  })
+                }, (f: FloorGroup) => 'floor' + f.id)
+              }
+              .width('100%')
+
+              // 区域
+              Text('区域').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 10 })
+              Flex({ wrap: FlexWrap.Wrap }) {
+                ForEach(this.areasOf(this.selFloor), (a: AreaGroup) => {
+                  SeatChip({
+                    label: a.name,
+                    selected: this.selArea === a.id,
+                    onTap: () => {
+                      this.selectArea(a.id);
+                    },
+                  })
+                }, (a: AreaGroup) => 'area' + a.id)
+              }
+              .width('100%')
             }
+
+            // ── 座位状态（当前区域）──
+            Text('座位状态' + (this.selArea.length > 0 ? '（' + this.selArea + '）' : ''))
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 16 })
+            if (this.seatsLoading) {
+              Text('拉取座位状态…').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+            } else if (this.seatsErr.length > 0) {
+              Text(this.seatsErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 6 })
+            } else if (this.selArea.length > 0 && this.seats.length === 0) {
+              Text('该区域暂未查到座位').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+            } else if (this.selArea.length > 0) {
+              Text(this.freeText())
+                .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+              // 视图切换（列表 / 点位）
+              Row() {
+                SeatChip({
+                  label: '列表',
+                  selected: this.viewMode === 'list',
+                  onTap: () => {
+                    this.viewMode = 'list';
+                  },
+                })
+                SeatChip({
+                  label: '点位',
+                  selected: this.viewMode === 'map',
+                  onTap: () => {
+                    this.viewMode = 'map';
+                    this.loadMapImages();
+                  },
+                })
+                  .margin({ left: 8 })
+              }
+              .width('100%').margin({ top: 6 })
+              if (this.viewMode === 'list') {
+                ForEach(this.seats, (s: WireSeat) => {
+                  this.seatRow(s)
+                }, (s: WireSeat) => 'seat' + s.id)
+              } else {
+                this.mapView()
+              }
+            }
+
+            // ── 我的预约（权威列表 /api/index/subscribe）──
+            Text('我的预约（' + this.myCount + '）')
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 16 })
+            if (this.mineLoading) {
+              Text('拉取我的预约…').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
+            } else if (this.mineErr.length > 0) {
+              Text(this.mineErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 4 })
+            }
+            this.myBlock()
+
+            // ── 取消确认条 ──
+            if (this.cancelTarget !== null || this.cancelResult.length > 0) {
+              this.cancelBlock()
+            }
+
+            // ── 预约确认条 ──
+            if (this.reserveTarget !== null || this.reserveResult.length > 0) {
+              this.reserveBlock()
+            }
+
+            Text('取消 / 预约为敏感操作，需设备端真机回归（当前离线未验）')
+              .fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 12 })
+          } else {
+            // ── 列表视图（对齐原版 ref-05：违约卡 + 研讨间卡 + 预约任务卡 + 规则链接）──
+            this.renCard()
+            this.seminarCard()
+            this.taskCard()
+            Text('查看座位预约规则')
+              .fontSize(12).fontColor(this.tk().primary).width('100%')
+              .textAlign(TextAlign.Center).margin({ top: 16 })
+              .onClick(() => {
+                router.pushUrl({
+                  url: 'pages/WebShellPage',
+                  params: { url: 'https://seatlib.bit.edu.cn' },
+                });
+              })
           }
-
-          // ── 我的预约（权威列表 /api/index/subscribe）──
-          Text('我的预约（' + this.myCount + '）')
-            .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 16 })
-          if (this.mineLoading) {
-            Text('拉取我的预约…').fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 4 })
-          } else if (this.mineErr.length > 0) {
-            Text(this.mineErr).fontSize(11).fontColor(this.p().error).width('100%').margin({ top: 4 })
-          }
-          this.myBlock()
-
-          // ── 取消确认条 ──
-          if (this.cancelTarget !== null || this.cancelResult.length > 0) {
-            this.cancelBlock()
-          }
-
-          // ── 预约确认条 ──
-          if (this.reserveTarget !== null || this.reserveResult.length > 0) {
-            this.reserveBlock()
-          }
-
-          // ── 我的违约记录（权威 wire /api/Member/reneges type=1，直出不造数据）──
-          Text('我的违约记录（' + this.reneges.length + '）')
-            .fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 16 })
-          this.renBlock()
-
-          // ── 研讨间（wire 字段未真机核对，铁律 0.9 不渲染，如实标注）──
-          Text('研讨间预约：接口已备（/api/Member/seminar），但 wire 字段未真机核对，暂不渲染（铁律 0.9 不造假数据）')
-            .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 12 })
-
-          Text('取消 / 预约 / 违约为敏感操作，需设备端真机回归（当前离线未验）')
-            .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 4 })
         }
         .width('100%').padding({ left: 12, right: 12, bottom: 24 })
         .align(Alignment.Top)
@@ -541,7 +572,7 @@ struct SeatPage {
       .layoutWeight(1)
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.tk().background)
   }
 
   /** 单个座位行（纯渲染，无局部变量；状态色/文案走 SeatApiLogic）。
@@ -551,19 +582,19 @@ struct SeatPage {
     Row() {
       Text('')
         .width(10).height(10).borderRadius(5)
-        .backgroundColor(wireStatusColor(s.status, this.isDark))
+        .backgroundColor(wireStatusColor(s.status))
       Text(s.no.length > 0 ? s.no : s.id)
-        .fontSize(13).fontColor(this.p().textPrimary).margin({ left: 8 }).layoutWeight(1)
+        .fontSize(13).fontColor(this.tk().onSurface).margin({ left: 8 }).layoutWeight(1)
       if (isFree(s.status)) {
         Text('点我预约')
-          .fontSize(11).fontColor(this.p().accent)
+          .fontSize(11).fontColor(this.tk().primary)
       } else {
         Text(s.statusName.length > 0 ? s.statusName : wireStatusText(s.status))
-          .fontSize(11).fontColor(this.p().textSecondary)
+          .fontSize(11).fontColor(this.tk().onSurfaceVariant)
       }
     }
-    .width('100%').padding({ top: 8, bottom: 8 })
-    .backgroundColor(this.p().bgCard).borderRadius(8).margin({ top: 4 })
+    .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 10 })
+    .backgroundColor(this.tk().surface).borderRadius(12).margin({ top: 6 })
     .alignItems(VerticalAlign.Center)
     .opacity(isFree(s.status) ? 1 : 0.6)
     .onClick(() => {
@@ -602,8 +633,8 @@ struct SeatPage {
     Column() {
       if (this.mapPoints().length === 0) {
         Text('该区域没有带坐标的座位，无法点位定位')
-          .fontSize(11).fontColor(this.p().textMuted).width('100%').padding(12)
-          .backgroundColor(this.p().bgAlt).borderRadius(8)
+          .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').padding(12)
+          .backgroundColor(this.tk().surfaceVariant).borderRadius(8)
       } else {
         Stack({ alignContent: Alignment.TopStart }) {
           // ① 底图：有 free 图铺真图，没有就露中性底（回落到纯色点位）
@@ -614,7 +645,7 @@ struct SeatPage {
           } else {
             Row() {}
               .width('100%').height('100%')
-              .backgroundColor(this.p().bgAlt)
+              .backgroundColor(this.tk().surfaceVariant)
           }
           // ② 逐座位裁片
           ForEach(this.mapPoints(), (pm: MapPointVM) => {
@@ -622,14 +653,14 @@ struct SeatPage {
           }, (pm: MapPointVM) => 'pt' + pm.seatId)
         }
         .width('100%').aspectRatio(16 / 9)
-        .clip(true).borderRadius(8)
+        .clip(true).borderRadius(12)
         if (this.mapImgLoading) {
-          Text('底图加载中…').fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 6 })
+          Text('底图加载中…').fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 6 })
         } else if (this.mapImgErr.length > 0) {
-          Text(this.mapImgErr).fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 6 })
+          Text(this.mapImgErr).fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 6 })
         } else {
           Text('点位 = 座位状态（官方底图）；点空闲座位可预约')
-            .fontSize(10).fontColor(this.p().textFaint).width('100%').margin({ top: 6 })
+            .fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 6 })
         }
       }
     }
@@ -644,7 +675,7 @@ struct SeatPage {
       // 兜底色块（裁图没加载出来时就是它，行为同 M9-3 之前）
       Text(pm.no)
         .fontSize(9).fontColor('#FFFFFF').textAlign(TextAlign.Center)
-        .backgroundColor(this.isDark ? pm.colorDark : pm.colorLight)
+        .backgroundColor(pm.color)
         .borderRadius(2)
         .opacity(pm.reservable ? 1 : 0.5)
         .width('100%').height('100%')
@@ -683,16 +714,16 @@ struct SeatPage {
   myResRow(m: MyReservation) {
     Row() {
       Text(m.seatNo.length > 0 ? m.seatNo : m.seatId)
-        .fontSize(13).fontColor(this.p().textPrimary).layoutWeight(1)
+        .fontSize(13).fontColor(this.tk().onSurface).layoutWeight(1)
       if (m.beginTime.length > 0) {
-        Text(m.beginTime).fontSize(11).fontColor(this.p().textFaint)
+        Text(m.beginTime).fontSize(11).fontColor(this.tk().textPlaceholder)
       }
       Text(m.isActive ? '未签到' : m.statusName ?? m.status)
-        .fontSize(10).fontColor(m.isActive ? this.p().success : this.p().textMuted)
+        .fontSize(10).fontColor(m.isActive ? this.tk().success : this.tk().onSurfaceVariant)
       if (m.isActive && this.cancelTarget === m.id) {
         Button('确认取消')
           .height(26).fontSize(11).margin({ left: 8 })
-          .backgroundColor(this.p().error).fontColor('#FFFFFF')
+          .backgroundColor(this.tk().error).fontColor(this.tk().onError)
           .enabled(!this.cancelBusy)
           .onClick(() => {
             this.confirmCancel();
@@ -700,13 +731,15 @@ struct SeatPage {
       } else if (m.isActive) {
         Button('取消')
           .height(26).fontSize(11).margin({ left: 8 })
+          .backgroundColor('#00000000').fontColor(this.tk().primary)
+          .border({ width: 1, color: this.tk().primary })
           .onClick(() => {
             this.requestCancel(m.id);
           })
       }
     }
-    .width('100%').padding(10).margin({ top: 4 })
-    .backgroundColor(this.p().bgCard).borderRadius(8)
+    .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 10 }).margin({ top: 6 })
+    .backgroundColor(this.tk().surface).borderRadius(12)
     .alignItems(VerticalAlign.Center)
   }
 
@@ -716,14 +749,14 @@ struct SeatPage {
     Column() {
       if (this.cancelTarget !== null) {
         Text('确认取消该预约？此操作会释放座位，不可撤销。')
-          .fontSize(11).fontColor(this.p().warn).width('100%')
+          .fontSize(11).fontColor(this.tk().stateAttention).width('100%')
       }
       if (this.cancelResult.length > 0) {
-        Text(this.cancelResult).fontSize(11).fontColor(this.p().textSecondary).width('100%').margin({ top: 4 })
+        Text(this.cancelResult).fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
       }
     }
     .width('100%').padding(10).margin({ top: 8 })
-    .backgroundColor(this.p().bgAlt).borderRadius(8)
+    .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
   }
 
   /** 预约结果 / 确认提示条。 */
@@ -732,40 +765,131 @@ struct SeatPage {
     Column() {
       if (this.reserveTarget !== null) {
         Text('确认预约该座位？预约后请在签到截止前刷卡，否则记违约。')
-          .fontSize(11).fontColor(this.p().warn).width('100%')
+          .fontSize(11).fontColor(this.tk().stateAttention).width('100%')
         Button('确认预约')
           .height(26).fontSize(11).margin({ top: 6 })
-          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
+          .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
           .enabled(!this.reserveBusy)
           .onClick(() => {
             this.confirmReserve();
           })
       }
       if (this.reserveResult.length > 0) {
-        Text(this.reserveResult).fontSize(11).fontColor(this.p().textSecondary).width('100%').margin({ top: 4 })
+        Text(this.reserveResult).fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
       }
     }
     .width('100%').padding(10).margin({ top: 8 })
-    .backgroundColor(this.p().bgAlt).borderRadius(8)
+    .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
   }
 
-  /** 违约记录区块（权威 wire 直出；空态 / 加载 / 错误 / 列表 四态齐备，不造假数据）。 */
+  /** 违约卡（列表视图；对齐原版 ref-05：surfaceVariant 底 + 0/5 + 规则文案 + 刷新）。
+   *  「5」是原版规则口径（累计 5 次暂停预约 7 天），写死不改。 */
   @Builder
-  renBlock() {
+  renCard() {
     Column() {
+      Row() {
+        Text('违约 ' + this.reneges.length + '/5')
+          .fontSize(14).fontWeight(FontWeight.Bold)
+          .fontColor(this.tk().onSurface).layoutWeight(1)
+        Text('刷新')
+          .fontSize(12).fontColor(this.tk().primary)
+          .onClick(() => {
+            this.loadReneges();
+          })
+      }
+      .width('100%')
+
       if (this.renLoading) {
-        Text('拉取违约记录…').fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 4 })
+        Text('拉取违约记录…').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
       } else if (this.renErr.length > 0) {
-        Text(this.renErr).fontSize(11).fontColor(this.p().error).width('100%').margin({ top: 4 })
+        Text(this.renErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 6 })
       } else if (this.reneges.length === 0) {
-        Text('暂无违约记录').fontSize(12).fontColor(this.p().textMuted).width('100%').margin({ top: 4 })
+        Text('暂无违约记录 · 累计 5 次将暂停预约 7 天')
+          .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+        Text('数据来自图书馆座位系统')
+          .fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 2 })
       } else {
         ForEach(this.reneges, (r: RenegeRecord) => {
           this.renRow(r)
         }, (r: RenegeRecord) => 'ren' + renegeKey(r))
       }
     }
-    .width('100%')
+    .width('100%').padding(16).margin({ top: 10 })
+    .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  /** 研讨间卡（列表视图；对齐原版 ref-05 空态）。
+   *  ⚠️ 研讨间 wire 字段未真机核对（铁律 0.9）⇒ 不渲染假列表、不放假刷新按钮，
+   *  空态文案与原版一致，网页预约入口真实可用。 */
+  @Builder
+  seminarCard() {
+    Column() {
+      Text('我的研讨间预约')
+        .fontSize(14).fontWeight(FontWeight.Bold)
+        .fontColor(this.tk().onSurface).width('100%')
+      Text('研讨间要按照「整间 + 时段 + 参与成员」提交申请，App 内还没做这一步；先用图书馆网页预约，约好后回到本页下拉刷新，就能在这里查看和取消。')
+        .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+      Row() {
+        Button('去图书馆网页预约')
+          .height(32).fontSize(12)
+          .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+          .onClick(() => {
+            router.pushUrl({
+              url: 'pages/WebShellPage',
+              params: { url: 'https://seatlib.bit.edu.cn' },
+            });
+          })
+        Text('刷新')
+          .fontSize(12).fontColor(this.tk().primary).margin({ left: 16 })
+          .onClick(() => {
+            // 研讨间接口未接通：不装能刷（铁律：假控件比没有更糟）
+            this.seminarHint = '研讨间接口尚未接通（wire 字段未真机核对），暂时刷不出数据';
+          })
+      }
+      .width('100%').margin({ top: 10 })
+      if (this.seminarHint.length > 0) {
+        Text(this.seminarHint)
+          .fontSize(10).fontColor(this.tk().stateAttention).width('100%').margin({ top: 6 })
+      }
+    }
+    .width('100%').padding(16).margin({ top: 10 })
+    .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  /** 预约任务卡（列表视图；对齐原版 ref-05：「抢到座位后会自动出现在『我的预约』里」）。
+   *  点击进监控面板（M9-8）；「清除」删本地终态任务记录（本地存储，无对外副作用）。 */
+  @Builder
+  taskCard() {
+    Column() {
+      Row() {
+        Text('预约任务')
+          .fontSize(14).fontWeight(FontWeight.Bold)
+          .fontColor(this.tk().onSurface).layoutWeight(1)
+        Text('已结束 ' + this.finishedTaskCount())
+          .fontSize(11).fontColor(this.tk().onSurfaceVariant).margin({ right: 12 })
+        Text('清除')
+          .fontSize(12).fontColor(this.tk().primary)
+          .onClick(() => {
+            this.clearFinishedTasks();
+          })
+        Text('∨').fontSize(12).fontColor(this.tk().textPlaceholder).margin({ left: 4 })
+      }
+      .width('100%')
+      Text('抢到座位后会自动出现在「我的预约」里')
+        .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+      if (this.taskHint.length > 0) {
+        Text(this.taskHint)
+          .fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 6 })
+      }
+    }
+    .width('100%').padding(16).margin({ top: 10 })
+    .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
+    .alignItems(HorizontalAlign.Start)
+    .onClick(() => {
+      router.pushUrl({ url: 'pages/SeatMonitorPage' });
+    })
   }
 
   /** 单条违约行（文案走 renegeText，wire 字段直出）。 */
@@ -773,10 +897,42 @@ struct SeatPage {
   renRow(r: RenegeRecord) {
     Row() {
       Text(renegeText(r))
-        .fontSize(12).fontColor(this.p().textSecondary).layoutWeight(1)
+        .fontSize(12).fontColor(this.tk().onSurfaceVariant).layoutWeight(1)
     }
-    .width('100%').padding({ top: 8, bottom: 8 })
-    .backgroundColor(this.p().bgCard).borderRadius(8).margin({ top: 4 })
+    .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 10 })
+    .backgroundColor(this.tk().surface).borderRadius(12).margin({ top: 6 })
     .alignItems(VerticalAlign.Center)
+  }
+}
+
+/**
+ * SeatChip —— 座位页筛选 chip（ref-05 实测口径，与 #86 交通页 ShuttleChip **不同**：
+ * 原版交通页 chip 是透明底+描边款，座位页是实底款——以各自页面实测为准）：
+ * 选中 = primaryContainer #F9DECC 底 + onPrimaryContainer 字；
+ * 未选 = surfaceVariant #F4EFE8 底 + onSurfaceVariant 字；均无描边。
+ * 高 32、圆角 8、左右内边距 16。
+ */
+@Component
+struct SeatChip {
+  @StorageLink(STORAGE_DARK) private isDark: boolean = false;
+
+  label: string = '';
+  selected: boolean = false;
+  onTap: () => void = () => {};
+
+  private tk() {
+    return gridTokens(this.isDark);
+  }
+
+  build() {
+    Text(this.label)
+      .fontSize(12)
+      .fontColor(this.selected ? this.tk().onPrimaryContainer : this.tk().onSurfaceVariant)
+      .padding({ left: 16, right: 16, top: 6, bottom: 6 })
+      .borderRadius(8)
+      .backgroundColor(this.selected ? this.tk().primaryContainer : this.tk().surfaceVariant)
+      .onClick(() => {
+        this.onTap();
+      })
   }
 }
