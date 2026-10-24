@@ -8,7 +8,8 @@
  */
 
 import {
-  Stop, DayType, timetable, nextDeparture, remainingToday, dayTypeOf, countdownText, fmtDeparture
+  Stop, DayType, timetable, nextDeparture, remainingToday, dayTypeOf, countdownText, fmtDeparture,
+  groupByHour, minuteText
 } from '../entry/src/main/ets/corelogic/ShuttleLogic.ts';
 
 let pass = 0;
@@ -89,6 +90,49 @@ eq(dayTypeOf(epochOf(2026, 9, 7)), DayType.WORKDAY, '周一 = 工作日表（跨
 eq(countdownText(0), '即将发车', '0 分钟文案');
 eq(countdownText(5), '5 分钟后', '分钟文案');
 eq(countdownText(90), '1 小时 30 分钟后', '跨小时文案');
+
+// ── groupByHour：展示分组（#86 从页内提纯）─────────────────────────
+// 对齐原版 composable 的 times.groupBy { it.hour }.toSortedMap()
+const wdList = timetable(Stop.LIBRARY, DayType.WORKDAY);
+const groups = groupByHour(wdList);
+// ① 不重不漏：拼回去必须等于原表（丢一班车 = 用户在站台白等）
+const flat = [];
+for (const g of groups) {
+  for (const m of g.minutes) flat.push(m);
+}
+eq(flat, wdList, '分组拼回去 = 原表（不重不漏，升序输入）');
+// ② 组按小时升序（扫读顺序；原版 toSortedMap）
+let asc = true;
+for (let i = 1; i < groups.length; i++) {
+  if (groups[i].hour <= groups[i - 1].hour) asc = false;
+}
+ok(asc, '组间按小时严格升序');
+// ③ 每组的分钟都属于该小时（7:30 不能显示在「8 时」行）
+let allInHour = true;
+for (const g of groups) {
+  for (const m of g.minutes) {
+    if (Math.floor(m / 60) !== g.hour) allInHour = false;
+  }
+}
+ok(allInHour, '组内分钟都属于该小时（不放错行）');
+// ④ 组数 = 表里不同小时数
+const hourSet = new Set(wdList.map((t) => Math.floor(t / 60)));
+eq(groups.length, hourSet.size, '组数 = 不同小时数');
+// ⑤ 乱序输入也按小时升序且同小时合并（对齐 groupBy+toSortedMap 语义）
+eq(groupByHour([482, 450, 498, 466]), [
+  { hour: 7, minutes: [450, 466] },
+  { hour: 8, minutes: [482, 498] },
+], '乱序输入：同小时合并 + 组间升序');
+// ⑥ 空表 → 空分组（调用方按「今天已发完」处理）
+eq(groupByHour([]), [], '空表 → 空分组');
+// ⑦ 单班次 / 跨到 23 时
+eq(groupByHour([1439]), [{ hour: 23, minutes: [1439] }], '23:59 单班归 23 时组');
+
+// ── minuteText：两位分钟串（原版 "%02d".format(t.minute)）──────────
+eq(minuteText(450), '30', '07:30 → 30');
+eq(minuteText(427), '07', '07:07 → 07（补零）');
+eq(minuteText(0), '00', '00:00 → 00');
+eq(minuteText(1439), '59', '23:59 → 59');
 
 console.log('\n' + (fail === 0 ? 'ALL PASS' : 'HAS FAILURES') + '  pass=' + pass + ' fail=' + fail);
 process.exitCode = fail === 0 ? 0 : 1;

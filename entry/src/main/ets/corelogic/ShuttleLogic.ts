@@ -143,3 +143,44 @@ export function countdownText(inMinutes: number): string {
 export function fmtDeparture(minutes: number): string {
   return fmtHM(minutes);
 }
+
+// ------------------------------------------------------------ 展示分组（#86 从页内提纯）
+
+/** 一小时一组的班次（原版在 composable 里 `groupBy { it.hour }.toSortedMap()`，这里提纯可测）。 */
+export interface HourGroup {
+  hour: number;
+  minutes: number[];
+}
+
+/**
+ * 把时刻表按小时分组，**小时升序**（对齐 Kotlin `groupBy{it.hour}.toSortedMap()`）：
+ * 同小时的分钟合并且保持相遇顺序；组间按小时排序（对乱序输入也与原版同结果）。
+ *
+ * 空表 → 空分组（调用方按「今天已发完」处理，不给空白让人猜）。
+ */
+export function groupByHour(times: number[]): HourGroup[] {
+  const groups: HourGroup[] = [];
+  for (const t of times) {
+    const h: number = Math.floor(t / 60);
+    let idx: number = -1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].hour === h) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      groups.push({ hour: h, minutes: [] });
+      idx = groups.length - 1;
+    }
+    groups[idx].minutes.push(t);
+  }
+  groups.sort((a: HourGroup, b: HourGroup) => a.hour - b.hour);
+  return groups;
+}
+
+/** 分钟数 → 两位分钟串（"07"/"46"）——组行里只显示分钟，小时在行首（原版 "%02d".format））。 */
+export function minuteText(minutes: number): string {
+  const m: number = minutes % 60;
+  return (m < 10 ? '0' : '') + m;
+}
