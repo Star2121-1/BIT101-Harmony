@@ -10,6 +10,8 @@
 import { mergeDdl, sortDdl, toEntry, findDdl } from '../entry/src/main/ets/corelogic/DdlRules.ts';
 import { toDdlItems, GROUP } from '../entry/src/main/ets/corelogic/EclassDdlLogic.ts';
 import { remainTime, diffMinutes, deadlineShort, isOverdue } from '../entry/src/main/ets/corelogic/DdlFormat.ts';
+import { remainTimeRatio, pendingList, doneList, cardColors, DDL_BEFORE_DAY } from '../entry/src/main/ets/corelogic/DdlListLogic.ts';
+import { mixHex, withAlpha } from '../entry/src/main/ets/core/theme/colorUtil.ts';
 
 let passed = 0;
 let failed = 0;
@@ -143,6 +145,75 @@ eq(deadlineShort({ day: 20422, minutes: 1439 }), '11-30 23:59', 'MM-DD HH:mm（e
 eq(deadlineShort({ day: 20422, minutes: 65 }), '11-30 01:05', '分钟补零');
 eq(isOverdue({ day: 99, minutes: 0 }, { day: 100, minutes: 0 }), true, '昨天 = 已截止');
 eq(isOverdue({ day: 100, minutes: 1 }, { day: 100, minutes: 0 }), false, '还有 1 分钟不算截止');
+
+console.log('\n=== 11. remainTimeRatio（1:1 Android remainTimeRatio）===');
+eq(DDL_BEFORE_DAY, 7, 'beforeDay 默认 7（Android 同款）');
+eq(remainTimeRatio({ day: 100, minutes: 0 }, { day: 100, minutes: 0 }), 0, '恰好现在 = 0');
+eq(remainTimeRatio({ day: 99, minutes: 0 }, { day: 100, minutes: 0 }), 0, '已过 = 0');
+eq(remainTimeRatio({ day: 107, minutes: 0 }, { day: 100, minutes: 0 }), 1, '恰好 7 天 = 1（>=enoughTime）');
+eq(remainTimeRatio({ day: 108, minutes: 0 }, { day: 100, minutes: 0 }), 1, '超过 7 天仍为 1');
+eq(remainTimeRatio({ day: 100, minutes: 5040 }, { day: 100, minutes: 0 }), 0.5, '半程 = 0.5');
+eq(remainTimeRatio({ day: 100, minutes: 1008 }, { day: 100, minutes: 0 }), 0.1, '1/10 程 = 0.1');
+eq(remainTimeRatio({ day: 100, minutes: 1440 }, { day: 100, minutes: 0 }, 1), 1, 'beforeDay=1：1 天即满');
+eq(remainTimeRatio({ day: 100, minutes: 720 }, { day: 100, minutes: 0 }, 1), 0.5, 'beforeDay=1：半程 = 0.5');
+
+console.log('\n=== 12. mixHex / withAlpha（Android ColorUtils.mixColor 口径）===');
+eq(mixHex('#FFFFFF', '#000000', 0.5), '#808080', '黑白各半 = 中灰');
+eq(mixHex('#F4EFE8', '#FBE0DC', 1), '#F4EFE8', 'ratio=1 全是 color1');
+eq(mixHex('#F4EFE8', '#FBE0DC', 0), '#FBE0DC', 'ratio=0 全是 color2');
+eq(withAlpha('#D5E9DF', 0.5), '#D5E9DF80', '0.5α = 80 字节（Compose copy(alpha) 语义）');
+eq(withAlpha('#D5E9DF', 1), '#D5E9DFFF', 'α=1 = FF 字节（恒追加，渲染等同 6 位）');
+eq(withAlpha('#D5E9DF', 0), '#D5E9DF00', 'α=0 = 00 字节');
+
+console.log('\n=== 13. cardColors（1:1 Android DDLScheduleItem）===');
+const ddlTokens = {
+  surfaceVariant: '#F4EFE8', errorContainer: '#FBE0DC',
+  onSurfaceVariant: '#5F564E', onErrorContainer: '#8C1D18',
+  secondaryContainer: '#D5E9DF', onSecondaryContainer: '#0F4A38'
+};
+// 未完成 + 时间充裕（>7 天）⇒ ratio=1 ⇒ 纯 surfaceVariant / onSurfaceVariant
+const cc1 = cardColors(entry('eclass:1', 110, 0, false), { day: 100, minutes: 0 }, ddlTokens);
+eq(cc1.bg, '#F4EFE8', '充裕卡底 = surfaceVariant');
+eq(cc1.fg, '#5F564E', '充裕卡字 = onSurfaceVariant');
+// 未完成 + 已过 ⇒ ratio=0 ⇒ 纯 errorContainer / onErrorContainer
+const cc2 = cardColors(entry('eclass:1', 99, 0, false), { day: 100, minutes: 0 }, ddlTokens);
+eq(cc2.bg, '#FBE0DC', '逾期卡底 = errorContainer');
+eq(cc2.fg, '#8C1D18', '逾期卡字 = onErrorContainer');
+// 未完成 + 半程（3.5 天）⇒ 各半混色：R=(244+251)/2=247.5→248=0xF8，
+// G=(239+224)/2=231.5→232=0xE8，B=(232+220)/2=226=0xE2
+const cc3 = cardColors(entry('eclass:1', 100, 5040, false), { day: 100, minutes: 0 }, ddlTokens);
+eq(cc3.bg, '#F8E8E2', '半程卡底 = 混色（四舍五入口径）');
+// 已完成 ⇒ secondaryContainer@0.5 + onSecondaryContainer（不随紧急度变）
+const cc4 = cardColors(entry('eclass:1', 99, 0, true), { day: 100, minutes: 0 }, ddlTokens);
+eq(cc4.bg, '#D5E9DF80', '已完成卡底 = secondaryContainer@0.5');
+eq(cc4.fg, '#0F4A38', '已完成卡字 = onSecondaryContainer');
+// 守卫：完成卡即使已逾期也不许混入 errorContainer（防回归到「统一按紧急度」）
+eq(cc4.bg.indexOf('FB') < 0, true, '已完成卡不掺 errorContainer 色相');
+
+console.log('\n=== 14. 分区顺序（1:1 DdlListOrder）===');
+const list14 = [
+  entry('p2', 102, 30, false),
+  entry('p1', 100, 600, false),
+  entry('d1', 101, 0, true),
+  entry('d2', 105, 0, true)
+];
+eq(pendingList(list14).map((e) => e.uid), ['p1', 'p2'], '未完成按截止升序（最急在上）');
+eq(doneList(list14).map((e) => e.uid), ['d2', 'd1'], '已完成按截止倒序（最近在上）');
+eq(pendingList(list14).length, 2, '未完成区只含未完成');
+eq(doneList(list14).length, 2, '已完成区只含已完成');
+// 同日同时刻保持原次序（稳定排序）
+const list14b = [entry('b', 100, 600, false), entry('a', 100, 600, false)];
+eq(pendingList(list14b).map((e) => e.uid), ['b', 'a'], '相等保持原次序（稳定排序）');
+// 不改入参（filter 出新数组，sort 不碰原数组）
+const orig14 = [entry('x', 100, 0, true), entry('y', 100, 0, false)];
+pendingList(orig14);
+doneList(orig14);
+eq(orig14.map((e) => e.uid), ['x', 'y'], '分区函数不改入参');
+eq(pendingList([]).length, 0, '空列表未完成区为空');
+eq(doneList([]).length, 0, '空列表已完成区为空');
+// 同日不同时刻：先比 day 再比 minutes
+const list14c = [entry('late', 100, 700, false), entry('early', 100, 100, false)];
+eq(pendingList(list14c).map((e) => e.uid), ['early', 'late'], '同日按时刻升序');
 
 console.log('\n' + (failed === 0 ? 'ALL PASS' : 'FAILED') + '  pass=' + passed + ' fail=' + failed);
 process.exit(failed > 0 ? 1 : 0);
