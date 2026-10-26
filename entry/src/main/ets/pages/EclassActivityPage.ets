@@ -20,7 +20,10 @@ import { info, warn } from '../core/log/BitLog.ts';
 
 @Entry
 @Component
-struct EclassActivityPage {
+export struct EclassActivityPage {
+  /** true = 被外壳（底部 tab）嵌入：不渲染返回键（原版这些是 pager 页签，没有页面级返回）。 */
+  isEmbedded: boolean = false;
+
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
 
   @State list: EclassActivity[] = [];
@@ -82,10 +85,12 @@ struct EclassActivityPage {
     // ⚠️ 不在 build() 根部声明局部变量（本编译器只认「根节点起手」，见 DdlPage 踩坑记录）。
     Column() {
       Row() {
-        Button('‹ 返回')
-          .onClick(() => {
-            router.back();
-          })
+        if (!this.isEmbedded) {
+          Button('‹ 返回')
+            .onClick(() => {
+              router.back();
+            })
+        }
         Text('课程动态').fontSize(16).fontWeight(FontWeight.Bold).layoutWeight(1)
           .textAlign(TextAlign.Center)
         Button('刷新').fontSize(13)

@@ -75,7 +75,10 @@ interface ColumnResult {
 
 @Entry
 @Component
-struct SchedulePage {
+export struct SchedulePage {
+  /** true = 被外壳（底部 tab）嵌入：不渲染返回键（原版这些是 pager 页签，没有页面级返回）。 */
+  isEmbedded: boolean = false;
+
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
@@ -646,12 +649,15 @@ struct SchedulePage {
       // 顶部：返回 + 学期 + 考试/刷新/重登
       Row() {
         // ⚠️ 原本没有返回入口（只能靠系统手势），真机上一个页面进得去出不来。
-        Text('‹')
-          .fontSize(24).fontColor(this.p().primary)
-          .padding({ left: 2, right: 8 })
-          .onClick(() => {
-            router.back();
-          })
+        // 嵌入外壳时不显示（外壳有页签栏，返回键属于 push 子页的语义）。
+        if (!this.isEmbedded) {
+          Text('‹')
+            .fontSize(24).fontColor(this.p().primary)
+            .padding({ left: 2, right: 8 })
+            .onClick(() => {
+              router.back();
+            })
+        }
         Column() {
           Text(this.term.length > 0 ? this.term : '课表')
             .fontSize(16).fontWeight(FontWeight.Bold)

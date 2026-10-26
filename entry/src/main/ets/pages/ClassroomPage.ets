@@ -71,7 +71,10 @@ const LEVEL_INDENT: number = 24;
 
 @Entry
 @Component
-struct ClassroomPage {
+export struct ClassroomPage {
+  /** true = 被外壳（底部 tab）嵌入：不渲染返回键（原版这些是 pager 页签，没有页面级返回）。 */
+  isEmbedded: boolean = false;
+
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
@@ -343,12 +346,14 @@ struct ClassroomPage {
     Column() {
       // 顶栏（鸿蒙自有 chrome：本页由首页 push 进来）
       Row() {
-        Button('返回').height(32).fontSize(12)
-          .backgroundColor(Color.Transparent)
-          .fontColor(this.tk().primary)
-          .onClick(() => {
-            router.back();
-          })
+        if (!this.isEmbedded) {
+          Button('返回').height(32).fontSize(12)
+            .backgroundColor(Color.Transparent)
+            .fontColor(this.tk().primary)
+            .onClick(() => {
+              router.back();
+            })
+        }
         Column() {
           Text('空教室').fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
           Text('第 ' + this.week + ' 周 · 周' + DAY_LABELS[this.dayOfWeek - 1] +

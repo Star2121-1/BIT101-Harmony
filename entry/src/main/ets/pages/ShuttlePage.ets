@@ -79,7 +79,10 @@ struct ShuttleChip {
 
 @Entry
 @Component
-struct ShuttlePage {
+export struct ShuttlePage {
+  /** true = 被外壳（底部 tab）嵌入：不渲染返回键（原版这些是 pager 页签，没有页面级返回）。 */
+  isEmbedded: boolean = false;
+
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
@@ -210,13 +213,15 @@ struct ShuttlePage {
     Column() {
       // ── 顶栏（push 子页必需；原版是 tab 无页头，见文件头说明） ──
       Row() {
-        Button('‹ 返回')
-          .height(32).fontSize(12)
-          .backgroundColor(Color.Transparent)
-          .fontColor(this.p().primary)
-          .onClick(() => {
-            router.back();
-          })
+        if (!this.isEmbedded) {
+          Button('‹ 返回')
+            .height(32).fontSize(12)
+            .backgroundColor(Color.Transparent)
+            .fontColor(this.p().primary)
+            .onClick(() => {
+              router.back();
+            })
+        }
         Text('校园班车')
           .fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.p().onSurface)
           .layoutWeight(1).margin({ left: 10 })

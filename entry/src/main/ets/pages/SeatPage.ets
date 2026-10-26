@@ -34,7 +34,10 @@ import { isTerminalStatus } from '../model/SeatTask.ts';
 
 @Entry
 @Component
-struct SeatPage {
+export struct SeatPage {
+  /** true = 被外壳（底部 tab）嵌入：不渲染返回键（原版这些是 pager 页签，没有页面级返回）。 */
+  isEmbedded: boolean = false;
+
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
@@ -396,10 +399,12 @@ struct SeatPage {
     Column() {
       // 顶栏
       Row() {
-        Button('‹ 返回')
-          .onClick(() => {
-            router.back();
-          })
+        if (!this.isEmbedded) {
+          Button('‹ 返回')
+            .onClick(() => {
+              router.back();
+            })
+        }
         Text('座位预约').fontSize(16).fontWeight(FontWeight.Bold).layoutWeight(1)
           .textAlign(TextAlign.Center)
         Text(this.nowText).fontSize(11).fontColor(this.tk().onSurfaceVariant)

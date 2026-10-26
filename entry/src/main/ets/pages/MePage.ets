@@ -36,10 +36,14 @@ import { TrafficTrend, emptyTrafficTrend, todayText } from '../corelogic/CampusN
 import { cardSummary } from '../corelogic/LibBorrowLogic.ts';
 import type { DateTime } from '../corelogic/timeutil.ts';
 import { info, warn } from '../core/log/BitLog.ts';
+import { StudySpotCard } from '../components/me/StudySpotCard.ets';
 
 @Entry
 @Component
-struct MePage {
+export struct MePage {
+  /** true = 被外壳（底部 tab）嵌入：不渲染返回键（原版这些是 pager 页签，没有页面级返回）。 */
+  isEmbedded: boolean = false;
+
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
@@ -192,28 +196,35 @@ struct MePage {
       // 原版「我」是底部 tab 页无返回键（ref-03）；鸿蒙是 push 子页，
       // 保留返回；三图标 1:1 原版顶栏。
       Row() {
-        Text('‹ 返回')
-          .fontSize(14).fontColor(this.p().primary)
-          .onClick(() => {
-            router.back();
-          })
+        if (!this.isEmbedded) {
+          Text('‹ 返回')
+            .fontSize(14).fontColor(this.p().primary)
+            .onClick(() => {
+              router.back();
+            })
+        }
         Blank().layoutWeight(1)
-        Text('↻')
-          .fontSize(18).fontColor(this.p().onSurfaceVariant)
+        // 右上三图标 = 原版 ref-03 的 ↻ / 🔔 / ⚙（Material Rounded 矢量，不再用 emoji：emoji
+        // 在不同字重下形状不一致，且无法跟随 token 上色）
+        Image($rawfile('icons/ic_refresh.svg'))
+          .width(19).height(19)
+          .fillColor(this.p().onSurfaceVariant)
           .margin({ right: 16 })
           .onClick(() => {
             this.refresh();
           })
-        Text('🔔')
-          .fontSize(15).fontColor(this.p().onSurfaceVariant)
+        Image($rawfile('icons/ic_bell.svg'))
+          .width(19).height(19)
+          .fillColor(this.p().onSurfaceVariant)
           .margin({ right: 16 })
           .onClick(() => {
             router.pushUrl({ url: 'pages/NotifyListPage' }).catch((e: Error) => {
               warn('me -> notify fail: ' + JSON.stringify(e));
             });
           })
-        Text('⚙')
-          .fontSize(16).fontColor(this.p().onSurfaceVariant)
+        Image($rawfile('icons/ic_settings.svg'))
+          .width(19).height(19)
+          .fillColor(this.p().onSurfaceVariant)
           .onClick(() => {
             router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
               warn('me -> settings fail: ' + JSON.stringify(e));
@@ -257,6 +268,10 @@ struct MePage {
           .width('100%').padding(14).margin({ top: 4 })
           .backgroundColor(this.p().surface).borderRadius(12)
           .alignItems(HorizontalAlign.Start)
+
+          // ── 现在去哪儿自习（ref-03：这张卡在「我」页，不在首页）──
+          StudySpotCard()
+            .margin({ top: 10 })
 
           // ── 双卡横排：一卡通 + 校园网（ref-03：secondaryContainer 底双卡）──
           Row() {

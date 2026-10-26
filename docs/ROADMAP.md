@@ -2,7 +2,7 @@
 
 > 建立：2026-10-20 ｜ 更新：2026-10-24 20:57
 > 状态：**M0/M1 完成；M2 完成 8/9（仅剩覆盖层）；M3 完成 5/5；M4 完成 4/5；M5 四项代码完（欠真机）；M6 完成 5/5；M7 五项纯逻辑层全完（欠管道/真机）；M8 Form 平台壳 + 数据装配完；M9 八项逻辑层全完 + 契约层 SeatApiLogic（铁律 0.9）+ 座位主页 UI（SeatPage）+ M9-3 底图（裁图）+ M9-8 监控面板 UI（前台生命周期接线 + 状态条 + 任务卡 + 显式确认，绝不自动预约）已建**。已建独立 git 仓库，基线 tag `h-v1.0.0-alpha.1`（见 §8）。
-> **UI 迁移线（2026-10-23 起，用户确认顺序逐页对齐原版 BIT101）**：#81 GridTokens / #82 共享组件 / #83 首页 / #84 课表 / #85 空教室 / #86 班车 / #87 座位（含 M9-8 监控面板改 Material3 风 + 应用名/图标补齐）/ #88 作业·DDL（分区结构 + 紧急度混色卡）已完成（全量 34/34 套件 2029 断言绿）；剩 #90 框架 chrome。#89 落 **palette 轴**：GridTokens 三层化（共享段 + Classic/Warm/Brand 三表 1:1 Android palette/ 目录，缺档 fail-fast），ThemeStore 持久化 ui_palette，11 个页面/组件订阅，SettingsPage 外观组加「配色方案」三选一（Brand 标实验性），MePage 贴 ref-03（头像区 + 一卡通/校园网双卡 + 入口组）。另 `4585296` 修 AppScope 层图标占位（桌面灰块根因）、`055a66f` 升级 CI 图标守卫。基准 `harmony/ui-ref/MIGRATION-BASELINE.md`（仓库外）；tag 仍 alpha.8（纯 UI 提交不 bump 版本）。⚠️ 各页真机渲染未验（鸿蒙手机 reboot 后 USB 未重连）。
+> **UI 迁移线（2026-10-23 起，用户确认顺序逐页对齐原版 BIT101）**：#81 GridTokens / #82 共享组件 / #83 首页 / #84 课表 / #85 空教室 / #86 班车 / #87 座位（含 M9-8 监控面板改 Material3 风 + 应用名/图标补齐）/ #88 作业·DDL（分区结构 + 紧急度混色卡）已完成（全量 34/34 套件 2029 断言绿）；剩 #90 框架 chrome。#89 落 **palette 轴**：GridTokens 三层化（共享段 + Classic/Warm/Brand 三表 1:1 Android palette/ 目录，缺档 fail-fast），ThemeStore 持久化 ui_palette，11 个页面/组件订阅，SettingsPage 外观组加「配色方案」三选一（Brand 标实验性），MePage 贴 ref-03（头像区 + 一卡通/校园网双卡 + 入口组）。另 `4585296` 修 AppScope 层图标占位（桌面灰块根因）、`055a66f` 升级 CI 图标守卫。**#90 外壳已落地**（`corelogic/shellNav.ts` + TopTabBar/BottomNavBar/FabColumn/ModulePlaceholder，Index.ets 改为底部 6 模块 + 卷内 5 页签容器，Stack 保活 + 访问白名单懒建；图标换 Material Rounded 矢量 rawfile/icons/ 16 张；自习卡从首页搬进「我」页；`tools/test-shell.mjs` 66 断言）。**FAB 组未接**（需页面内状态）。基准 `harmony/ui-ref/MIGRATION-BASELINE.md`（仓库外）；tag 仍 alpha.8（纯 UI 提交不 bump 版本）。⚠️ 各页真机渲染未验（鸿蒙手机 reboot 后 USB 未重连）。
 > **分工**：本文是**进度台账**（做什么、做到哪、怎么算做完）；范围与架构依据仍看 `harmony-plan-2026-10-19.md`（A 范围 / B 架构 / C 契约 / E 风险）。
 > 两份冲突时：**范围看计划，进度看本文**。发现冲突请按「能被证伪」的方式提出，不要口头调和。
 > ⚠️ **证据路径说明**：文中 `evidence/...` 一律指**工作区顶层** `harmony/evidence/`（与 Android 仓库物理隔离，**不在本仓库内**）；本仓库只放代码、测试与文档。要看证据的读者需本地有工作区。
@@ -279,7 +279,7 @@
 | UI-87 | 座位页 | ref-04/05 | 双 chip 视图 + 三卡列表 + 状态色对齐 SeatColors；监控面板 iOS 风→GridTokens | ✅ 1c1cab3 |
 | UI-88 | 作业/DDL 页 | ref-02 | 分区标题单列表 + 紧急度混色卡 + 右勾选框 | ✅ cc94b20 |
 | UI-89 | 我/设置 | ref-03/09/10 | 头像账号区 + 一卡通/校园网双卡横排 + 入口组；**palette 轴三套配色 + 切换接线** | ✅ 见摘要 |
-| UI-90 | 框架 chrome（顶部 5 tab + 底部 6 项 + 各页 FAB 组） | ref-01~10 | Index.ets 切共享骨架；课表 5 键 / 空教室 2 键 FAB 补齐 | ⬜ 待做 |
+| UI-90 | 框架 chrome（顶部 5 tab + 底部 6 项 + 各页 FAB 组） | ref-01~10 | Index.ets 切共享骨架；课表 5 键 / 空教室 2 键 FAB 补齐 | 🔄 **外壳已落地**（顶部 5 tab / 底部 6 模块 / 图·网·话 占位 / 自习卡搬进「我」）；**FAB 组未接**（需页面内状态：周次切换 / 新增 DDL / 回到顶部） |
 
 > 基准：`harmony/ui-ref/MIGRATION-BASELINE.md`（安卓平板 adb 截图 + PIL 像素采样 + 源码双证，Warm 默认皮肤实证）。
 > 每页流程：读原版源码定公式 → 切 gridTokens → 编译门 + 可证伪单测 →（鸿蒙手机连回后）真机截图归档。
@@ -530,10 +530,10 @@ GitHub clone 另验了行尾：`.sh`/`.ts` 均为 `w/lf`、0 个 CR（`.gitattri
 | M8 卡片 | 6 | 0 | 4 | 2 | 0%（壳+数据装配完，M8-5/6 未动） |
 | M9 座位 | 8 | 2 | 6 | 0 | 25%（8 项逻辑层 + 契约层 SeatApiLogic + 主页 UI + M9-3 底图裁图 + M9-8 监控面板 UI 全建完；欠 M9-4 预约表单 / M9-6/7 违约研讨间 UI（wire 字段待真机核对，铁律 0.9）） |
 | M10 周边/上架 | 5 | 0 | 0 | 4 | 0%（1 阻塞） |
-| UI 迁移 | 10 | 9 | 0 | 1 | 90%（#81~#89 完成；剩 框架 chrome） |
+| UI 迁移 | 10 | 9 | 1 | 0 | 90%（#81~#89 完成；#90 外壳已落地、FAB 组待接） |
 | **合计** | **64** | **31** | **22** | **11** | **≈48%** |
 
-> 统计时点：2026-10-25 00:50（UI 迁移 #81~#89 完成：#89 含 palette 轴三套配色（Classic/Warm/Brand，1:1 Android palette/ 三表）+ MePage/SettingsPage 贴原版；全量 34/34 套件 2029 断言绿）。⚠️ 各 UI 页真机渲染仍未验（鸿蒙手机 reboot 后未重连）。
+> 统计时点：2026-10-26 21:30（UI 迁移 #81~#89 完成；**#90 外壳**：底部 6 模块 + 卷内 5 页签 + Material 矢量图标 16 张 + 自习卡搬进「我」页，`test-shell` 66 断言；全量 35/35 套件 2095 断言绿、assembleHap BUILD SUCCESSFUL、HAP 内图标 16/16 在位）。⚠️ FAB 组未接；各 UI 页真机渲染仍未验（鸿蒙手机 reboot 后未重连）。
 > 「完成率」= ✅ ÷ 总任务数，**不按工作量算**——M2-4/2-7 这类任务的工作量远大于 M2-9。
 
 > 注：M0/M1/M2-1 已完成的工作（约 15 人日）在表里已折算进 M2-1/M2-2/M9-1 三行，不另计。

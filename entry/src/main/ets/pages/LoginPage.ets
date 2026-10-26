@@ -72,7 +72,7 @@ struct LoginPage {
       if (out.status === 'ok') {
         this.errorColor = this.p().success;
         this.statusText = '登录成功，正在打开课表…';
-        router.replaceUrl({ url: 'pages/SchedulePage' }).catch((e: Error) => {
+        router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
           this.statusText = '跳转课表失败：' + JSON.stringify(e);
         });
       } else if (out.status === 'sms_required') {
@@ -106,7 +106,7 @@ struct LoginPage {
       if (out.status === 'ok') {
         this.errorColor = this.p().success;
         this.needSms = false;
-        router.replaceUrl({ url: 'pages/SchedulePage' }).catch((e: Error) => {
+        router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
           this.statusText = '跳转课表失败：' + JSON.stringify(e);
         });
       } else {
