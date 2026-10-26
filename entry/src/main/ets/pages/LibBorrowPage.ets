@@ -222,9 +222,10 @@ struct LibBorrowPage {
             }
         }
         .width('100%').padding({ left: 12, right: 12 })
-        .align(Alignment.Top)
       }
       .layoutWeight(1)
+      // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
+      .align(Alignment.Top)
     }
     .width('100%').height('100%')
     .backgroundColor(this.p().bgPage)

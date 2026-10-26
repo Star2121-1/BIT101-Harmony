@@ -364,6 +364,8 @@ export struct ShuttlePage {
         .padding({ left: 12, right: 12, top: 8, bottom: 24 })
       }
       .layoutWeight(1)
+      // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
+      .align(Alignment.Top)
       .width('100%')
       .scrollBar(BarState.Auto)
     }

@@ -334,6 +334,13 @@ export struct ClassroomPage {
     return mixHex(t.errorContainer, t.secondaryContainer, 0.5);
   }
 
+  /** 「第 N 周 · 周二 · 2026-10-27 · 学期」——铁律 0.4：结果对应哪一天必须写在屏幕上。 */
+  private dayLine(): string {
+    return '第 ' + this.week + ' 周 · 周' + DAY_LABELS[this.dayOfWeek - 1] +
+      (this.dateStr.length > 0 ? ' · ' + this.dateStr : '') +
+      (this.term.length > 0 ? ' · ' + this.term : '');
+  }
+
   /** 教室卡内容色：空闲 onSecondaryContainer；占用混 on* 两个（0.5）。 */
   private roomCardInk(free: boolean): string {
     const t: GridTokens = this.tk();
@@ -346,6 +353,17 @@ export struct ClassroomPage {
   /** 右下角悬浮按钮（原版 PageFab 规格）。这里先只挂「设置」——与原版各页最下面那颗一致。 */
   private fabActions(): FabAction[] {
     const list: FabAction[] = [
+      // 原版空教室没有「刷新」FAB（它有下拉刷新）。本端暂无下拉，嵌入外壳后顶栏刷新钮
+      // 也去掉了 ⇒ 必须留一颗，否则刷新无入口。
+      {
+        icon: 'ic_refresh.svg',
+        label: '刷新',
+        onTap: () => {
+          if (!this.loading) {
+            this.load();
+          }
+        },
+      },
       {
         icon: 'ic_settings.svg',
         label: '设置',
@@ -362,35 +380,41 @@ export struct ClassroomPage {
   build() {
     Stack({ alignContent: Alignment.BottomEnd }) {
     Column() {
-      // 顶栏（鸿蒙自有 chrome：本页由首页 push 进来）
-      Row() {
-        if (!this.isEmbedded) {
+      // 顶栏
+      // ⚠️ 嵌入外壳时**不留标题也不留刷新钮**：原版 ref-07 从页签直接进「良乡校区」卡，
+      //    没有任何页头（页签即页头），刷新走下拉 / 右下 FAB。
+      //    但铁律 0.4 要求「结果对应哪一天」必须写在屏幕上 ⇒ 保留一行小字日期。
+      if (!this.isEmbedded) {
+        Row() {
           Button('返回').height(32).fontSize(12)
             .backgroundColor(Color.Transparent)
             .fontColor(this.tk().primary)
             .onClick(() => {
               router.back();
             })
+          Column() {
+            Text('空教室').fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
+            Text(this.dayLine())
+              .fontSize(11).fontColor(this.tk().textPlaceholder)
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          .margin({ left: 10 })
+          Button('刷新').height(32).fontSize(12)
+            .backgroundColor(Color.Transparent)
+            .fontColor(this.tk().primary)
+            .enabled(!this.loading)
+            .onClick(() => {
+              this.load();
+            })
         }
-        Column() {
-          Text('空教室').fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
-          Text('第 ' + this.week + ' 周 · 周' + DAY_LABELS[this.dayOfWeek - 1] +
-            (this.dateStr.length > 0 ? ' · ' + this.dateStr : '') +
-            (this.term.length > 0 ? ' · ' + this.term : ''))
-            .fontSize(11).fontColor(this.tk().textPlaceholder)
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-        .margin({ left: 10 })
-        Button('刷新').height(32).fontSize(12)
-          .backgroundColor(Color.Transparent)
-          .fontColor(this.tk().primary)
-          .enabled(!this.loading)
-          .onClick(() => {
-            this.load();
-          })
+        .width('100%').padding({ left: PAGE_GUTTER, right: PAGE_GUTTER, top: 10, bottom: 6 })
+      } else {
+        Text(this.dayLine())
+          .fontSize(11).fontColor(this.tk().textPlaceholder)
+          .width('100%')
+          .padding({ left: PAGE_GUTTER, right: PAGE_GUTTER, top: 8, bottom: 2 })
       }
-      .width('100%').padding({ left: PAGE_GUTTER, right: PAGE_GUTTER, top: 10, bottom: 6 })
 
       // 错误态：取不到 ≠ 没楼，红字说清 + 给登录/重试入口
       if (this.errorText.length > 0) {
@@ -556,15 +580,20 @@ export struct ClassroomPage {
           .padding({ bottom: 8 })
         }
         .layoutWeight(1)
+        // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
+        .align(Alignment.Top)
         .width('100%')
         .scrollBar(BarState.Auto)
       }
 
       // 铁律 0.4：结果对应哪一天，写在屏幕上
-      Text(this.weekKnown ? '空教室结果对应上面这一天' : '开学日未知，结果可能不准')
-        .fontSize(11).fontColor(this.tk().textPlaceholder)
-        .width('100%')
-        .padding({ left: PAGE_GUTTER, right: PAGE_GUTTER, top: 4, bottom: 8 })
+      // （嵌入时日期已在顶部那一行说了，这里只保留「开学日未知」这种必须说的告警）
+      if (!this.weekKnown) {
+        Text('开学日未知，结果可能不准')
+          .fontSize(11).fontColor(this.tk().error)
+          .width('100%')
+          .padding({ left: PAGE_GUTTER, right: PAGE_GUTTER, top: 4, bottom: 8 })
+      }
 
     }
     .width('100%').height('100%')

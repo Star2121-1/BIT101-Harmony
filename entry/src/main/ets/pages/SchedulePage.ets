@@ -893,6 +893,8 @@ export struct SchedulePage {
         .width('100%')
       }
       .layoutWeight(1)
+      // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
+      .align(Alignment.Top)
       .scrollBar(BarState.Auto)
 
       // 状态条：范围各自说清（0.4）；缓存/刷新失败必须如实标注（不许把缓存当最新）
