@@ -44,7 +44,7 @@ export struct TopTabBar {
       ForEach(this.tabs, (tab: ShellTab) => {
         Column() {
           Text(tab.label)
-            .fontSize(15)
+            .fontSize(14)
             .fontWeight(tab.key === this.selectedKey ? FontWeight.Medium : FontWeight.Normal)
             .fontColor(tab.key === this.selectedKey ? this.tk().onPrimaryContainer : this.tk().onSurfaceVariant)
             .maxLines(1)

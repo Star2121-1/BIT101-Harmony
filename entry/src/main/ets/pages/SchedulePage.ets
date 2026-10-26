@@ -20,8 +20,9 @@
  * - 「取不到」绝不显示成「没课」：错误态单独一屏，空课表另说。
  */
 import { router } from '@kit.ArkUI';
+import { FabColumn, FabAction } from '../components/shell/FabColumn.ets';
 import { gridTokens } from '../core/theme/GridTokens.ts';
-import { mixHex } from '../core/theme/colorUtil.ts';
+import { mixHex, withAlpha } from '../core/theme/colorUtil.ts';
 import { tintedCourseColors } from '../corelogic/ScheduleTint.ts';
 import type { ScheduleTint } from '../corelogic/ScheduleTint.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
@@ -566,7 +567,7 @@ export struct SchedulePage {
   @Builder
   headerCell(label: string, day: number) {
     Column() {
-      Text(label)
+      Text('周' + day)
         .fontSize(12)
         .fontWeight(this.isToday(day) ? FontWeight.Bold : FontWeight.Normal)
         .fontColor(this.headerLabelColor(day))
@@ -592,9 +593,13 @@ export struct SchedulePage {
     .justifyContent(FlexAlign.Center)
     .backgroundColor(this.isToday(day) ? this.todayColumnBg()
       : (this.headerBadge(day) === '放假' ? this.holidayColumnBg() : Color.Transparent))
+    // 表头那层绿：原版实测最顶部只到 #F4F5F0（≈ secondaryContainer 15% 叠在 background 上，
+    // 见 ui-ref/MIGRATION-BASELINE.md §12.4），不是整条实色带。
     .linearGradient({
-      colors: [[this.headerBadge(day) === '放假' ? this.p().surfaceVariant : this.p().secondaryContainer, 0.0],
-        ['#00000000', 1.0]],
+      // ⚠️ 终止色必须用**同一个颜色 + alpha 0**，不能用 '#00000000'（透明黑）：
+      //    插值会往黑色走，绿色会被压成橄榄色（2026-10-26 真机踩到）。
+      colors: [[withAlpha(this.headerBadge(day) === '放假' ? this.p().surfaceVariant : this.p().secondaryContainer, 0.15), 0.0],
+        [withAlpha(this.headerBadge(day) === '放假' ? this.p().surfaceVariant : this.p().secondaryContainer, 0), 1.0]],
       angle: 180
     })
   }
@@ -644,9 +649,63 @@ export struct SchedulePage {
     return plan.kind === 'NoClass' ? 'holiday' : 'makeup';
   }
 
+  /**
+   * 右下角悬浮按钮组（原版 CourseScheduleCalendar.kt:382-410，5 颗）。
+   * ⚠️ 原版第 4 颗是「＋ 添加自定义日程」；鸿蒙侧自定义日程还没做，这个位置先放「刷新」，
+   *   等自定义日程落地再换回来（宁可少一颗功能，也不要放一颗点了没反应的假按钮）。
+   */
+  private fabActions(): FabAction[] {
+    const list: FabAction[] = [
+      {
+        icon: 'ic_chevron_right.svg',
+        label: '下一周',
+        onTap: () => {
+          this.goWeek(1);
+        },
+      },
+      {
+        icon: 'ic_chevron_left.svg',
+        label: '上一周',
+        onTap: () => {
+          this.goWeek(-1);
+        },
+      },
+      {
+        icon: 'ic_calendar.svg',
+        label: '考试安排',
+        onTap: () => {
+          router.pushUrl({ url: 'pages/ExamPage', params: { term: this.term } });
+        },
+      },
+      {
+        icon: 'ic_refresh.svg',
+        label: '刷新课表',
+        onTap: () => {
+          if (!this.loading) {
+            this.load();
+          }
+        },
+      },
+      {
+        icon: 'ic_settings.svg',
+        label: '设置',
+        onTap: () => {
+          router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
+            warn('open settings fail: ' + JSON.stringify(e));
+          });
+        },
+      },
+    ];
+    return list;
+  }
+
   build() {
+    Stack({ alignContent: Alignment.BottomEnd }) {
     Column() {
       // 顶部：返回 + 学期 + 考试/刷新/重登
+      // ⚠️ 嵌入外壳时**整行都不渲染**：原版 ref-01 顶部只有「周N + 日期」列头，
+      //    考试/刷新都收进右下角 FAB，学期切换在设置页。留着这两行就是最像「另一个 App」的地方。
+      if (!this.isEmbedded) {
       Row() {
         // ⚠️ 原本没有返回入口（只能靠系统手势），真机上一个页面进得去出不来。
         // 嵌入外壳时不显示（外壳有页签栏，返回键属于 push 子页的语义）。
@@ -693,6 +752,7 @@ export struct SchedulePage {
           })
       }
       .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 6 })
+      }
 
       // 学期选择（只在一个以上学期时才显示；取不到列表就只显示当前学期）
       // chip 样式对齐原版（TabPage.kt:137）：选中 = primaryContainer 底 + onPrimaryContainer 字
@@ -721,6 +781,8 @@ export struct SchedulePage {
       }
 
       // 周次切换（文字钮样式，与顶栏动作钮一致）
+      // ⚠️ 嵌入外壳时不渲染：原版周切换就是右下角那两颗 › ‹ FAB。
+      if (!this.isEmbedded) {
       Row() {
         Button('‹')
           .height(30).width(38).fontSize(16)
@@ -751,6 +813,7 @@ export struct SchedulePage {
           })
       }
       .width('100%').padding({ left: 12, right: 12, bottom: 4 })
+      }
 
       // 未登录 / 错误态
       if (this.needLogin || this.errorText.length > 0) {
@@ -773,8 +836,11 @@ export struct SchedulePage {
 
       // 表头：时间列 + 7 天
       Row() {
-        Text('')
+        Text('周' + this.week)
+          .fontSize(10)
+          .fontColor(this.p().onSurfaceVariant)
           .width(40)
+          .textAlign(TextAlign.Center)
         ForEach(DAY_LABELS, (label: string, i: number) => {
           Column() {
             this.headerCell(label, i + 1)
@@ -898,6 +964,12 @@ export struct SchedulePage {
     }
     .width('100%').height('100%')
     .backgroundColor(this.p().background)
+
+      if (this.isEmbedded) {
+        FabColumn({ actions: this.fabActions() })
+      }
+    }
+    .width('100%').height('100%')
   }
 
   /**

@@ -161,9 +161,9 @@ console.log('\n=== 12. mixHex / withAlpha（Android ColorUtils.mixColor 口径�
 eq(mixHex('#FFFFFF', '#000000', 0.5), '#808080', '黑白各半 = 中灰');
 eq(mixHex('#F4EFE8', '#FBE0DC', 1), '#F4EFE8', 'ratio=1 全是 color1');
 eq(mixHex('#F4EFE8', '#FBE0DC', 0), '#FBE0DC', 'ratio=0 全是 color2');
-eq(withAlpha('#D5E9DF', 0.5), '#D5E9DF80', '0.5α = 80 字节（Compose copy(alpha) 语义）');
-eq(withAlpha('#D5E9DF', 1), '#D5E9DFFF', 'α=1 = FF 字节（恒追加，渲染等同 6 位）');
-eq(withAlpha('#D5E9DF', 0), '#D5E9DF00', 'α=0 = 00 字节');
+eq(withAlpha('#D5E9DF', 0.5), '#80D5E9DF', '0.5α = 首字节 80（#AARRGGBB，真机实证）');
+eq(withAlpha('#D5E9DF', 1), '#FFD5E9DF', 'α=1 = 首字节 FF（渲染等同 6 位）');
+eq(withAlpha('#D5E9DF', 0), '#00D5E9DF', 'α=0 = 首字节 00（全透明）');
 
 console.log('\n=== 13. cardColors（1:1 Android DDLScheduleItem）===');
 const ddlTokens = {
@@ -185,7 +185,7 @@ const cc3 = cardColors(entry('eclass:1', 100, 5040, false), { day: 100, minutes:
 eq(cc3.bg, '#F8E8E2', '半程卡底 = 混色（四舍五入口径）');
 // 已完成 ⇒ secondaryContainer@0.5 + onSecondaryContainer（不随紧急度变）
 const cc4 = cardColors(entry('eclass:1', 99, 0, true), { day: 100, minutes: 0 }, ddlTokens);
-eq(cc4.bg, '#D5E9DF80', '已完成卡底 = secondaryContainer@0.5');
+eq(cc4.bg, '#80D5E9DF', '已完成卡底 = 80D5E9DF（secondaryContainer@0.5，alpha 在前）');
 eq(cc4.fg, '#0F4A38', '已完成卡字 = onSecondaryContainer');
 // 守卫：完成卡即使已逾期也不许混入 errorContainer（防回归到「统一按紧急度」）
 eq(cc4.bg.indexOf('FB') < 0, true, '已完成卡不掺 errorContainer 色相');

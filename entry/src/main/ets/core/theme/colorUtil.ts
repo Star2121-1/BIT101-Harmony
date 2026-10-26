@@ -52,11 +52,16 @@ export function mixHex(color1: string, color2: string, ratio: number): string {
 }
 
 /**
- * 把 '#RRGGBB' 加上 alpha 字节变成 '#RRGGBBAA'（ArkUI 8 位 hex）。
+ * 把 '#RRGGBB' 变成 8 位 hex `#AARRGGBB`（**alpha 在前**，与 Android/ArkUI 一致）。
  * alpha 0..1；与 Compose `copy(alpha=)` 语义一致。
+ *
+ * ⚠️⚠️ 曾经写成「alpha 拼在末尾」(`#RRGGBBAA`)，注释还写着"ArkUI 支持"——**是错的**。
+ *   2026-10-26 真机实证：FAB 底色 `#F9DECC` + 0.8α 期望复合 #F9E3D4，实际渲染 #DFCDCD
+ *   （= A=F9 不透明、RGB=DECCCC 的 ARGB 解释）；表头渐变则被插值成黄色。
+ *   判据：8 位 hex 的第一个字节是 alpha，不是最后一个。
  */
 export function withAlpha(hex: string, alpha: number): string {
   parseHex(hex);
   const a: number = Math.round(Math.max(0, Math.min(1, alpha)) * 255);
-  return hex + toHex(a);
+  return '#' + toHex(a) + hex.substring(1);
 }

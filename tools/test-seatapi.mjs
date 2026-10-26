@@ -208,6 +208,32 @@ function ok(cond, name) {
   eq(signInHintText(105, 480, 100), '', "无法判断 → 空串");
 }
 
+// ── 9b. ⚠️ 次日预约的签到截止**随 now 漂移**（迁移 Android `09a04ce` 的钉住测试）──
+// state-4 复查发现：`signInDeadline` 用 now 的日期**动态**判当日/次日。
+// 同一条次日预约（begin = 09:00）：
+//   前一天问 ⇒ 走「次日」分支 ⇒ 09:00
+//   当天问   ⇒ begin 已是「今天」⇒ 走「当日」分支 ⇒ begin + 60 = 10:00
+// 后果：①截止时刻随查询日漂移；②提醒去重键含 deadline ⇒ 跨天键变 ⇒ **同一条提醒可能双发**。
+// 若服务端真实规则是「次日恒 09:00」，则当天这一问把截止**高估**了 1 小时（假安慰，比漏发更阴）。
+// ⚠️ `/api/index/booking_rules` 是接口动态下发、离线不可考 ⇒ **没核验前不许改实现**，
+//    这里只钉住当前行为，等 booking_rules 原文或一条真次日预约回来再定。
+{
+  const begin = 200;           // 预约日
+  const beginMin = 540;        // 09:00
+  eq(signInDeadline(begin, beginMin, begin - 1), { day: begin, minutes: 540 },
+    "次日预约·前一天问 ⇒ 09:00");
+  eq(signInDeadline(begin, beginMin, begin), { day: begin, minutes: 600 },
+    "次日预约·当天问 ⇒ 09:00+60 = 10:00（漂移）");
+  ok(signInDeadline(begin, beginMin, begin - 1).minutes !==
+     signInDeadline(begin, beginMin, begin).minutes,
+    "钉住漂移本身：同一预约两天问出两个截止（改动实现时这条会红）");
+  // 次日分支与 begin 具体时刻无关（恒 09:00）；当日分支才吃 begin
+  eq(signInDeadline(begin, 8 * 60, begin - 1), { day: begin, minutes: 540 },
+    "次日分支恒 09:00，与 begin 无关");
+  eq(signInDeadline(begin, 8 * 60, begin), { day: begin, minutes: 540 },
+    "当日分支吃 begin：08:00 + 60 = 09:00");
+}
+
 // ── 10. 座位号比较 / 排序（补零口径）───────────────────────────────────
 {
   ok(seatNumberEquals('001', '1'), "补零 001 == 裸 1");

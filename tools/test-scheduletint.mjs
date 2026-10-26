@@ -72,11 +72,11 @@ for (const t of tks) {
 ok(cross === 2 * 4 * ratios.length, '交叉验证格数=' + cross);
 
 console.log('\n=== withAlpha（8 位 hex，ArkUI 口径）===');
-eq(withAlpha('#112369', 0.25), '#11236940', 'withAlpha(#112369,0.25)=#11236940');
-eq(withAlpha('#112369', 0), '#11236900', 'withAlpha alpha=0');
-eq(withAlpha('#112369', 1), '#112369FF', 'withAlpha alpha=1');
-eq(withAlpha('#112369', 2).slice(-2), 'FF', 'withAlpha 越界(>1)收拢到 FF');
-eq(withAlpha('#112369', -1).slice(-2), '00', 'withAlpha 越界(<0)收拢到 00');
+eq(withAlpha('#112369', 0.25), '#40112369', 'withAlpha(#112369,0.25)=#40112369（#AARRGGBB）');
+eq(withAlpha('#112369', 0), '#00112369', 'withAlpha alpha=0');
+eq(withAlpha('#112369', 1), '#FF112369', 'withAlpha alpha=1');
+eq(withAlpha('#112369', 2).slice(1, 3), 'FF', 'withAlpha 越界(>1)收拢到 FF（首字节）');
+eq(withAlpha('#112369', -1).slice(1, 3), '00', 'withAlpha 越界(<0)收拢到 00（首字节）');
 
 console.log('\n=== 空教室页卡片色（#85，源码 FreeClassroomSearch.kt）===');
 const dark = gridTokens(true);
