@@ -21,6 +21,7 @@
 
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
+import { FabColumn, FabAction } from '../components/shell/FabColumn.ets';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
@@ -122,7 +123,24 @@ export struct DdlPage {
     this.reload();
   }
 
+  /** 右下角悬浮按钮（原版 PageFab 规格）。这里先只挂「设置」——与原版各页最下面那颗一致。 */
+  private fabActions(): FabAction[] {
+    const list: FabAction[] = [
+      {
+        icon: 'ic_settings.svg',
+        label: '设置',
+        onTap: () => {
+          router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
+            warn('open settings fail: ' + JSON.stringify(e));
+          });
+        },
+      },
+    ];
+    return list;
+  }
+
   build() {
+    Stack({ alignContent: Alignment.BottomEnd }) {
     // ⚠️ 不在 build() 根部声明任何局部变量：本编译器的 UI 描述只认「根节点起手」
     // （2026-10-21 编译失败两次，错误位置钉在声明行上）。派生列表走取值方法。
     Column() {
@@ -207,6 +225,12 @@ export struct DdlPage {
     }
     .width('100%').height('100%')
     .backgroundColor(this.tk().background)
+
+      // 原版 DDL 是 3 颗（+ / 学士帽 / ⚙）。目前只挂 ⚙：
+      // 「+ 新增」与「去作业平台」要新增弹窗与平台选择，属下一页工作。
+      FabColumn({ actions: this.fabActions() })
+    }
+    .width('100%').height('100%')
   }
 
   /** 分区标题（1:1 DdlSectionTitle：labelLarge + onSurfaceVariant）。 */

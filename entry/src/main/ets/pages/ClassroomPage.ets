@@ -39,6 +39,7 @@
  */
 
 import { router } from '@kit.ArkUI';
+import { FabColumn, FabAction } from '../components/shell/FabColumn.ets';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { mixHex } from '../core/theme/colorUtil.ts';
@@ -342,7 +343,24 @@ export struct ClassroomPage {
     return mixHex(t.onErrorContainer, t.onSecondaryContainer, 0.5);
   }
 
+  /** 右下角悬浮按钮（原版 PageFab 规格）。这里先只挂「设置」——与原版各页最下面那颗一致。 */
+  private fabActions(): FabAction[] {
+    const list: FabAction[] = [
+      {
+        icon: 'ic_settings.svg',
+        label: '设置',
+        onTap: () => {
+          router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
+            warn('open settings fail: ' + JSON.stringify(e));
+          });
+        },
+      },
+    ];
+    return list;
+  }
+
   build() {
+    Stack({ alignContent: Alignment.BottomEnd }) {
     Column() {
       // 顶栏（鸿蒙自有 chrome：本页由首页 push 进来）
       Row() {
@@ -547,8 +565,15 @@ export struct ClassroomPage {
         .fontSize(11).fontColor(this.tk().textPlaceholder)
         .width('100%')
         .padding({ left: PAGE_GUTTER, right: PAGE_GUTTER, top: 4, bottom: 8 })
+
     }
     .width('100%').height('100%')
     .backgroundColor(this.tk().background)
+
+      // 原版空教室默认只有 ⚙ 一颗；「回到顶部」是滚过一段才淡入（BackToTopFab），
+      // 需要 Scroll 控制器 + 首项监听，另立一步。
+      FabColumn({ actions: this.fabActions() })
+    }
+    .width('100%').height('100%')
   }
 }

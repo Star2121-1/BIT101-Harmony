@@ -10,6 +10,7 @@
 
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
+import { FabColumn, FabAction } from '../components/shell/FabColumn.ets';
 import { palette, Palette } from '../core/theme/AppColors.ts';
 import { STORAGE_DARK } from '../data/ThemeStore.ts';
 import { EclassService } from '../service/EclassService.ts';
@@ -81,7 +82,24 @@ export struct EclassActivityPage {
     this.load();
   }
 
+  /** 右下角悬浮按钮（原版 PageFab 规格）。这里先只挂「设置」——与原版各页最下面那颗一致。 */
+  private fabActions(): FabAction[] {
+    const list: FabAction[] = [
+      {
+        icon: 'ic_settings.svg',
+        label: '设置',
+        onTap: () => {
+          router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
+            warn('open settings fail: ' + JSON.stringify(e));
+          });
+        },
+      },
+    ];
+    return list;
+  }
+
   build() {
+    Stack({ alignContent: Alignment.BottomEnd }) {
     // ⚠️ 不在 build() 根部声明局部变量（本编译器只认「根节点起手」，见 DdlPage 踩坑记录）。
     Column() {
       Row() {
@@ -164,5 +182,10 @@ export struct EclassActivityPage {
     }
     .width('100%').height('100%')
     .backgroundColor(this.p().bgPage)
+
+      // 原版「动态」只有一个 FAB：⚙ 设置（EclassActivityScreen.kt:164）
+      FabColumn({ actions: this.fabActions() })
+    }
+    .width('100%').height('100%')
   }
 }
