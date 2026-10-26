@@ -980,22 +980,31 @@ export struct SchedulePage {
    */
   @Builder
   courseBlock(b: Block, dayIndex: number) {
-    Column() {
+    // 排版 1:1 原版 ref-01：课名**上下左右居中**，教室名单行**贴底居中**。
+    // （早先是左上对齐 + 教室紧跟其下，块内文字挤在上半截，和原版一眼就能看出不是一套。）
+    Stack({ alignContent: Alignment.Center }) {
       Text(b.course === null ? '' : b.course.KCM)
-        .fontSize(11)
+        .fontSize(12)
         .fontWeight(FontWeight.Medium)
         .fontColor(this.tintedColors(b.colorIndex, dayIndex).ink)
-        .maxLines(2)
+        .maxLines(3)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .textAlign(TextAlign.Center)
         .width('100%')
-      Text(b.course === null ? '' : (b.course.JASMC.length > 0 ? b.course.JASMC : ''))
-        .fontSize(9)
-        .fontColor(this.tintedColors(b.colorIndex, dayIndex).ink)
-        .opacity(0.75)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .width('100%')
-        .margin({ top: 2 })
+        .padding({ left: 3, right: 3 })
+      Column() {
+        Text(b.course === null ? '' : (b.course.JASMC.length > 0 ? b.course.JASMC : ''))
+          .fontSize(9)
+          .fontColor(this.tintedColors(b.colorIndex, dayIndex).ink)
+          .opacity(0.75)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .textAlign(TextAlign.Center)
+          .width('100%')
+      }
+      .width('100%').height('100%')
+      .justifyContent(FlexAlign.End)
+      .padding({ left: 3, right: 3, bottom: 3 })
     }
     .width('100%')
     .height(CELL_H * b.span - 2)
