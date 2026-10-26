@@ -1,7 +1,15 @@
 /**
  * 语义化配色（浅色 / 深色两套）
  *
- * ## 为什么要有这一层
+ * ⚠️⚠️ **2026-10-27 起：页面已全部迁到 `GridTokens.ts`，本文件不再是取色入口。**
+ *   - 取色一律走 `gridTokens(isDark, paletteName)`（三套 palette × 明暗，可在设置页切）；
+ *   - 本文件只剩两样东西仍有生产价值：`contrastRatio` / `relativeLuminance`（度量函数，
+ *     `tools/test-gridcontrast.mjs` 与 `tools/test-colors.mjs` 在用）；
+ *   - 下面的 `LIGHT` / `DARK` 两套值**仅作历史基线**保留，不代表任何界面的现状；
+ *     照它写新页面 = 绕过 palette 轴、用户切皮肤不生效。
+ *   - 栅栏：`tools/test-uiconventions.mjs` 规则 3 禁止 `pages/` 下再 import 本文件。
+ *
+ * ## 为什么当初要有这一层
  * 之前 130 处颜色直接写死在页面里（`'#888888'` 这种）。深色模式一来，全部要改，
  * 而且改的时候没判据可依 —— Android 侧 WIDGET-001 就栽在「深色下白卡浅字」，
  * 对比度只有 1.22~1.48:1，肉眼几乎看不见，返工代价很大。

@@ -10,8 +10,9 @@
  * - 短信二次验证必须由用户本人在本页输入验证码（agent 不代收）。
  */
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { CasLoginService, LoginOutcome, hasPendingSms } from '../service/CasLoginService.ts';
 import { ProbeCreds, getProbeCreds, clearProbeCreds } from '../probe/CasProbe.ts';
@@ -22,6 +23,7 @@ import { info } from '../core/log/BitLog.ts';
 struct LoginPage {
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   @State username: string = '';
   @State password: string = '';
   @State smsCode: string = '';
@@ -29,7 +31,12 @@ struct LoginPage {
   @State statusText: string = '请输入学号与密码';
   @State steps: string[] = [];
   @State needSms: boolean = false;
-  @State errorColor: string = this.p().textMuted;
+  /**
+   * 提示文案的语义档位：'muted' | 'error' | 'success' | 'warn'。
+   * ⚠️ 存**档位**而不是颜色字符串：颜色若在 @State 里落地，切皮肤或冷启动时主题
+   *    异步就绪（ThemeStore.init 在 .then 里）都会留下过期色值。渲染时现算才跟得上。
+   */
+  @State errorTone: string = 'muted';
   /** 调试通道：`aa start --ps probe_user X --ps probe_pass Y` 注入时才为 true。 */
   @State hasInjectedCreds: boolean = false;
 
@@ -51,11 +58,11 @@ struct LoginPage {
     const p: string = this.hasInjectedCreds ? creds.pass : this.password;
     if (u.length === 0 || p.length === 0) {
       this.statusText = '学号或密码为空';
-      this.errorColor = this.p().error;
+      this.errorTone = 'error';
       return;
     }
     this.loading = true;
-    this.errorColor = this.p().textMuted;
+    this.errorTone = 'muted';
     this.statusText = '正在登录（约 10~20 秒）…';
     this.steps = [];
     try {
@@ -70,20 +77,20 @@ struct LoginPage {
       this.steps = out.steps;
       this.statusText = out.message;
       if (out.status === 'ok') {
-        this.errorColor = this.p().success;
+        this.errorTone = 'success';
         this.statusText = '登录成功，正在打开课表…';
         router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
           this.statusText = '跳转课表失败：' + JSON.stringify(e);
         });
       } else if (out.status === 'sms_required') {
         this.needSms = true;
-        this.errorColor = this.p().warn;
+        this.errorTone = 'warn';
       } else {
-        this.errorColor = this.p().error;
+        this.errorTone = 'error';
       }
     } catch (e) {
       this.password = '';
-      this.errorColor = this.p().error;
+      this.errorTone = 'error';
       this.statusText = '登录异常（已停手，不自动重试）：' + JSON.stringify(e);
     }
     this.loading = false;
@@ -104,24 +111,39 @@ struct LoginPage {
       this.statusText = out.message;
       this.smsCode = '';
       if (out.status === 'ok') {
-        this.errorColor = this.p().success;
+        this.errorTone = 'success';
         this.needSms = false;
         router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
           this.statusText = '跳转课表失败：' + JSON.stringify(e);
         });
       } else {
-        this.errorColor = this.p().error;
+        this.errorTone = 'error';
       }
     } catch (e) {
-      this.errorColor = this.p().error;
+      this.errorTone = 'error';
       this.statusText = '验证码提交异常：' + JSON.stringify(e);
     }
     this.loading = false;
   }
 
-  /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
-  private p(): Palette {
-    return palette(this.isDark);
+  /** 档位 → 实际色值（渲染期现算，跟着皮肤/深浅走）。 */
+  private toneColor(): string {
+    const t: GridTokens = this.tk();
+    if (this.errorTone === 'error') {
+      return t.error;
+    }
+    if (this.errorTone === 'success') {
+      return t.success;
+    }
+    if (this.errorTone === 'warn') {
+      return t.accentText;
+    }
+    return t.onSurfaceVariant;
+  }
+
+  /** 当前配色（语义色见 core/theme/GridTokens.ts）。 */
+  private tk(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   build() {
@@ -132,12 +154,12 @@ struct LoginPage {
       }.width('100%').padding({ left: 16, right: 16, top: 16, bottom: 4 })
 
       Text('学号与密码只用于本次登录，不会保存到本机')
-        .fontSize(12).fontColor(this.p().textMuted)
+        .fontSize(12).fontColor(this.tk().onSurfaceVariant)
         .width('100%').padding({ left: 16, right: 16, bottom: 12 })
 
       if (this.hasInjectedCreds) {
         Text('调试通道：凭据由启动参数注入，点「登录」即用（不会显示在输入框）')
-          .fontSize(11).fontColor(this.p().warn)
+          .fontSize(11).fontColor(this.tk().accentText)
           .width('100%').padding({ left: 16, right: 16, bottom: 8 })
       }
 
@@ -172,7 +194,7 @@ struct LoginPage {
       if (this.needSms) {
         Column({ space: 8 }) {
           Text('学校要求短信验证')
-            .fontSize(13).fontColor(this.p().warn)
+            .fontSize(13).fontColor(this.tk().accentText)
             .width('100%')
           Row() {
             TextInput({ placeholder: '短信验证码', text: this.smsCode })
@@ -199,7 +221,7 @@ struct LoginPage {
       // 状态
       Text(this.statusText)
         .fontSize(13)
-        .fontColor(this.errorColor)
+        .fontColor(this.toneColor())
         .width('100%')
         .padding({ left: 16, right: 16, top: 14 })
 
@@ -209,7 +231,7 @@ struct LoginPage {
           ForEach(this.steps, (line: string, i: number) => {
             ListItem() {
               Text(line)
-                .fontSize(11).fontColor(this.p().textMuted)
+                .fontSize(11).fontColor(this.tk().onSurfaceVariant)
                 .width('100%')
                 .padding({ left: 16, right: 16, top: 2, bottom: 2 })
             }
@@ -223,7 +245,7 @@ struct LoginPage {
 
       Row() {
         Text('返回')
-          .fontSize(13).fontColor(this.p().accent)
+          .fontSize(13).fontColor(this.tk().primary)
           .onClick(() => {
             router.back();
           })

@@ -17,8 +17,9 @@
  */
 
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { CourseCache, CachedSchedule } from '../data/CourseCache.ts';
 import { CourseOverlayStore } from '../data/CourseOverlayStore.ts';
 import { CourseRow } from '../core/model/SchoolModels.ts';
@@ -83,6 +84,7 @@ function findOverlayById(list: CourseOverlay[], id: number): CourseOverlay | nul
 @Component
 struct OverlayPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   @State rawCourses: CourseRow[] = [];
   @State overlays: CourseOverlay[] = [];
@@ -109,8 +111,8 @@ struct OverlayPage {
   /** 编辑教务课时记住原课的自然键（锚点来源）。 */
   @State edAnchorKey: string = '';
 
-  private p(): Palette {
-    return palette(this.isDark);
+  private tk(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   private rebuild(): void {
@@ -334,7 +336,7 @@ struct OverlayPage {
 
       if (this.toast.length > 0) {
         Text(this.toast)
-          .fontSize(12).fontColor(this.p().textSecondary)
+          .fontSize(12).fontColor(this.tk().onSurfaceVariant)
           .width('100%').padding({ left: 12, right: 12, bottom: 6 })
       }
 
@@ -343,17 +345,17 @@ struct OverlayPage {
         Scroll() {
           Column() {
             Text(this.edKind === 'ADD' ? '新增一节课' : '修改这节课')
-              .fontSize(13).fontWeight(FontWeight.Bold).fontColor(this.p().textPrimary)
+              .fontSize(13).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
               .width('100%').padding({ top: 4, bottom: 8 })
 
-            Text('课名').fontSize(11).fontColor(this.p().textMuted).width('100%')
+            Text('课名').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%')
             TextInput({ text: this.edName, placeholder: '如：高等数学' })
               .fontSize(13).width('100%')
               .onChange((v: string) => {
                 this.edName = v;
               })
 
-            Text('教师 / 教室').fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 8 })
+            Text('教师 / 教室').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 8 })
             Row() {
               TextInput({ text: this.edTeacher, placeholder: '教师' })
                 .fontSize(13).layoutWeight(1)
@@ -367,14 +369,14 @@ struct OverlayPage {
                 })
             }.width('100%')
 
-            Text('星期').fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 8 })
+            Text('星期').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 8 })
             Row() {
               ForEach(WEEKDAYS, (d: number) => {
                 Text(weekdayCn(d))
                   .fontSize(12).textAlign(TextAlign.Center).layoutWeight(1)
                   .padding({ top: 6, bottom: 6 })
-                  .fontColor(this.edWeekday === d ? this.p().textOnAccent : this.p().textSecondary)
-                  .backgroundColor(this.edWeekday === d ? this.p().accent : this.p().bgAlt)
+                  .fontColor(this.edWeekday === d ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+                  .backgroundColor(this.edWeekday === d ? this.tk().primary : this.tk().surface2)
                   .borderRadius(6)
                   .margin({ left: 2, right: 2 })
                   .onClick(() => {
@@ -383,7 +385,7 @@ struct OverlayPage {
               }, (d: number) => 'wd' + d)
             }.width('100%')
 
-            Text('节次（开始 / 结束）').fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 8 })
+            Text('节次（开始 / 结束）').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 8 })
             Row() {
               TextInput({ text: String(this.edStart) })
                 .type(InputType.Number).fontSize(13).layoutWeight(1)
@@ -393,7 +395,7 @@ struct OverlayPage {
                     this.edStart = Math.floor(n);
                   }
                 })
-              Text(' 至 ').fontSize(12).fontColor(this.p().textSecondary)
+              Text(' 至 ').fontSize(12).fontColor(this.tk().onSurfaceVariant)
               TextInput({ text: String(this.edEnd) })
                 .type(InputType.Number).fontSize(13).layoutWeight(1)
                 .onChange((v: string) => {
@@ -404,15 +406,15 @@ struct OverlayPage {
                 })
             }.width('100%')
 
-            Text('上课周次（点选）').fontSize(11).fontColor(this.p().textMuted).width('100%').margin({ top: 8 })
+            Text('上课周次（点选）').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 8 })
             Flex({ wrap: FlexWrap.Wrap }) {
               ForEach(WEEKS,
                 (w: number) => {
                   Text(String(w))
                     .fontSize(11).textAlign(TextAlign.Center)
                     .width(30).height(26)
-                    .fontColor(this.weekSelected(w) ? this.p().textOnAccent : this.p().textSecondary)
-                    .backgroundColor(this.weekSelected(w) ? this.p().accent : this.p().bgAlt)
+                    .fontColor(this.weekSelected(w) ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+                    .backgroundColor(this.weekSelected(w) ? this.tk().primary : this.tk().surface2)
                     .borderRadius(5).margin(2)
                     .onClick(() => {
                       this.toggleWeek(w);
@@ -423,7 +425,7 @@ struct OverlayPage {
             Row() {
               Button('保存')
                 .height(32).fontSize(13)
-                .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
+                .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
                 .onClick(() => {
                   this.save();
                 })
@@ -445,11 +447,11 @@ struct OverlayPage {
           Column() {
             if (this.overlays.length > 0) {
               Text('我的修改（' + this.overlayCountText() + '）')
-                .fontSize(11).fontColor(this.p().textMuted).width('100%').padding({ top: 4, bottom: 6 })
+                .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').padding({ top: 4, bottom: 6 })
               ForEach(this.overlays, (o: CourseOverlay) => {
                 Row() {
                   Text(this.overlayText(o))
-                    .fontSize(12).fontColor(this.p().textSecondary).layoutWeight(1)
+                    .fontSize(12).fontColor(this.tk().onSurfaceVariant).layoutWeight(1)
                   Button('恢复')
                     .height(26).fontSize(11)
                     .onClick(() => {
@@ -457,28 +459,28 @@ struct OverlayPage {
                     })
                 }
                 .width('100%').padding(10).margin({ bottom: 6 })
-                .backgroundColor(this.p().bgCard).borderRadius(8)
+                .backgroundColor(this.tk().surface).borderRadius(8)
               }, (o: CourseOverlay) => 'ov' + o.id)
             }
 
             Text(this.loading ? '读取课表…' : ('本学期课程（' + this.rows.length + ' 节，点「改」编辑）'))
-              .fontSize(11).fontColor(this.p().textMuted).width('100%').padding({ top: 8, bottom: 6 })
+              .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').padding({ top: 8, bottom: 6 })
 
             ForEach(this.rows, (row: MergedCourse) => {
               Column() {
                 Row() {
                   Text(row.KCM.length > 0 ? row.KCM : '（无课名）')
-                    .fontSize(14).fontWeight(FontWeight.Medium).fontColor(this.p().textPrimary)
+                    .fontSize(14).fontWeight(FontWeight.Medium).fontColor(this.tk().onSurface)
                     .layoutWeight(1)
                   if (this.rowMark(row).length > 0) {
                     Text(this.rowMark(row))
-                      .fontSize(10).fontColor(this.p().accent)
+                      .fontSize(10).fontColor(this.tk().primary)
                   }
                 }.width('100%')
                 Text(weekdayCn(row.SKXQ) + ' 第' + row.KSJC + '-' + row.JSJC + ' 节' +
                   (row.JASMC.length > 0 ? ' · ' + row.JASMC : '') +
                   (row.SKJS.length > 0 ? ' · ' + row.SKJS : ''))
-                  .fontSize(11).fontColor(this.p().textSecondary)
+                  .fontSize(11).fontColor(this.tk().onSurfaceVariant)
                   .width('100%').margin({ top: 2 })
                 Row() {
                   Button('改')
@@ -505,7 +507,7 @@ struct OverlayPage {
                 }.margin({ top: 6 })
               }
               .width('100%').padding(10).margin({ bottom: 6 })
-              .backgroundColor(this.p().bgCard).borderRadius(8)
+              .backgroundColor(this.tk().surface).borderRadius(8)
               .alignItems(HorizontalAlign.Start)
             }, (row: MergedCourse) => row.XNXQDM + '|' + row.KCH + '|' + row.SKXQ + '|' + row.KSJC)
           }
@@ -517,7 +519,7 @@ struct OverlayPage {
       }
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.tk().background)
   }
 
 }

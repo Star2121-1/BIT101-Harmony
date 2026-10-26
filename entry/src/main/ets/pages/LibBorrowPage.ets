@@ -12,8 +12,9 @@
 
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { LibBorrowService, LibBorrowResult } from '../service/LibBorrowService.ts';
 import { BorrowRecord, cardSummary, statusText, dueText } from '../corelogic/LibBorrowLogic.ts';
 import type { DateTime } from '../corelogic/timeutil.ts';
@@ -23,6 +24,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 struct LibBorrowPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   /** 'current' = 当前在借；'history' = 历史借阅。 */
   @State tab: string = 'current';
@@ -31,8 +33,8 @@ struct LibBorrowPage {
   @State busy: boolean = false;
   @State loaded: boolean = false;
 
-  private p(): Palette {
-    return palette(this.isDark);
+  private tk(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 本地「现在」（展示层 impure 边界：文案现算）。 */
@@ -135,8 +137,8 @@ struct LibBorrowPage {
       Row() {
         Text('当前在借')
           .fontSize(13).layoutWeight(1).textAlign(TextAlign.Center)
-          .fontColor(this.tab === 'current' ? this.p().textOnAccent : this.p().textMuted)
-          .backgroundColor(this.tab === 'current' ? this.p().accent : this.p().bgAlt)
+          .fontColor(this.tab === 'current' ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+          .backgroundColor(this.tab === 'current' ? this.tk().primary : this.tk().surface2)
           .padding({ top: 8, bottom: 8 })
           .borderRadius(8)
           .onClick(() => {
@@ -144,8 +146,8 @@ struct LibBorrowPage {
           })
         Text('历史借阅')
           .fontSize(13).layoutWeight(1).textAlign(TextAlign.Center)
-          .fontColor(this.tab === 'history' ? this.p().textOnAccent : this.p().textMuted)
-          .backgroundColor(this.tab === 'history' ? this.p().accent : this.p().bgAlt)
+          .fontColor(this.tab === 'history' ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+          .backgroundColor(this.tab === 'history' ? this.tk().primary : this.tk().surface2)
           .padding({ top: 8, bottom: 8 })
           .borderRadius(8)
           .margin({ left: 8 })
@@ -156,7 +158,7 @@ struct LibBorrowPage {
 
       if (this.summaryText().length > 0) {
         Text(this.summaryText())
-          .fontSize(12).fontColor(this.p().textSecondary)
+          .fontSize(12).fontColor(this.tk().onSurfaceVariant)
           .width('100%').padding({ left: 12, right: 12, top: 8 })
       }
 
@@ -166,17 +168,17 @@ struct LibBorrowPage {
         Column() {
           if (this.busy && !this.loaded) {
             Text('正在查借阅…')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding(16)
           } else if (this.stateKind() === 'none') {
             Text('还没有数据，点右上角刷新。')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding(16)
           } else if (this.stateKind() === 'loggedOut') {
             // 未登录：可处置状态 —— 给登录入口，**不是**「0 本」
             Text('图书馆会话未建立。登录后即可查看在借图书。')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding(16)
             Button('去图书馆登录')
               .fontSize(13).margin({ top: 8 })
-              .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
+              .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
               .onClick(() => {
                 router.pushUrl({ url: 'pages/LibLoginPage' }).catch((e: Error) => {
                   warn('lib -> login fail: ' + JSON.stringify(e));
@@ -185,14 +187,14 @@ struct LibBorrowPage {
           } else if (this.stateKind() === 'failed') {
             // 取不到：如实说取不到，给重试 —— **绝不显示成「0 本」**
             Text('⚠️ 暂时取不到借阅数据：' + this.failReason())
-              .fontSize(12).fontColor(this.p().error).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().error).width('100%').padding(16)
             Button('重试').fontSize(13).margin({ top: 8 })
               .onClick(() => {
                 this.refresh();
               })
           } else if (this.shownRecords().length === 0) {
             Text(this.tab === 'current' ? '当前没有在借的书。' : '没有历史借阅记录。')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding(16)
           } else {
             // keyGenerator 单参（与 DdlPage 唯一编译得过的写法一致；
             // 双参 + 可选参在这个编译器下会连环报错）
@@ -200,22 +202,22 @@ struct LibBorrowPage {
                 Column() {
                   Text(rec.title.length > 0 ? rec.title : '（无题名）')
                     .fontSize(14).fontWeight(FontWeight.Medium).layoutWeight(1)
-                    .fontColor(this.p().textPrimary)
+                    .fontColor(this.tk().onSurface)
                   Text((rec.author.length > 0 ? rec.author + ' · ' : '') +
                     (rec.location.length > 0 ? rec.location : ''))
-                    .fontSize(11).fontColor(this.p().textSecondary)
+                    .fontSize(11).fontColor(this.tk().onSurfaceVariant)
                     .width('100%').margin({ top: 2 })
                   Row() {
                     Text('应还 ' + dueText(rec))
-                      .fontSize(11).fontColor(this.p().textSecondary).layoutWeight(1)
+                      .fontSize(11).fontColor(this.tk().onSurfaceVariant).layoutWeight(1)
                     Text(statusText(rec, this.now()))
                       .fontSize(11)
-                      .fontColor(this.isOverdue(rec) ? this.p().error : this.p().textMuted)
+                      .fontColor(this.isOverdue(rec) ? this.tk().error : this.tk().onSurfaceVariant)
                   }
                   .width('100%').margin({ top: 2 })
                 }
                 .width('100%').padding(12).margin({ top: 8 })
-                .backgroundColor(this.p().bgCard)
+                .backgroundColor(this.tk().surface)
                 .borderRadius(10)
                 // 键内容派生：书名 + ISBN + 应还日（接口不给 id）
               }, (rec: BorrowRecord) => rec.key)
@@ -228,7 +230,7 @@ struct LibBorrowPage {
       .align(Alignment.Top)
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.tk().background)
   }
 
   /** 已逾期（状态文案标红用）。 */

@@ -9,8 +9,9 @@
  */
 
 import { router } from '@kit.ArkUI';
-import { palette, type Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { NotifyRecord, kindLabel } from '../corelogic/NotifyRecordLogic.ts';
 import { NotifyRecordStore } from '../data/NotifyRecordStore.ts';
 import { ReminderKind } from '../corelogic/NotifyLogic.ts';
@@ -25,14 +26,15 @@ interface TabItem {
 @Component
 struct NotifyListPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   @State tabs: TabItem[] = [];
   @State activeTab: number = 0;
   @State records: NotifyRecord[] = [];
   @State busy: boolean = false;
   @State emptyMsg: string = '';
 
-  private p(): Palette {
-    return palette(this.isDark);
+  private tk(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   aboutToAppear(): void {
@@ -80,25 +82,25 @@ struct NotifyListPage {
       // 顶部：返回 + 标题 + 刷新
       Row() {
         Text('‹')
-          .fontSize(28).fontColor(this.p().textPrimary).width(44)
+          .fontSize(28).fontColor(this.tk().onSurface).width(44)
           .textAlign(TextAlign.Center).margin({ left: 8 })
           .onClick(() => router.back())
         Text('通知')
-          .fontSize(18).fontWeight(FontWeight.Bold).fontColor(this.p().textPrimary).layoutWeight(1)
+          .fontSize(18).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).layoutWeight(1)
         Text('刷新')
-          .fontSize(14).fontColor(this.p().accent)
+          .fontSize(14).fontColor(this.tk().primary)
           .onClick(() => this.reload())
           .margin({ right: 12 })
       }
-      .width('100%').height(56).backgroundColor(this.p().bgPage)
+      .width('100%').height(56).backgroundColor(this.tk().background)
 
       // 类型 tab
       Row() {
         ForEach(this.tabs, (t: TabItem) => {
           Text(t.label)
             .fontSize(13)
-            .fontColor(this.activeTab === this.tabs.indexOf(t) ? this.p().textOnAccent : this.p().textMuted)
-            .backgroundColor(this.activeTab === this.tabs.indexOf(t) ? this.p().accent : this.p().bgAlt)
+            .fontColor(this.activeTab === this.tabs.indexOf(t) ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+            .backgroundColor(this.activeTab === this.tabs.indexOf(t) ? this.tk().primary : this.tk().surface2)
             .borderRadius(14).padding({ left: 12, right: 12, top: 6, bottom: 6 })
             .margin({ right: 8 })
             .onClick(() => {
@@ -108,16 +110,16 @@ struct NotifyListPage {
         }, (t: TabItem) => (t.kind === null ? 'all' : t.kind))
       }
       .width('100%').padding({ left: 12, right: 12, top: 8, bottom: 8 })
-      .backgroundColor(this.p().bgPage)
+      .backgroundColor(this.tk().background)
 
       // 列表
       if (this.busy) {
         Text('正在读记录…')
-          .fontSize(13).fontColor(this.p().textMuted)
+          .fontSize(13).fontColor(this.tk().onSurfaceVariant)
           .width('100%').padding(24)
       } else if (this.records.length === 0) {
         Text(this.emptyMsg)
-          .fontSize(13).fontColor(this.p().textMuted)
+          .fontSize(13).fontColor(this.tk().onSurfaceVariant)
           .width('100%').padding(24)
       } else {
         Scroll() {
@@ -127,44 +129,46 @@ struct NotifyListPage {
                 Row() {
                   Text(kindLabel(rec.kind))
                     .fontSize(11)
-                    .fontColor(this.p().textOnAccent)
-                    .backgroundColor(this.p().accent)
+                    .fontColor(this.tk().onPrimary)
+                    .backgroundColor(this.tk().primary)
                     .borderRadius(4).padding({ left: 6, right: 6, top: 2, bottom: 2 })
                   Text(rec.title)
                     .fontSize(14).fontWeight(FontWeight.Medium)
-                    .fontColor(this.p().textPrimary)
+                    .fontColor(this.tk().onSurface)
                     .margin({ left: 8 }).layoutWeight(1)
                     .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
                 }.width('100%')
 
                 Text(rec.text)
-                  .fontSize(13).fontColor(this.p().textSecondary)
+                  .fontSize(13).fontColor(this.tk().onSurfaceVariant)
                   .margin({ top: 4 }).width('100%')
 
                 Row() {
                   Text(NotifyRecordStore.fmtAt(rec))
-                    .fontSize(12).fontColor(this.p().textMuted)
+                    .fontSize(12).fontColor(this.tk().onSurfaceVariant)
                   if (rec.firedMillis > 0) {
                     Text(' · 已发')
-                      .fontSize(12).fontColor(this.p().textMuted)
+                      .fontSize(12).fontColor(this.tk().onSurfaceVariant)
                   } else {
                     Text(' · ' + this.remainText(rec, Date.now()))
-                      .fontSize(12).fontColor(this.p().textMuted)
+                      .fontSize(12).fontColor(this.tk().onSurfaceVariant)
                   }
                 }
                 .width('100%').margin({ top: 4 })
               }
               .width('100%').padding(12)
-              .backgroundColor(this.p().bgAlt)
+              .backgroundColor(this.tk().surface2)
               .borderRadius(10).margin({ bottom: 8 })
             }, (rec: NotifyRecord) => rec.key)
           }
           .width('100%')
         }
         .width('100%').layoutWeight(1)
+        // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
+        .align(Alignment.Top)
       }
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.tk().background)
   }
 }

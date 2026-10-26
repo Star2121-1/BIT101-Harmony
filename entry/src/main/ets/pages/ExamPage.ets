@@ -10,8 +10,9 @@
  */
 
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { SchoolService, SchoolAuthError } from '../service/SchoolService.ts';
 import { ExamRow } from '../core/model/SchoolModels.ts';
@@ -24,6 +25,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 struct ExamPage {
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   @State loading: boolean = true;
   @State errorText: string = '';
   @State needLogin: boolean = false;
@@ -90,9 +92,9 @@ struct ExamPage {
     return ksrq;
   }
 
-  /** 当前配色（语义色见 core/theme/AppColors.ts）。 */
-  private p(): Palette {
-    return palette(this.isDark);
+  /** 当前配色（语义色见 core/theme/GridTokens.ts）。 */
+  private tk(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   build() {
@@ -107,7 +109,7 @@ struct ExamPage {
           Text('考试安排')
             .fontSize(16).fontWeight(FontWeight.Bold)
           Text(this.term.length > 0 ? this.term : '加载中…')
-            .fontSize(11).fontColor(this.p().textMuted)
+            .fontSize(11).fontColor(this.tk().onSurfaceVariant)
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
@@ -123,7 +125,7 @@ struct ExamPage {
 
       if (this.errorText.length > 0) {
         Column() {
-          Text(this.errorText).fontSize(13).fontColor(this.p().error).width('100%')
+          Text(this.errorText).fontSize(13).fontColor(this.tk().error).width('100%')
           if (this.needLogin) {
             Button('去登录')
               .height(40).margin({ top: 12 })
@@ -137,12 +139,12 @@ struct ExamPage {
 
       if (this.loading) {
         Text('正在取考试安排（约 5~15 秒）…')
-          .fontSize(13).fontColor(this.p().textMuted)
+          .fontSize(13).fontColor(this.tk().onSurfaceVariant)
           .width('100%').padding(16)
       } else if (this.exams.length === 0 && this.errorText.length === 0) {
         // 取到了但确实没有考试 —— 这是事实，不能和「取不到」混为一谈
         Text('本学期没有考试安排')
-          .fontSize(13).fontColor(this.p().textMuted)
+          .fontSize(13).fontColor(this.tk().onSurfaceVariant)
           .width('100%').padding(16)
       } else {
         List() {
@@ -154,29 +156,29 @@ struct ExamPage {
                     .fontSize(14).fontWeight(FontWeight.Medium).layoutWeight(1)
                   if (e.KSMC.length > 0) {
                     Text(e.KSMC)
-                      .fontSize(10).fontColor(this.p().accent)
+                      .fontSize(10).fontColor(this.tk().primary)
                       .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                      .backgroundColor(this.p().bgSubtle).borderRadius(4)
+                      .backgroundColor(this.tk().primaryContainer).borderRadius(4)
                   }
                 }
                 .width('100%')
                 Text((e.KSSJMS.length > 0 ? e.KSSJMS : this.dateOnly(e.KSRQ)) +
                   (e.JASMC.length > 0 ? ' · ' + e.JASMC : '') +
                   (e.ZWH.length > 0 ? ' · 座位 ' + e.ZWH : ''))
-                  .fontSize(12).fontColor(this.p().textSecondary)
+                  .fontSize(12).fontColor(this.tk().onSurfaceVariant)
                   .width('100%').margin({ top: 4 })
                 if (e.ZJJSXM.length > 0 || e.KCH.length > 0) {
                   Text((e.ZJJSXM.length > 0 ? e.ZJJSXM : '') +
                     (e.KCH.length > 0 ? ' · ' + e.KCH : ''))
-                    .fontSize(11).fontColor(this.p().textMuted)
+                    .fontSize(11).fontColor(this.tk().onSurfaceVariant)
                     .width('100%').margin({ top: 2 })
                 }
               }
               .width('100%')
               .padding(12)
-              .backgroundColor(this.p().bgCard)
+              .backgroundColor(this.tk().surface)
               .borderRadius(8)
-              .border({ width: 0.5, color: this.p().bgAlt })
+              .border({ width: 0.5, color: this.tk().surface2 })
             }
             .margin({ bottom: 8 })
           }, (e: ExamRow) => 'ex_' + e.KCH + '_' + e.KSRQ)
@@ -188,11 +190,11 @@ struct ExamPage {
       }
 
       Text('共 ' + this.exams.length + ' 场考试')
-        .fontSize(11).fontColor(this.p().textMuted)
+        .fontSize(11).fontColor(this.tk().onSurfaceVariant)
         .width('100%')
         .padding({ left: 12, right: 12, top: 4, bottom: 8 })
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgAlt)
+    .backgroundColor(this.tk().surface2)
   }
 }

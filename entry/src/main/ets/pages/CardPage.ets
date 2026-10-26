@@ -14,8 +14,9 @@
 
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { CampusCardService } from '../service/CampusCardService.ts';
 import { CampusCardStore } from '../data/CampusCardStore.ts';
 import { CardEntry, CardSnapshot, balanceText } from '../corelogic/CampusCardLogic.ts';
@@ -26,14 +27,15 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 struct CardPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   @State snap: CardSnapshot | null = null;
   @State busy: boolean = false;
   @State loaded: boolean = false;
   @State trend: BalanceTrend = emptyTrend();
 
-  private p(): Palette {
-    return palette(this.isDark);
+  private tk(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 三态码：'none' | 'ok' | 'loggedOut' | 'failed'（UI 树里不能声明局部变量，绕一层）。 */
@@ -113,19 +115,19 @@ struct CardPage {
           // ── 余额大数 ──
           Text(this.balanceLine())
             .fontSize(28).fontWeight(FontWeight.Bold)
-            .fontColor(this.stateKind() === 'ok' ? this.p().textPrimary : this.p().textMuted)
+            .fontColor(this.stateKind() === 'ok' ? this.tk().onSurface : this.tk().onSurfaceVariant)
             .width('100%').padding({ left: 16, right: 16, top: 8 })
 
           // ── 趋势行（详情页恒定显示：算不出来也有「记录中…」解释） ──
           Text(trendRowText(this.trend))
-            .fontSize(12).fontColor(this.p().textSecondary)
+            .fontSize(12).fontColor(this.tk().onSurfaceVariant)
             .width('100%').padding({ left: 16, right: 16, top: 4 })
 
           // ── 三态处置 ──
           if (this.stateKind() === 'failed') {
             // 取不到：如实说取不到，给重试
             Text('⚠️ 暂时取不到一卡通数据（网络或接口问题）')
-              .fontSize(12).fontColor(this.p().error).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().error).width('100%').padding(16)
             Button('重试').fontSize(13).margin({ top: 8 })
               .onClick(() => {
                 this.refresh();
@@ -133,10 +135,10 @@ struct CardPage {
           } else if (this.stateKind() === 'loggedOut') {
             // 未登录：可处置状态 —— 给登录入口
             Text('一卡通会话未建立。登录后即可查看余额。')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding(16)
             Button('去一卡通登录')
               .fontSize(13).margin({ top: 8 })
-              .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
+              .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
               .onClick(() => {
                 router.pushUrl({ url: 'pages/CardLoginPage' }).catch((e: Error) => {
                   warn('card -> login fail: ' + JSON.stringify(e));
@@ -144,22 +146,22 @@ struct CardPage {
               })
           } else if (this.stateKind() === 'none') {
             Text('还没有数据，点右上角刷新。')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding(16)
           } else if (this.entries().length === 0) {
             // 已登录但解析不到余额字段：如实说，不显示成「¥」空值
             Text('已登录，但未在首页识别到余额字段（页面可能已改版）')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding(16)
           } else {
             // keyGenerator 单参（本编译器唯一编译得过的写法）
             ForEach(this.entries(), (entry: CardEntry) => {
                 Row() {
                   Text(entry.label)
-                    .fontSize(13).fontColor(this.p().textSecondary).layoutWeight(1)
+                    .fontSize(13).fontColor(this.tk().onSurfaceVariant).layoutWeight(1)
                   Text('¥' + entry.value)
-                    .fontSize(13).fontColor(this.p().textPrimary)
+                    .fontSize(13).fontColor(this.tk().onSurface)
                 }
                 .width('100%').padding(12).margin({ top: 8 })
-                .backgroundColor(this.p().bgCard)
+                .backgroundColor(this.tk().surface)
                 .borderRadius(10)
               }, (entry: CardEntry) => entry.label + '=' + entry.value)
           }
@@ -171,6 +173,6 @@ struct CardPage {
       .align(Alignment.Top)
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.tk().background)
   }
 }

@@ -8,7 +8,8 @@
  * 本页改的是 `ThemeStore`，它往 `AppStorage` 广播 `ui_dark`；
  * 其它页面用 `@StorageLink('ui_dark')` + `@StorageLink('ui_palette')` 订阅，
  * 从 `gridTokens(isDark, palette)` 取色（#89 起 palette 轴可切）。
- * 颜色值本身在 `core/theme/AppColors.ts`，对比度由 `tools/test-colors.mjs` 钉住。
+ * 颜色值本身在 `core/theme/GridTokens.ts`（三套 palette × 明暗，本页可切），
+ * 对比度由 `tools/test-gridcontrast.mjs` 钉住。
  *
  * ## 登出的边界（重要）
  * 只清 **cookie + JWT**，**不清课表缓存**。

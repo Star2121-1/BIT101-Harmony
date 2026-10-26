@@ -9,8 +9,9 @@
  */
 
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { TimeTableStore, SECTION_COUNT, validate } from '../data/TimeTableStore.ts';
 import type { TimeTable, TimeTableItem } from '../corelogic/timeutil.ts';
 import { info } from '../core/log/BitLog.ts';
@@ -34,14 +35,15 @@ function fmt(minutes: number): string {
 @Component
 struct TimeTablePage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   @State rows: RowDraft[] = [];
   @State custom: boolean = false;
   @State toast: string = '';
   @State toastIsError: boolean = false;
 
-  private p(): Palette {
-    return palette(this.isDark);
+  private tk(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   aboutToAppear(): void {
@@ -135,20 +137,20 @@ struct TimeTablePage {
   sectionRow(r: RowDraft) {
     Row() {
       Text('第 ' + r.section + ' 节')
-        .fontSize(13).fontColor(this.p().textPrimary).width(64)
+        .fontSize(13).fontColor(this.tk().onSurface).width(64)
       Text(r.startText)
-        .fontSize(14).fontColor(this.p().accent)
+        .fontSize(14).fontColor(this.tk().primary)
         .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-        .backgroundColor(this.p().bgAlt)
+        .backgroundColor(this.tk().surface2)
         .borderRadius(6)
         .onClick(() => {
           this.pick(r.section, true);
         })
-      Text('—').fontSize(12).fontColor(this.p().textMuted).margin({ left: 8, right: 8 })
+      Text('—').fontSize(12).fontColor(this.tk().onSurfaceVariant).margin({ left: 8, right: 8 })
       Text(r.endText)
-        .fontSize(14).fontColor(this.p().accent)
+        .fontSize(14).fontColor(this.tk().primary)
         .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-        .backgroundColor(this.p().bgAlt)
+        .backgroundColor(this.tk().surface2)
         .borderRadius(6)
         .onClick(() => {
           this.pick(r.section, false);
@@ -156,20 +158,20 @@ struct TimeTablePage {
     }
     .width('100%')
     .padding({ top: 7, bottom: 7 })
-    .border({ width: { bottom: 0.5 }, color: this.p().divider })
+    .border({ width: { bottom: 0.5 }, color: this.tk().outlineVariant })
   }
 
   build() {
     Column() {
       Row() {
         Text('‹ 返回')
-          .fontSize(14).fontColor(this.p().accent)
+          .fontSize(14).fontColor(this.tk().primary)
           .onClick(() => {
             router.back();
           })
         Text('作息时间')
           .fontSize(16).fontWeight(FontWeight.Bold)
-          .fontColor(this.p().textPrimary)
+          .fontColor(this.tk().onSurface)
           .layoutWeight(1).textAlign(TextAlign.Center)
         Text('    ').fontSize(14)
       }
@@ -181,7 +183,7 @@ struct TimeTablePage {
           Text(this.custom
             ? '当前使用自定义作息。点时间可修改，改完记得保存。'
             : '当前使用学校官方作息。点任意时间即可改成你自己的。')
-            .fontSize(11).fontColor(this.p().textMuted)
+            .fontSize(11).fontColor(this.tk().onSurfaceVariant)
             .width('100%').margin({ bottom: 8 })
 
           Column() {
@@ -190,13 +192,13 @@ struct TimeTablePage {
             }, (r: RowDraft) => 's_' + r.section + '_' + r.startText + '_' + r.endText)
           }
           .width('100%').padding({ left: 12, right: 12 })
-          .backgroundColor(this.p().bgCard)
+          .backgroundColor(this.tk().surface)
           .borderRadius(10)
 
           if (this.toast.length > 0) {
             Text(this.toast)
               .fontSize(11)
-              .fontColor(this.toastIsError ? this.p().error : this.p().success)
+              .fontColor(this.toastIsError ? this.tk().error : this.tk().success)
               .width('100%').margin({ top: 10 })
           }
 
@@ -204,16 +206,16 @@ struct TimeTablePage {
             Button('恢复官方作息')
               .height(34).fontSize(13)
               .layoutWeight(1)
-              .backgroundColor(this.p().bgAlt)
-              .fontColor(this.p().textPrimary)
+              .backgroundColor(this.tk().surface2)
+              .fontColor(this.tk().onSurface)
               .onClick(() => {
                 this.resetToDefault();
               })
             Button('保存')
               .height(34).fontSize(13)
               .layoutWeight(1)
-              .backgroundColor(this.p().accent)
-              .fontColor(this.p().textOnAccent)
+              .backgroundColor(this.tk().primary)
+              .fontColor(this.tk().onPrimary)
               .onClick(() => {
                 this.save();
               })
@@ -221,7 +223,7 @@ struct TimeTablePage {
           .width('100%').margin({ top: 14 })
 
           Text('约束：每节结束必须晚于开始，且不能与上一节重叠。不符合时不会保存，并会说明原因。')
-            .fontSize(10).fontColor(this.p().textFaint)
+            .fontSize(10).fontColor(this.tk().textPlaceholder)
             .width('100%').margin({ top: 10, bottom: 20 })
         }
         .width('100%')
@@ -233,6 +235,6 @@ struct TimeTablePage {
       .align(Alignment.Top)
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.tk().background)
   }
 }

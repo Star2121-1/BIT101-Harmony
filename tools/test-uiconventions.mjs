@@ -115,5 +115,25 @@ if (violations.length > 0) {
   console.log('  违规明细：\n    ' + violations.join('\n    '));
 }
 
+// ── 规则 3：页面不许再引用旧配色 AppColors ────────────────────────────────
+// 2026-10-27 已把全部页面迁到 gridTokens（三套 palette × 明暗可切）。
+// 旧 `AppColors` 只剩 `contrastRatio` / `relativeLuminance` 度量函数给测试用；
+// 新页面若再 import 它的 palettes，就等于绕过 palette 轴、切皮肤不生效。
+const LEGACY = /from\s+['"][^'"]*core\/theme\/AppColors\.ts['"]/;
+const legacyUsers = [];
+for (const f of files) {
+  const src = readFileSync(f, 'utf8');
+  const rel = f.slice(ROOT.length + 1);
+  // 只允许拿度量函数，且只允许测试/工具性质的调用方（页面目录一律不许）
+  if (LEGACY.test(src) && rel.includes('pages/')) {
+    legacyUsers.push(rel);
+  }
+}
+ok(legacyUsers.length === 0,
+  `页面不再引用旧 AppColors（违规 ${legacyUsers.length} 个）`);
+if (legacyUsers.length > 0) {
+  console.log('  违规明细：\n    ' + legacyUsers.join('\n    '));
+}
+
 console.log('\n' + (failed === 0 ? 'ALL PASS' : 'FAILED') + '  pass=' + passed + ' fail=' + failed);
 process.exit(failed === 0 ? 0 : 1);

@@ -15,8 +15,9 @@
  */
 
 import { router } from '@kit.ArkUI';
-import { palette, type Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import {
   NotifySettingsStore,
@@ -33,6 +34,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 struct NotifySettingsPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   @State notifyEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.enabled;
   @State classEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.classEnabled;
   @State classLead: number = DEFAULT_NOTIFY_SETTINGS.classLeadMinutes;
@@ -49,8 +51,8 @@ struct NotifySettingsPage {
   @State status: string = '';
   @State busy: boolean = false;
 
-  private p(): Palette {
-    return palette(this.isDark);
+  private tk(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   onPageShow(): void {
@@ -134,23 +136,23 @@ struct NotifySettingsPage {
       // 返回 + 标题
       Row() {
         Text('‹')
-          .fontSize(28).fontColor(this.p().textPrimary).width(44)
+          .fontSize(28).fontColor(this.tk().onSurface).width(44)
           .textAlign(TextAlign.Center).margin({ left: 8 })
           .onClick(() => router.back())
         Text('提醒设置')
-          .fontSize(18).fontWeight(FontWeight.Bold).fontColor(this.p().textPrimary).layoutWeight(1)
+          .fontSize(18).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).layoutWeight(1)
       }
-      .width('100%').height(56).backgroundColor(this.p().bgPage)
+      .width('100%').height(56).backgroundColor(this.tk().background)
 
       Scroll() {
         Column() {
           // ── 总开关 ──
           Row() {
-            Text('总开关').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('总开关').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.notifyEnabled ? '开' : '关')
               .fontSize(13)
-              .fontColor(this.notifyEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.notifyEnabled ? this.p().accent : this.p().bgAlt)
+              .fontColor(this.notifyEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.notifyEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 10, bottom: 10 })
@@ -160,12 +162,12 @@ struct NotifySettingsPage {
           })
 
           // ── 上课 ──
-          Text('上课提醒').fontSize(13).fontColor(this.p().textMuted).width('100%').margin({ top: 14, bottom: 4 })
+          Text('上课提醒').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 14, bottom: 4 })
           Row() {
-            Text('上课提醒').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('上课提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.classEnabled ? '开' : '关')
-              .fontSize(13).fontColor(this.classEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.classEnabled ? this.p().accent : this.p().bgAlt)
+              .fontSize(13).fontColor(this.classEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.classEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 8, bottom: 4 })
@@ -174,12 +176,12 @@ struct NotifySettingsPage {
             this.commit();
           })
           Row() {
-            Text('提前').fontSize(13).fontColor(this.p().textSecondary)
+            Text('提前').fontSize(13).fontColor(this.tk().onSurfaceVariant)
             ForEach(CLASS_LEAD_OPTIONS, (v: number) => {
               Text(this.leadText(v))
                 .fontSize(12)
-                .fontColor(this.classLead === v ? this.p().textOnAccent : this.p().textMuted)
-                .backgroundColor(this.classLead === v ? this.p().accent : this.p().bgAlt)
+                .fontColor(this.classLead === v ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+                .backgroundColor(this.classLead === v ? this.tk().primary : this.tk().surface2)
                 .borderRadius(12).padding({ left: 10, right: 10, top: 4, bottom: 4 }).margin({ left: 8 })
                 .onClick(() => {
                   this.classLead = v;
@@ -190,12 +192,12 @@ struct NotifySettingsPage {
           .width('100%').padding({ top: 2, bottom: 4 })
 
           // ── 作业（DDL）──
-          Text('作业（DDL）').fontSize(13).fontColor(this.p().textMuted).width('100%').margin({ top: 14, bottom: 4 })
+          Text('作业（DDL）').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 14, bottom: 4 })
           Row() {
-            Text('作业提醒').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('作业提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.ddlEnabled ? '开' : '关')
-              .fontSize(13).fontColor(this.ddlEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.ddlEnabled ? this.p().accent : this.p().bgAlt)
+              .fontSize(13).fontColor(this.ddlEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.ddlEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 8, bottom: 4 })
@@ -204,10 +206,10 @@ struct NotifySettingsPage {
             this.commit();
           })
           Row() {
-            Text('截止前一天提醒').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('截止前一天提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.ddlDayEnabled ? '开' : '关')
-              .fontSize(13).fontColor(this.ddlDayEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.ddlDayEnabled ? this.p().accent : this.p().bgAlt)
+              .fontSize(13).fontColor(this.ddlDayEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.ddlDayEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 8, bottom: 4 })
@@ -216,10 +218,10 @@ struct NotifySettingsPage {
             this.commit();
           })
           Row() {
-            Text('截止前一小时提醒').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('截止前一小时提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.ddlHourEnabled ? '开' : '关')
-              .fontSize(13).fontColor(this.ddlHourEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.ddlHourEnabled ? this.p().accent : this.p().bgAlt)
+              .fontSize(13).fontColor(this.ddlHourEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.ddlHourEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 8, bottom: 4 })
@@ -229,12 +231,12 @@ struct NotifySettingsPage {
           })
 
           // ── 座位签到 ──
-          Text('座位签到').fontSize(13).fontColor(this.p().textMuted).width('100%').margin({ top: 14, bottom: 4 })
+          Text('座位签到').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 14, bottom: 4 })
           Row() {
-            Text('签到提醒').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('签到提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.seatEnabled ? '开' : '关')
-              .fontSize(13).fontColor(this.seatEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.seatEnabled ? this.p().accent : this.p().bgAlt)
+              .fontSize(13).fontColor(this.seatEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.seatEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 8, bottom: 4 })
@@ -243,12 +245,12 @@ struct NotifySettingsPage {
             this.commit();
           })
           Row() {
-            Text('提前').fontSize(13).fontColor(this.p().textSecondary)
+            Text('提前').fontSize(13).fontColor(this.tk().onSurfaceVariant)
             ForEach(SEAT_LEAD_OPTIONS, (v: number) => {
               Text(this.leadText(v))
                 .fontSize(12)
-                .fontColor(this.seatLead === v ? this.p().textOnAccent : this.p().textMuted)
-                .backgroundColor(this.seatLead === v ? this.p().accent : this.p().bgAlt)
+                .fontColor(this.seatLead === v ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+                .backgroundColor(this.seatLead === v ? this.tk().primary : this.tk().surface2)
                 .borderRadius(12).padding({ left: 10, right: 10, top: 4, bottom: 4 }).margin({ left: 8 })
                 .onClick(() => {
                   this.seatLead = v;
@@ -259,12 +261,12 @@ struct NotifySettingsPage {
           .width('100%').padding({ top: 2, bottom: 4 })
 
           // ── 出分（M7-3 预留）──
-          Text('出分提醒').fontSize(13).fontColor(this.p().textMuted).width('100%').margin({ top: 14, bottom: 4 })
+          Text('出分提醒').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 14, bottom: 4 })
           Row() {
-            Text('出分提醒（待上线）').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('出分提醒（待上线）').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.scoreEnabled ? '开' : '关')
-              .fontSize(13).fontColor(this.scoreEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.scoreEnabled ? this.p().accent : this.p().bgAlt)
+              .fontSize(13).fontColor(this.scoreEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.scoreEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 8, bottom: 4 })
@@ -274,12 +276,12 @@ struct NotifySettingsPage {
           })
 
           // ── 考试 ──
-          Text('考试').fontSize(13).fontColor(this.p().textMuted).width('100%').margin({ top: 14, bottom: 4 })
+          Text('考试').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 14, bottom: 4 })
           Row() {
-            Text('考试提醒').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('考试提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.examEnabled ? '开' : '关')
-              .fontSize(13).fontColor(this.examEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.examEnabled ? this.p().accent : this.p().bgAlt)
+              .fontSize(13).fontColor(this.examEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.examEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 8, bottom: 4 })
@@ -288,10 +290,10 @@ struct NotifySettingsPage {
             this.commit();
           })
           Row() {
-            Text('考前一天提醒').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('考前一天提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.examDayEnabled ? '开' : '关')
-              .fontSize(13).fontColor(this.examDayEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.examDayEnabled ? this.p().accent : this.p().bgAlt)
+              .fontSize(13).fontColor(this.examDayEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.examDayEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 8, bottom: 4 })
@@ -300,12 +302,12 @@ struct NotifySettingsPage {
             this.commit();
           })
           Row() {
-            Text('提前').fontSize(13).fontColor(this.p().textSecondary)
+            Text('提前').fontSize(13).fontColor(this.tk().onSurfaceVariant)
             ForEach(EXAM_LEAD_OPTIONS, (v: number) => {
               Text(this.leadText(v))
                 .fontSize(12)
-                .fontColor(this.examLead === v ? this.p().textOnAccent : this.p().textMuted)
-                .backgroundColor(this.examLead === v ? this.p().accent : this.p().bgAlt)
+                .fontColor(this.examLead === v ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+                .backgroundColor(this.examLead === v ? this.tk().primary : this.tk().surface2)
                 .borderRadius(12).padding({ left: 10, right: 10, top: 4, bottom: 4 }).margin({ left: 8 })
                 .onClick(() => {
                   this.examLead = v;
@@ -316,12 +318,12 @@ struct NotifySettingsPage {
           .width('100%').padding({ top: 2, bottom: 4 })
 
           // ── 教学调整（只有开关）──
-          Text('教学调整（补课）').fontSize(13).fontColor(this.p().textMuted).width('100%').margin({ top: 14, bottom: 4 })
+          Text('教学调整（补课）').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 14, bottom: 4 })
           Row() {
-            Text('补课提醒').fontSize(14).fontColor(this.p().textPrimary).layoutWeight(1)
+            Text('补课提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.adjustmentEnabled ? '开' : '关')
-              .fontSize(13).fontColor(this.adjustmentEnabled ? this.p().textOnAccent : this.p().textMuted)
-              .backgroundColor(this.adjustmentEnabled ? this.p().accent : this.p().bgAlt)
+              .fontSize(13).fontColor(this.adjustmentEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.adjustmentEnabled ? this.tk().primary : this.tk().surface2)
               .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
           }
           .width('100%').padding({ top: 8, bottom: 4 })
@@ -332,14 +334,16 @@ struct NotifySettingsPage {
 
           // ── 重排结果 ──
           if (this.status.length > 0) {
-            Text(this.status).fontSize(12).fontColor(this.p().textMuted).width('100%').padding({ top: 12, bottom: 8 })
+            Text(this.status).fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding({ top: 12, bottom: 8 })
           }
         }
         .width('100%').padding({ left: 12, right: 12, top: 8, bottom: 24 })
       }
       .width('100%').layoutWeight(1)
+      // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
+      .align(Alignment.Top)
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.tk().background)
   }
 }

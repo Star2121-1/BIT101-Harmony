@@ -13,8 +13,9 @@
 
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
-import { palette, Palette } from '../core/theme/AppColors.ts';
-import { STORAGE_DARK } from '../data/ThemeStore.ts';
+import { gridTokens } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { CampusNetService, NET_AUTH_URL } from '../service/CampusNetService.ts';
 import { CampusNetTrafficStore } from '../data/CampusNetTrafficStore.ts';
 import {
@@ -37,14 +38,15 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 struct NetPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
 
   @State result: CampusNetResult | null = null;
   @State trend: TrafficTrend = emptyTrafficTrend();
   @State busy: boolean = false;
   @State loaded: boolean = false;
 
-  private p(): Palette {
-    return palette(this.isDark);
+  private tk(): GridTokens {
+    return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   /** 三态码：'none' | 'online' | 'notOnline' | 'failed'（UI 树里不能声明局部变量）。 */
@@ -156,65 +158,65 @@ struct NetPage {
         Column() {
           if (this.busy && !this.loaded) {
             Text('正在查校园网…')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding(16)
           } else if (this.stateKind() === 'online') {
             // ── 本月流量（官方口径：按计费周期累计） ──
             Text('本月流量')
-              .fontSize(12).fontColor(this.p().textSecondary).width('100%')
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%')
               .padding({ left: 16, right: 16, top: 8 })
             Text(this.usedLine())
-              .fontSize(24).fontWeight(FontWeight.Bold).fontColor(this.p().textPrimary)
+              .fontSize(24).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
               .width('100%').padding({ left: 16, right: 16, top: 2 })
             Text(this.forecastLine())
-              .fontSize(12).fontColor(this.p().textSecondary)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant)
               .width('100%').padding({ left: 16, right: 16, top: 4 })
 
             // ── 明细行 ──
             Column() {
               Row() {
-                Text('今日用量').fontSize(13).fontColor(this.p().textSecondary).layoutWeight(1)
-                Text(this.todayLine()).fontSize(13).fontColor(this.p().textPrimary)
+                Text('今日用量').fontSize(13).fontColor(this.tk().onSurfaceVariant).layoutWeight(1)
+                Text(this.todayLine()).fontSize(13).fontColor(this.tk().onSurface)
               }.width('100%').padding({ top: 10 })
 
               Row() {
-                Text('在线时长').fontSize(13).fontColor(this.p().textSecondary).layoutWeight(1)
+                Text('在线时长').fontSize(13).fontColor(this.tk().onSurfaceVariant).layoutWeight(1)
                 Text(this.durationLine())
-                  .fontSize(13).fontColor(this.p().textPrimary)
+                  .fontSize(13).fontColor(this.tk().onSurface)
               }.width('100%').padding({ top: 10 })
 
               Row() {
-                Text('本次上线').fontSize(13).fontColor(this.p().textSecondary).layoutWeight(1)
+                Text('本次上线').fontSize(13).fontColor(this.tk().onSurfaceVariant).layoutWeight(1)
                 Text(this.loginLine())
-                  .fontSize(13).fontColor(this.p().textPrimary)
+                  .fontSize(13).fontColor(this.tk().onSurface)
               }.width('100%').padding({ top: 10 })
 
               Row() {
-                Text('账户余额').fontSize(13).fontColor(this.p().textSecondary).layoutWeight(1)
+                Text('账户余额').fontSize(13).fontColor(this.tk().onSurfaceVariant).layoutWeight(1)
                 Text(this.balanceLine())
-                  .fontSize(13).fontColor(this.p().textPrimary)
+                  .fontSize(13).fontColor(this.tk().onSurface)
               }.width('100%').padding({ top: 10 })
 
               Row() {
-                Text('IP').fontSize(13).fontColor(this.p().textSecondary).layoutWeight(1)
+                Text('IP').fontSize(13).fontColor(this.tk().onSurfaceVariant).layoutWeight(1)
                 Text(this.ipLine())
-                  .fontSize(13).fontColor(this.p().textPrimary)
+                  .fontSize(13).fontColor(this.tk().onSurface)
               }.width('100%').padding({ top: 10 })
             }
             .width('100%').padding(12).margin({ top: 12 })
-            .backgroundColor(this.p().bgCard).borderRadius(10)
+            .backgroundColor(this.tk().surface).borderRadius(10)
 
             Text('数据来自 10.0.0.55 内网接口；只在校园网内可查。限速阈值 300 GB。')
-              .fontSize(11).fontColor(this.p().textMuted)
+              .fontSize(11).fontColor(this.tk().onSurfaceVariant)
               .width('100%').padding({ left: 4, right: 4, top: 10 })
           } else if (this.stateKind() === 'notOnline') {
             // 接口通了但没有在线会话：可处置
             Text('接口通了，但本机当前没有校园网在线会话。')
-              .fontSize(13).fontColor(this.p().textPrimary).width('100%').padding(16)
+              .fontSize(13).fontColor(this.tk().onSurface).width('100%').padding(16)
             Text('多半是还没在校园网认证页登录过。登录后回到本页刷新即可。')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding({ left: 16, right: 16 })
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding({ left: 16, right: 16 })
             Button('去认证页登录')
               .fontSize(13).margin({ top: 12 })
-              .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
+              .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
               .onClick(() => {
                 router.pushUrl({ url: 'pages/WebShellPage', params: { url: NET_AUTH_URL } })
                   .catch((e: Error) => {
@@ -224,16 +226,16 @@ struct NetPage {
           } else if (this.stateKind() === 'failed') {
             // 连不上：多半不在校园网内 —— 别显示成「未登录」
             Text('⚠️ 连不上校园网接口（' + this.failReason() + '）')
-              .fontSize(13).fontColor(this.p().error).width('100%').padding(16)
+              .fontSize(13).fontColor(this.tk().error).width('100%').padding(16)
             Text('该接口只在校园网内可访问。请确认已连上校园 Wi-Fi（或校园网 VPN）后重试。')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding({ left: 16, right: 16 })
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding({ left: 16, right: 16 })
             Button('重试').fontSize(13).margin({ top: 12 })
               .onClick(() => {
                 this.refresh();
               })
           } else {
             Text('还没有数据，点右上角刷新。')
-              .fontSize(12).fontColor(this.p().textMuted).width('100%').padding(16)
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding(16)
           }
         }
         .width('100%').padding({ left: 12, right: 12 })
@@ -243,6 +245,6 @@ struct NetPage {
       .align(Alignment.Top)
     }
     .width('100%').height('100%')
-    .backgroundColor(this.p().bgPage)
+    .backgroundColor(this.tk().background)
   }
 }
