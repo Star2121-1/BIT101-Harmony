@@ -110,8 +110,10 @@ export struct EclassActivityPage {
             })
         }
         Text('课程动态').fontSize(16).fontWeight(FontWeight.Bold).layoutWeight(1)
+          .fontColor(this.p().textPrimary)
           .textAlign(TextAlign.Center)
         Button('刷新').fontSize(13)
+          .backgroundColor(this.p().accent).fontColor(this.p().textOnAccent)
           .enabled(!this.busy)
           .onClick(() => {
             this.load();

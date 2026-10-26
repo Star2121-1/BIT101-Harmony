@@ -24,10 +24,14 @@ export struct TopTabBar {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) private paletteName: string = 'warm';
 
-  /** 页签列表（顺序即布局，来自 `shellNav.SCHEDULE_TABS`）。 */
+  /** 页签列表（顺序即布局，来自 `shellNav.SCHEDULE_TABS`；常量，不需要 @Prop）。 */
   tabs: ShellTab[] = [];
-  /** 当前选中页签 key。 */
-  selectedKey: string = '';
+  /**
+   * 当前选中页签 key。
+   * ⚠️ **必须是 `@Prop`**：未装饰的成员只在创建时取一次父组件值，之后父组件状态变了
+   * 也不会同步（2026-10-26 真机实证：点了「图」，内容切过去了，底栏高亮还停在「卷」）。
+   */
+  @Prop selectedKey: string = '';
   /** 点击回调（传 key，不传下标）。 */
   onSelect: (key: string) => void = () => {};
 

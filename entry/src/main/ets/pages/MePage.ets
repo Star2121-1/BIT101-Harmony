@@ -276,8 +276,10 @@ export struct MePage {
           // ── 双卡横排：一卡通 + 校园网（ref-03：secondaryContainer 底双卡）──
           Row() {
             Column() {
+              // ⚠️ 不许加 layoutWeight：卡片 Column 的高度由内容决定，layoutWeight 会让它
+              // 去抢「剩余高度」，真机上被撑成整屏高的大色块（2026-10-26 实机）。
               Text('一卡通')
-                .fontSize(12).fontColor(this.p().onSecondaryContainer).layoutWeight(1)
+                .fontSize(12).fontColor(this.p().onSecondaryContainer)
               Text(this.cardLine())
                 .fontSize(20).fontWeight(FontWeight.Medium)
                 .fontColor(this.p().onSecondaryContainer).margin({ top: 6 })
@@ -298,7 +300,7 @@ export struct MePage {
 
             Column() {
               Text('校园网')
-                .fontSize(12).fontColor(this.p().onSecondaryContainer).layoutWeight(1)
+                .fontSize(12).fontColor(this.p().onSecondaryContainer)
               Text(this.netLine())
                 .fontSize(15).fontWeight(FontWeight.Medium)
                 .fontColor(this.p().onSecondaryContainer).margin({ top: 6 })
@@ -318,6 +320,7 @@ export struct MePage {
             })
           }
           .width('100%').margin({ top: 10 })
+          .alignItems(VerticalAlign.Top)
 
           // ── 图书馆单卡 ──
           Column() {

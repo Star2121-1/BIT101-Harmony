@@ -233,7 +233,9 @@ export struct ShuttlePage {
         Column() {
           // ── 发车站点 ──
           this.sectionLabel('发车站点', 0)
-          Row() {
+          // ⚠️ 用 Flex + wrap：手机宽 408vp，「良乡大学城北（地铁站）」这种长标签
+          // 在原版（平板 750vp）同一行放得下，手机上会顶出屏幕外（2026-10-26 实机）。
+          Flex({ wrap: FlexWrap.Wrap }) {
             ShuttleChip({
               label: stopLabel(Stop.LIBRARY),
               selected: this.stop === Stop.LIBRARY,
@@ -252,7 +254,6 @@ export struct ShuttlePage {
             })
           }
           .width('100%')
-          .alignItems(VerticalAlign.Top)
 
           // ── 时刻表版本（站牌上就是两套） ──
           this.sectionLabel('时刻表版本（站牌上就是两套）', 10)

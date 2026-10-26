@@ -21,10 +21,14 @@ export struct BottomNavBar {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) private paletteName: string = 'warm';
 
-  /** 模块列表（顺序即布局，来自 `shellNav.NAV_MODULES`）。 */
+  /** 模块列表（顺序即布局，来自 `shellNav.NAV_MODULES`；常量，不需要 @Prop）。 */
   items: ShellModule[] = [];
-  /** 当前选中模块 key。 */
-  selectedKey: string = '';
+  /**
+   * 当前选中模块 key。
+   * ⚠️ **必须是 `@Prop`**：未装饰的成员只在创建时取一次父组件值，父组件后续变化不同步
+   * （2026-10-26 真机实证：点「图」后内容切了、高亮仍是「卷」）。
+   */
+  @Prop selectedKey: string = '';
   /** 点击回调（传 key，不传下标）。 */
   onSelect: (key: string) => void = () => {};
 

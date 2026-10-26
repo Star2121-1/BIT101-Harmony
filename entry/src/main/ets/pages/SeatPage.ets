@@ -406,6 +406,7 @@ export struct SeatPage {
             })
         }
         Text('座位预约').fontSize(16).fontWeight(FontWeight.Bold).layoutWeight(1)
+          .fontColor(this.tk().onSurface)
           .textAlign(TextAlign.Center)
         Text(this.nowText).fontSize(11).fontColor(this.tk().onSurfaceVariant)
       }
