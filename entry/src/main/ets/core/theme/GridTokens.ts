@@ -44,6 +44,7 @@
  */
 
 import { courseColors } from './CoursePalette.ts';
+import { mixHex } from './colorUtil.ts';
 import type { CourseColors } from './CoursePalette.ts';
 
 /** 数字排版档（§8.7：字阶自带 tabular 等宽，不是可选工具类）。 */
@@ -113,6 +114,17 @@ export interface GridTokens {
   onPrimaryContainer: string;
   /** 面（卡片/面板底）。warm 亮=纯白 #FFFFFF。 */
   surface: string;
+  /**
+   * 「抬高一层的面」= `surface` 叠 `primary` 8.24%，即 M3 的
+   * `surfaceColorAtElevation(3.dp)`（公式 `(4.5·ln(3+1)+2)/100`）。
+   * 底部导航栏默认容器色就是这个档（Compose `NavigationBar {}` 不给参数时）。
+   *
+   * ⚠️ 别用 `surface`（纯白）当底栏底：真机 ref-01 底栏实测 `#F5F0ED`，
+   *    而 warm 的 `surface` = `#FFFFFF` —— 少了这一层，底栏和内容区之间
+   *    会丢一条色阶，整块糊成一片（2026-10-27 与原版并排比对发现）。
+   *    配方验证：`mixHex(primary #8A4E26, surface #FFFFFF, 0.0824)` = `#F5F0ED`（逐通道相等）。
+   */
+  surfaceElevated: string;
   /** 面之上的正文。 */
   onSurface: string;
   /** 面之上的次要文字（副标题）。 */
@@ -592,6 +604,7 @@ export function gridTokens(isDark: boolean, paletteName: PaletteName = DEFAULT_P
     tertiaryContainer: ps.tertiaryContainer,
     onTertiaryContainer: ps.onTertiaryContainer,
     surface: ps.surface,
+    surfaceElevated: mixHex(ps.primary, ps.surface, 0.0824),
     onSurface: ps.onSurface,
     onSurfaceVariant: ps.onSurfaceVariant,
     surfaceVariant: ps.surfaceVariant,

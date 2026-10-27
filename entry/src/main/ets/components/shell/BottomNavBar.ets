@@ -2,7 +2,9 @@
  * BottomNavBar —— 底部 6 模块导航（1:1 原版 `IndexScreenNavBar`，Material3 `NavigationBar`）。
  *
  * 形态（实测 ref-01/02/03/05/06/07/08）：
- * - 整条高 56vp，底 `surface`（白），上边 0.5vp `outlineVariant` 细线；
+ * - 整条高 56vp，底 `surfaceElevated`（= surface 叠 primary 8.24%，即 M3 tonalElevation 3dp；
+ *   ⚠️ 不是 `surface` 纯白——真机 ref-01 底栏实测 #F5F0ED，与原版并排一比就看出少了这一层色阶），
+ *   上边 0.5vp `outlineVariant` 细线；
  * - 单项：图标 20vp + 文字 11vp 上下排；
  * - 选中：图标底 `secondaryContainer` 胶囊 56×30（圆角 15），图标与文字 `onSecondaryContainer`；
  * - 未选：透明底，图标与文字 `onSurfaceVariant`。
@@ -71,7 +73,7 @@ export struct BottomNavBar {
     }
     .width('100%')
     .height(56)
-    .backgroundColor(this.tk().surface)
+    .backgroundColor(this.tk().surfaceElevated)
     .border({ width: { top: 0.5 }, color: this.tk().outlineVariant })
   }
 }

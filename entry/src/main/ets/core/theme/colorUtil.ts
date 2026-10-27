@@ -12,7 +12,8 @@
  *   （源码 FreeClassroomSearch.kt:185）
  *
  * ⚠️ Kotlin 版丢 alpha（三参 Color 构造恒 1）；本端口径一致：
- * 只算 RGB，需要半透明的地方调用方自己拼 8 位 hex（ArkUI 支持 '#RRGGBBAA'）。
+ * 只算 RGB，需要半透明的地方用 `withAlpha()` 拼 8 位 hex。
+ * ⚠️⚠️ 8 位 hex 是 `#AARRGGBB`（alpha **在前**），不是 `#RRGGBBAA`（见 withAlpha 注释）。
  */
 
 /** '#RRGGBB' → [r,g,b]（0..255）。非法输入抛错（不猜）。 */

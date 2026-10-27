@@ -14,7 +14,7 @@
  */
 
 import { gridTokens, ALL_PALETTES } from '../entry/src/main/ets/core/theme/GridTokens.ts';
-import { contrastRatio } from '../entry/src/main/ets/core/theme/AppColors.ts';
+import { contrastRatio, relativeLuminance } from '../entry/src/main/ets/core/theme/AppColors.ts';
 
 let passed = 0;
 let failed = 0;
@@ -67,6 +67,10 @@ const PAIRS = [
   ['onSecondaryContainer', 'secondaryContainer', '薄荷卡上的字 / 薄荷卡底', 4.5],
   ['onPrimaryContainer', 'primaryContainer', '桃色卡上的字 / 桃色卡底', 4.5],
   ['success', 'surface', '成功文字 / 卡片底', 4.5],
+  // 底栏底（surfaceElevated）上的文字：底栏是常驻的，糊了整页都读不了
+  ['onSurfaceVariant', 'surfaceElevated', '底栏未选中项文字 / 底栏底', 4.5],
+  ['onSecondaryContainer', 'surfaceElevated', '底栏选中项文字 / 底栏底', 4.5],
+  ['onSurface', 'surfaceElevated', '正文 / 抬高一层的面', 4.5],
 ];
 
 let pairCount = 0;
@@ -78,6 +82,49 @@ for (const name of ALL_PALETTES) {
     for (const [fg, bg, why, min] of PAIRS) {
       pairCount++;
       rate(contrastRatio(t[fg], t[bg]), min, tag + ' ' + fg + ' on ' + bg + ' —— ' + why);
+    }
+  }
+}
+
+// ── surfaceElevated（底栏底）专项 ────────────────────────────────────────
+// 2026-10-27 与原版 App（同机、同尺寸）并排比对发现：我们底栏用 `surface`（纯白），
+// 原版底栏有一层「抬高的面」色阶，整条底栏和内容区糊成一片。
+// 配方 = M3 `surfaceColorAtElevation(3dp)` = surface 叠 primary 8.24%。
+{
+  const t = gridTokens(false, 'warm');
+  // 锚点：平板基准 ref-01 底栏逐像素实测 #F5F0ED（97.1% 的像素都是这一个色）。
+  // 这条红了只有两种可能：配方算错，或者 warm 的 surface/primary 被改过。
+  if (t.surfaceElevated === '#F5F0ED') {
+    passed++;
+    console.log('PASS warm/light surfaceElevated = #F5F0ED（= ref-01 底栏实测）');
+  } else {
+    failed++;
+    console.log('FAIL warm/light surfaceElevated = ' + t.surfaceElevated + '，ref-01 底栏实测应为 #F5F0ED');
+  }
+
+  for (const name of ALL_PALETTES) {
+    for (const dark of [false, true]) {
+      const x = gridTokens(dark, name);
+      const tag = name + '/' + (dark ? 'dark' : 'light');
+      // 1) 必须与 surface 分出层级，否则等于没设
+      if (x.surfaceElevated !== x.surface) {
+        passed++;
+        console.log('PASS ' + tag + ' surfaceElevated 与 surface 有区分');
+      } else {
+        failed++;
+        console.log('FAIL ' + tag + ' surfaceElevated == surface（等于没抬高）');
+      }
+      // 2) M3 语义：浅色压暗、深色提亮。反了说明混色方向写反。
+      const ls = relativeLuminance(x.surface);
+      const le = relativeLuminance(x.surfaceElevated);
+      const okDir = dark ? le > ls : le < ls;
+      if (okDir) {
+        passed++;
+        console.log('PASS ' + tag + ' 抬高方向正确（' + (dark ? '深色提亮' : '浅色压暗') + '）');
+      } else {
+        failed++;
+        console.log('FAIL ' + tag + ' 抬高方向反了（surface ' + x.surface + ' → ' + x.surfaceElevated + '）');
+      }
     }
   }
 }
