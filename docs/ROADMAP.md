@@ -223,7 +223,7 @@
 
 | ID | 任务 | 依赖 | 验收判据 | 状态 |
 |---|---|---|---|---|
-| M8-1 | Form 框架 + 课程卡 | M2-7 | 卡片加到桌面显示当天完整行程 | 🔄 2026-10-27：①独立进程补 `Prefs.init`（真机实证：缺它卡片只显示占位态）；②配色接 `gridTokens()`（palette+深色由 FormExtension 读偏好后随 binding data 下发，替换写死深绿/白底）；③学期来源统一 TermStore（与设置页同源）。编译✓+全量单测 40/40✓+HAP 已装真机；**桌面渲染与配色待解锁后重新加卡片验证** |
+| M8-1 | Form 框架 + 课程卡 | M2-7 | 卡片加到桌面显示当天完整行程 | ✅ 真机已验（2026-10-27，`evidence/m8-card-on-desktop-20261027.jpeg`）：4×4 卡上桌面，`assembleAndPush success len=882`，标题栏/Tab/页脚全走 gridTokens（Warm 棕，写死深绿已废）。修三处：①独立进程补 `Prefs.init`（缺=永久占位态）；②palette+深色由 FormExtension 读偏好随 binding data 下发；③学期统一 TermStore。⚠️ 预览实例 updateForm 报 401 属预期（无真 formId）。**欠**：课程缓存为空时「空闲」行时间列换行（36vp 窄）待修；4×4 布局排版未细调 |
 | M8-2 | DDL 卡 | M4-2 | 显示未完成/已完成两栏 | 🔄 已集成进 WidgetPage（5页Tab中DDL页） |
 | M8-3 | 动态卡 | M4-4 | 显示最新活动 | 🔄 已集成（空态，M9接eclass后再填） |
 | M8-4 | 座位卡 | M9-5 | 显示我的下次预约 | 🔄 已集成（空态，M9完成后接入） |
