@@ -527,6 +527,28 @@ struct SettingsPage {
           .backgroundColor(this.p().surface2)
           .borderRadius(12)
 
+          // ── 提醒 ──
+          // 「提醒设置」的唯一入口原在「我」页入口组；对照原版拆入口组时
+          // 必须先安置到这里（引用数=1，先搬再拆，避免成孤儿页）。
+          this.groupTitle('提醒')
+          Column() {
+            Row() {
+              Text('提醒设置')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('开关 / 提前量').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
+            }
+            .width('100%')
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/NotifySettingsPage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+          }
+          .width('100%').padding(12)
+          .backgroundColor(this.p().secondaryContainer)
+          .borderRadius(12)
+
           // ── 查找 ──
           this.groupTitle('查找')
           Column() {

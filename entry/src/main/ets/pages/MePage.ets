@@ -1,10 +1,14 @@
 /**
- * 「我」页（M5-5）：账号状态 + 三卡摘要（一卡通 / 校园网 / 图书馆）+ 设置入口。
+ * 「我」页（M5-5，#91 对照原版 ref-03 重排）：
+ * 顶栏三图标（刷新/通知/设置）+ 居中账号区（无白卡，直接铺背景）
+ * + 自习卡 + 一卡通/校园网双卡 + 图书馆卡。
  *
- * 验收判据（ROADMAP §4 M5-5，可证伪）：
+ * 验收判据（可证伪）：
  *  1. 三张卡**常显摘要**（不是空白）：取不到/未登录/确实没有各有各的话；
  *  2. 未登录时给登录入口，而不是让人自己去找；
  *  3. 点卡片进对应详情页；进详情页回来后数字会刷新（onPageShow）。
+ *  4. 功能入口组已按原版删除（2026-10-27）：作业/座位走底部 tab、
+ *     通知/设置走顶栏图标、提醒设置迁到设置页「提醒」组（唯一入口先安置再拆）。
  *
  * ## 为什么三卡各自独立兜底
  *
@@ -235,28 +239,29 @@ export struct MePage {
 
       Scroll() {
         Column() {
-          // ── 账号区（ref-03：头像 + 账号 + 状态）──
+          // ── 账号区（ref-03：居中直接铺在背景上，**无白卡**）──
+          // 对照原版拆掉白卡（MIGRATION-BASELINE §12.3-4）；UID/签名/粉丝关注
+          // 原版有但鸿蒙无数据源，不编造，只落「居中 + 无卡」这两条能落的。
           Column() {
-            Row() {
-              // 头像圆：primaryContainer 底 + 主色人形字（无头像图源，用字符兜底）
-              Text('👤')
-                .fontSize(22)
-                .width(48).height(48)
-                .textAlign(TextAlign.Center)
-                .backgroundColor(this.p().primaryContainer)
-                .borderRadius(24)
-              Column() {
-                Text(this.loggedIn ? (this.studentId.length > 0 ? this.studentId : '已登录') : '未登录')
-                  .fontSize(16).fontWeight(FontWeight.Medium).fontColor(this.p().onSurface)
-                Text('学校账号')
-                  .fontSize(11).fontColor(this.p().textPlaceholder).margin({ top: 2 })
-              }
-              .alignItems(HorizontalAlign.Start).layoutWeight(1).margin({ left: 12 })
+            // 头像：品牌鸽（与桌面图标同源的前景图，透明底）+ primaryContainer 圆底
+            Column() {
+              Image($r('app.media.foreground'))
+                .width(44).height(44)
+                .objectFit(ImageFit.Contain)
             }
-            .width('100%')
+            .width(72).height(72)
+            .justifyContent(FlexAlign.Center)
+            .backgroundColor(this.p().primaryContainer)
+            .borderRadius(36)
+
+            Text(this.loggedIn ? (this.studentId.length > 0 ? this.studentId : '已登录') : '未登录')
+              .fontSize(18).fontWeight(FontWeight.Medium).fontColor(this.p().onSurface)
+              .margin({ top: 10 })
+            Text(this.loggedIn ? '学校账号' : '登录后可同步课表与作业')
+              .fontSize(12).fontColor(this.p().textPlaceholder).margin({ top: 4 })
             if (!this.loggedIn) {
               Button('去登录')
-                .height(32).fontSize(13).margin({ top: 10 })
+                .height(32).fontSize(13).margin({ top: 12 })
                 .backgroundColor(this.p().primary).fontColor(this.p().onPrimary)
                 .onClick(() => {
                   router.pushUrl({ url: 'pages/LoginPage' }).catch((e: Error) => {
@@ -265,9 +270,8 @@ export struct MePage {
                 })
             }
           }
-          .width('100%').padding(14).margin({ top: 4 })
-          .backgroundColor(this.p().surface).borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
+          .width('100%').padding({ top: 12 })
+          .alignItems(HorizontalAlign.Center)
 
           // ── 现在去哪儿自习（ref-03：这张卡在「我」页，不在首页）──
           StudySpotCard()
@@ -346,75 +350,9 @@ export struct MePage {
             });
           })
 
-          // ── 功能入口组（原版走底部 tab/设置页；鸿蒙无 tab 框架，入口收在这）──
-          Column() {
-            Row() {
-              Text('作业（DDL）')
-                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
-              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
-            }
-            .width('100%')
-            .onClick(() => {
-              router.pushUrl({ url: 'pages/DdlPage' }).catch((e: Error) => {
-                warn('me -> ddl fail: ' + JSON.stringify(e));
-              });
-            })
-
-            Row() {
-              Text('座位预约')
-                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
-              Text('选座 / 我的预约').fontSize(11).fontColor(this.p().textPlaceholder)
-              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
-            }
-            .width('100%').padding({ top: 12 })
-            .onClick(() => {
-              router.pushUrl({ url: 'pages/SeatPage' }).catch((e: Error) => {
-                warn('me -> seat fail: ' + JSON.stringify(e));
-              });
-            })
-
-            Row() {
-              Text('通知')
-                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
-              Text('提醒记录').fontSize(13).fontColor(this.p().textPlaceholder)
-              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
-            }
-            .width('100%').padding({ top: 12 })
-            .onClick(() => {
-              router.pushUrl({ url: 'pages/NotifyListPage' }).catch((e: Error) => {
-                warn('me -> notify fail: ' + JSON.stringify(e));
-              });
-            })
-
-            Row() {
-              Text('提醒设置')
-                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
-              Text('开关 / 提前量').fontSize(13).fontColor(this.p().textPlaceholder)
-              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
-            }
-            .width('100%').padding({ top: 12 })
-            .onClick(() => {
-              router.pushUrl({ url: 'pages/NotifySettingsPage' }).catch((e: Error) => {
-                warn('me -> notify settings fail: ' + JSON.stringify(e));
-              });
-            })
-
-            Row() {
-              Text('设置')
-                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
-              Text('外观 / 账号 / 校区').fontSize(13).fontColor(this.p().textPlaceholder)
-              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
-            }
-            .width('100%').padding({ top: 12 })
-            .onClick(() => {
-              router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
-                warn('me -> settings fail: ' + JSON.stringify(e));
-              });
-            })
-          }
-          .width('100%').padding(12).margin({ top: 10 })
-          .backgroundColor(this.p().surface).borderRadius(12)
-          .alignItems(HorizontalAlign.Start)
+          // ── 功能入口组已删（对照原版 ref-03：原版没有这组）──
+          // 作业/座位 → 底部 tab 已覆盖；通知/设置 → 顶栏 🔔/⚙ 已覆盖；
+          // 提醒设置 → 唯一入口先迁到设置页「提醒」组（先安置再拆）。
         }
         .width('100%').padding({ left: 12, right: 12, bottom: 24 })
       }
