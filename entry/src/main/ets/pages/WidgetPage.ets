@@ -250,8 +250,12 @@ struct WidgetPage {
         Text(line.time)
           .fontSize(9)
           .fontColor(this.tk().onSurfaceVariant)
+          // ⚠️ 时间文本是 `09:55-12:20`（11 字符），36vp 放不下会折成两行
+          //    （2026-10-27 真机卡片实拍：`08:00–2` / `0:55`）。这里钉单行 + 宽度给够。
+          .maxLines(1)
+          .textAlign(TextAlign.Center)
       }
-      .width(36)
+      .width(54)
       .alignItems(HorizontalAlign.Center)
       .justifyContent(FlexAlign.Center)
 

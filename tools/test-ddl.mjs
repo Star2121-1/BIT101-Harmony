@@ -12,6 +12,9 @@ import { toDdlItems, GROUP } from '../entry/src/main/ets/corelogic/EclassDdlLogi
 import { remainTime, diffMinutes, deadlineShort, isOverdue } from '../entry/src/main/ets/corelogic/DdlFormat.ts';
 import { remainTimeRatio, pendingList, doneList, cardColors, DDL_BEFORE_DAY } from '../entry/src/main/ets/corelogic/DdlListLogic.ts';
 import { mixHex, withAlpha } from '../entry/src/main/ets/core/theme/colorUtil.ts';
+import {
+  isLocalUid, makeLocalUid, uniqueLocalUid, appendLocal, removeLocalEntry,
+} from '../entry/src/main/ets/corelogic/DdlLocalLogic.ts';
 
 let passed = 0;
 let failed = 0;
@@ -214,6 +217,47 @@ eq(doneList([]).length, 0, '空列表已完成区为空');
 // 同日不同时刻：先比 day 再比 minutes
 const list14c = [entry('late', 100, 700, false), entry('early', 100, 100, false)];
 eq(pendingList(list14c).map((e) => e.uid), ['early', 'late'], '同日按时刻升序');
+
+// ── 本地条目规则（DdlLocalLogic）：uid 前缀决定「谁能删」+ 同毫秒不撞键 ──────
+{
+  const E = (uid) => ({
+    uid, group: 'g', title: 'x', text: '', day: 100, minutes: 600, done: false,
+  });
+
+  eq(isLocalUid('local_1700000000000'), true, 'isLocalUid: local_ 前缀识别为本地');
+  eq(isLocalUid('eclass:123'), false, 'isLocalUid: eclass 条目不是本地');
+  eq(isLocalUid('lexue:9'), false, 'isLocalUid: lexue 条目不是本地');
+  eq(isLocalUid('Local_1'), false, 'isLocalUid: 大小写敏感（前缀必须小写）');
+
+  eq(makeLocalUid(1700000000123), 'local_1700000000123', 'makeLocalUid: 毫秒取整拼前缀');
+  eq(makeLocalUid(1700000000123.9), 'local_1700000000123', 'makeLocalUid: 小数毫秒取整');
+
+  eq(uniqueLocalUid(1000, []), 'local_1000', 'uniqueLocalUid: 无冲突用基础 uid');
+  eq(uniqueLocalUid(1000, [E('local_1000')]), 'local_1000_2', 'uniqueLocalUid: 冲突加 _2');
+  eq(uniqueLocalUid(1000, [E('local_1000'), E('local_1000_2')]), 'local_1000_3',
+    'uniqueLocalUid: 连续冲突递增到 _3');
+  eq(uniqueLocalUid(1000, [E('eclass:1')]), 'local_1000',
+    'uniqueLocalUid: 同步条目不占用本地键');
+
+  const base = [E('eclass:1')];
+  const appended = appendLocal(base, E('local_1000'));
+  eq(base.length, 1, 'appendLocal: 入参数组未被修改');
+  eq(appended.length, 2, 'appendLocal: 返回新数组含新条目');
+
+  const mixed = [E('eclass:1'), E('local_1000'), E('local_1000_2')];
+  const rEclass = removeLocalEntry(mixed, 'eclass:1');
+  eq(rEclass.removed, false, 'removeLocalEntry: 拒绝删除同步条目');
+  eq(rEclass.kept.length, 3, 'removeLocalEntry: 拒绝时列表原样返回');
+
+  const rLocal = removeLocalEntry(mixed, 'local_1000');
+  eq(rLocal.removed, true, 'removeLocalEntry: 本地条目可删');
+  eq(rLocal.kept.map((e) => e.uid), ['eclass:1', 'local_1000_2'],
+    'removeLocalEntry: 只移除目标条目');
+
+  const rMiss = removeLocalEntry(mixed, 'local_999');
+  eq(rMiss.removed, false, 'removeLocalEntry: 不存在的本地 uid 返回 removed=false');
+  eq(rMiss.kept.length, 3, 'removeLocalEntry: 找不到时列表不变');
+}
 
 console.log('\n' + (failed === 0 ? 'ALL PASS' : 'FAILED') + '  pass=' + passed + ' fail=' + failed);
 process.exit(failed > 0 ? 1 : 0);

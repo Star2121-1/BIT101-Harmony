@@ -15,6 +15,10 @@
 
 import { Prefs } from './Prefs.ts';
 import { DdlEntry, mergeDdl, sortDdl, toEntry } from '../corelogic/DdlRules.ts';
+import {
+  appendLocal, removeLocalEntry, uniqueLocalUid
+} from '../corelogic/DdlLocalLogic.ts';
+import type { LocalRemoveResult } from '../corelogic/DdlLocalLogic.ts';
 import type { EclassDdlItem } from '../corelogic/EclassDdlLogic.ts';
 import type { JsonValue } from '../core/model/SchoolModels.ts';
 import { info, warn } from '../core/log/BitLog.ts';
@@ -85,36 +89,24 @@ export class DdlStore {
    */
   static async add(title: string, text: string, day: number, minutes: number): Promise<DdlEntry> {
     const all: DdlEntry[] = await DdlStore.load();
-    const uid: string = 'local_' + Date.now().toString();
+    const uid: string = uniqueLocalUid(Date.now(), all);
     const entry: DdlEntry = {
       uid: uid, group: '本地', title: title, text: text,
       day: day, minutes: minutes, done: false
     };
-    all.push(entry);
-    await DdlStore.saveAll(all);
+    await DdlStore.saveAll(appendLocal(all, entry));
     info('DdlStore add local uid=' + uid + ' title=' + title);
     return entry;
   }
 
   /** 删除本地条目（只允许删 `local_` 前缀；同步来的条目归教务管，不在这里删）。 */
   static async removeLocal(uid: string): Promise<boolean> {
-    if (!uid.startsWith('local_')) {
-      return false;
-    }
     const all: DdlEntry[] = await DdlStore.load();
-    const kept: DdlEntry[] = [];
-    let hit: boolean = false;
-    for (let i = 0; i < all.length; i++) {
-      if (all[i].uid === uid) {
-        hit = true;
-      } else {
-        kept.push(all[i]);
-      }
-    }
-    if (!hit) {
+    const r: LocalRemoveResult = removeLocalEntry(all, uid);
+    if (!r.removed) {
       return false;
     }
-    await DdlStore.saveAll(kept);
+    await DdlStore.saveAll(r.kept);
     info('DdlStore remove local uid=' + uid);
     return true;
   }
