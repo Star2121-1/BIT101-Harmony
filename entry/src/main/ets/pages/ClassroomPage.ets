@@ -501,7 +501,11 @@ export struct ClassroomPage {
                             .rotate({ angle: this.openBuilding === b.buildingIndex ? 90 : 0 })
                         }
                         .width('100%')
-                        .padding({ left: 15, right: 12, top: 12, bottom: 12 })
+                        // ⚠️ 这里**不要再加 padding**：外层 Column（见下面 `.padding(…15…)`）
+                        // 已经给过内边距了，两层各 12 叠起来 → 卡片 70vp，比原版 ref-07 的
+                        // 54dp 高出一截（2026-10-27 真机 dumpLayout 实测 212px/3）。
+                        // 行高**显式钉 24vp**：不钉的话会被 17sp 的 › 撑高，密度随字体浮动。
+                        .height(24)
                         .onClick(() => {
                           this.toggleBuilding(b.buildingIndex);
                         })
@@ -559,10 +563,11 @@ export struct ClassroomPage {
                         }
                       }
                       .width('100%')
-                      .padding({ left: 15, right: 15, top: 12, bottom: 12 })
+                      // 行高对齐原版 ref-07：卡 54dp / 间距 10dp（15+24+15 = 54，行高显式钉在 Row 上）
+                      .padding({ left: 15, right: 15, top: 15, bottom: 15 })
                       .backgroundColor(this.buildingCardBg())
                       .borderRadius(CARD_RADIUS)
-                      .margin({ bottom: 8 })
+                      .margin({ bottom: 10 })
                     }, (b: BuildingInfo) => 'b_' + g.campusCode + '_' + b.buildingIndex)
                   }
                   .width('100%')

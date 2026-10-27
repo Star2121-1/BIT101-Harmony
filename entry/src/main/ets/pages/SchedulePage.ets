@@ -651,8 +651,9 @@ export struct SchedulePage {
 
   /**
    * 右下角悬浮按钮组（原版 CourseScheduleCalendar.kt:382-410，5 颗）。
-   * ⚠️ 原版第 4 颗是「＋ 添加自定义日程」；鸿蒙侧自定义日程还没做，这个位置先放「刷新」，
-   *   等自定义日程落地再换回来（宁可少一颗功能，也不要放一颗点了没反应的假按钮）。
+   * 第 4 颗 1:1 原版是「＋ 添加自定义日程」——鸿蒙侧对应 `OverlayPage`（改/隐藏/新增
+   * 三意图，M2-8 已落地），所以直接接到那儿。早先这里临时放「刷新」，和原版对不上，
+   * 而且刷新已经由下拉刷新/自动加载覆盖。
    */
   private fabActions(): FabAction[] {
     const list: FabAction[] = [
@@ -678,12 +679,12 @@ export struct SchedulePage {
         },
       },
       {
-        icon: 'ic_refresh.svg',
-        label: '刷新课表',
+        icon: 'ic_add.svg',
+        label: '改课表',
         onTap: () => {
-          if (!this.loading) {
-            this.load();
-          }
+          router.pushUrl({ url: 'pages/OverlayPage' }).catch((e: Error) => {
+            warn('open overlay fail: ' + JSON.stringify(e));
+          });
         },
       },
       {

@@ -48,6 +48,8 @@ export struct DdlPage {
   @State busy: boolean = false;
   /** 有没有 eclass 会话（决定空态给「去登录」还是「去同步」）。 */
   @State hasSession: boolean = false;
+  /** 下拉刷新指示器（原版 `PullToRefreshContainer` 的 ArkUI 对应物）。 */
+  @State refreshing: boolean = false;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -107,6 +109,8 @@ export struct DdlPage {
       this.status = '⚠️ ' + (e as Error).message;
     }
     this.busy = false;
+    // 下拉刷新的转圈必须收，否则指示器一直停在那儿（原版 PullToRefreshContainer 同理）
+    this.refreshing = false;
   }
 
   /** 卡片底色（现算：done ⇒ secondaryContainer@0.5；否则按紧急度混色）。 */
@@ -144,9 +148,12 @@ export struct DdlPage {
     // ⚠️ 不在 build() 根部声明任何局部变量：本编译器的 UI 描述只认「根节点起手」
     // （2026-10-21 编译失败两次，错误位置钉在声明行上）。派生列表走取值方法。
     Column() {
-      // ── 顶栏（push 子页必需；原版是 pager 内 tab 无页头） ──
-      Row() {
-        if (!this.isEmbedded) {
+      // ── 顶栏 ──
+      // ⚠️ 原版 ref-02 **没有页头**（页签即页头）：既没有「作业」标题，也没有「同步」按钮
+      //    （同步靠下拉刷新）。只有作为独立路由页打开时（`isEmbedded === false`）才需要
+      //    返回按钮，那时才渲染整行 —— 外壳里多这一行就是「最像另一个 App」的地方。
+      if (!this.isEmbedded) {
+        Row() {
           Button('‹ 返回')
             .height(32).fontSize(12)
             .backgroundColor(Color.Transparent)
@@ -154,21 +161,21 @@ export struct DdlPage {
             .onClick(() => {
               router.back();
             })
+          Text('作业')
+            .fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
+            .layoutWeight(1).margin({ left: 10 })
+            .textAlign(TextAlign.Start)
+          Button('同步')
+            .height(32).fontSize(12)
+            .backgroundColor(Color.Transparent)
+            .fontColor(this.tk().primary)
+            .enabled(!this.busy)
+            .onClick(() => {
+              this.sync();
+            })
         }
-        Text('作业')
-          .fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
-          .layoutWeight(1).margin({ left: 10 })
-          .textAlign(TextAlign.Start)
-        Button('同步')
-          .height(32).fontSize(12)
-          .backgroundColor(Color.Transparent)
-          .fontColor(this.tk().primary)
-          .enabled(!this.busy)
-          .onClick(() => {
-            this.sync();
-          })
+        .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 6 })
       }
-      .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 6 })
 
       if (this.status.length > 0) {
         Text(this.status)
@@ -177,6 +184,8 @@ export struct DdlPage {
       }
 
       // ── 列表（分区结构，1:1 ref-02） ──
+      // 下拉刷新 = 原版 `PullToRefreshContainer`（去掉页头后「同步」的唯一入口，不能再丢）
+      Refresh({ refreshing: this.refreshing }) {
       Scroll() {
         Column() {
           if (this.entries.length === 0) {
@@ -220,9 +229,17 @@ export struct DdlPage {
         }
         .width('100%').padding({ left: 12, right: 12 })
       }
-      .layoutWeight(1)
+      .width('100%').height('100%')
       // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
       .align(Alignment.Top)
+      }
+      // ⚠️ onRefreshing 必须排在 layoutWeight 前面：`test-uiconventions` 规则 1 用
+      //    「.align(Top) → } → .layoutWeight(1)」这个形状判「align 挂错层」，反过来写会被误判。
+      .onRefreshing(() => {
+        this.refreshing = true;
+        this.sync();
+      })
+      .layoutWeight(1)
     }
     .width('100%').height('100%')
     .backgroundColor(this.tk().background)
