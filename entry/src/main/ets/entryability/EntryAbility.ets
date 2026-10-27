@@ -20,6 +20,7 @@ import { runProbe } from '../corelogic/compile-probe.ts';
 import { setProbeCreds } from '../probe/CasProbe.ts';
 import { Prefs } from '../data/Prefs.ts';
 import { ThemeStore } from '../data/ThemeStore.ts';
+import { TermStore } from '../data/TermStore.ts';
 import { ReminderScheduler } from '../service/ReminderScheduler.ts';
 import { setDumpDir } from '../core/log/DebugDump.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
@@ -43,6 +44,8 @@ export default class EntryAbility extends UIAbility {
     // ⚠️ 主题初始化必须排在 Prefs 之后：它要读回用户上次选的三档模式。
     Prefs.init(this.context.getApplicationContext())
       .then(() => ThemeStore.init(this.context))
+      // 学期偏好同样要读回（设置页切过学期 ⇒ 冷启动仍用那个学期，不闪回教务默认）
+      .then(() => TermStore.init(this.context))
       .then(() => {
         // M7-2：冷启动重排代理提醒（对照 Android「每次开 App 重排」）。
         // reminderAgent 是系统托管：排好即弹，App 退不退都弹 ⇒ 满足「锁屏/App 退出也弹」。

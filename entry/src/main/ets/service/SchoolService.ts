@@ -17,6 +17,7 @@ import { rcp } from '@kit.RemoteCommunicationKit';
 import { Context } from '@kit.AbilityKit';
 import { RcpFactory } from '../core/net/RcpFactory.ts';
 import { SchoolCookieStore } from '../data/SchoolCookieStore.ts';
+import { TermStore, isTermOverride } from '../data/TermStore.ts';
 import {
   BuildingInfo, CampusInfo, CourseRow, ExamRow, JsonValue, TermSchedule, arrOf, num, objOf, parseCourseRow, str
 } from '../core/model/SchoolModels.ts';
@@ -162,8 +163,19 @@ export class SchoolService {
     }
   }
 
-  /** 当前学期，如 `2026-2027-1`。 */
+  /**
+   * 当前学期，如 `2026-2027-1`。
+   *
+   * ⚠️ **设置页选了学期就以它为准**（`TermStore`，原版 `CalendarSettingPage` 的
+   * `setCurrentTerm` 等价物）。判定必须在这里收口：课表/空教室/考试/自习点四个
+   * 调用方都走这个方法，各自读偏好就会出现「四页显示四个学期」。
+   */
   static async getCurrentTerm(context: Context): Promise<string> {
+    const override: string = await TermStore.load(context);
+    if (isTermOverride(override)) {
+      info('SchoolService term=' + override + ' (user override)');
+      return override;
+    }
     const session: rcp.Session = await SchoolService.openAppSession(context, '/jwapp/sys/wdkbby');
     const url: string = APP + '/jwapp/sys/wdkbby/modules/jshkcb/dqxnxq.do';
     const res = await RcpFactory.getText(session, url, jsonHeaders());

@@ -26,6 +26,7 @@ import { mixHex, withAlpha } from '../core/theme/colorUtil.ts';
 import { tintedCourseColors } from '../corelogic/ScheduleTint.ts';
 import type { ScheduleTint } from '../corelogic/ScheduleTint.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
+import { STORAGE_TERM } from '../data/TermStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { SchoolService, SchoolAuthError } from '../service/SchoolService.ts';
 import { SessionStore, SessionSnapshot } from '../data/SessionStore.ts';
@@ -83,6 +84,12 @@ export struct SchedulePage {
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  /**
+   * 设置页选的学期（'' = 跟随教务）。
+   * ⚠️ 壳里是 Stack 保活，从设置页返回时 `aboutToAppear` 不会再跑 ⇒ 必须靠
+   *    `@Watch` 接住 AppStorage 变化，否则「设置里切了学期、课表还是老学期」。
+   */
+  @StorageLink(STORAGE_TERM) @Watch('onTermOverrideChanged') termOverride: string = '';
   @State loading: boolean = true;
   @State statusText: string = '正在读取课表…';
   @State errorText: string = '';
@@ -123,6 +130,18 @@ export struct SchedulePage {
 
   aboutToAppear(): void {
     this.computeToday();
+    this.load();
+  }
+
+  /**
+   * 设置页切了学期（AppStorage 广播过来）。
+   * 只做一件事：按新学期重跑 `load()`（里面的 cache-first/错误分支全部复用，
+   * 不另写一套，否则「切学期」和「冷启动」两条路的降级行为会分叉）。
+   */
+  private onTermOverrideChanged(): void {
+    info('SchedulePage term override -> ' +
+      (this.termOverride.length > 0 ? this.termOverride : '(follow)'));
+    this.terms = [];
     this.load();
   }
 
@@ -211,15 +230,18 @@ export struct SchedulePage {
       this.cacheNote = '';
       this.statusText = '已加载';
       info('SchedulePage loaded term=' + term + ' rows=' + schedule.courses.length);
-      // 学期列表（失败静默：没有它就只显示当前学期，不影响看课表）
-      try {
-        const list: string[] = await SchoolService.getTermList(ctx);
-        if (list.length > 0) {
-          this.terms = list;
+      // 学期列表只为「独立页的 chips 选择器」服务；嵌进外壳时学期在设置页切，
+      // 这里再拉一次纯属浪费请求（原版课表页也没有学期列表）。
+      if (!this.isEmbedded) {
+        try {
+          const list: string[] = await SchoolService.getTermList(ctx);
+          if (list.length > 0) {
+            this.terms = list;
+          }
+          info('SchedulePage terms=' + list.length);
+        } catch (e) {
+          warn('SchedulePage termList fail (ignored): ' + JSON.stringify(e));
         }
-        info('SchedulePage terms=' + list.length);
-      } catch (e) {
-        warn('SchedulePage termList fail (ignored): ' + JSON.stringify(e));
       }
     } catch (e) {
       const msg: string = (e as Error).message;
@@ -755,9 +777,10 @@ export struct SchedulePage {
       .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 6 })
       }
 
-      // 学期选择（只在一个以上学期时才显示；取不到列表就只显示当前学期）
+      // 学期选择（**只在独立页**显示；嵌入外壳时学期在「设置 → 学期」里切，
+      // 1:1 原版：原版课表页没有学期选择器，`CalendarSettingPage` 才有）
       // chip 样式对齐原版（TabPage.kt:137）：选中 = primaryContainer 底 + onPrimaryContainer 字
-      if (this.terms.length > 1) {
+      if (!this.isEmbedded && this.terms.length > 1) {
         Scroll() {
           Row() {
             ForEach(this.terms, (t: string) => {

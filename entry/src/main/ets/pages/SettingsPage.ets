@@ -36,6 +36,7 @@ import { CardCookieStore } from '../data/CardCookieStore.ts';
 import { CampusCardStore } from '../data/CampusCardStore.ts';
 import { CampusNetTrafficStore } from '../data/CampusNetTrafficStore.ts';
 import { Prefs } from '../data/Prefs.ts';
+import { TermStore, STORAGE_TERM } from '../data/TermStore.ts';
 import { SchoolService } from '../service/SchoolService.ts';
 import { CampusInfo } from '../core/model/SchoolModels.ts';
 import { info, warn } from '../core/log/BitLog.ts';
@@ -69,6 +70,15 @@ struct SettingsPage {
   /** 作息是否为自定义（从 TimeTableStore 读）。 */
   @State ttCustom: boolean = false;
 
+  // ── 学期（对照原版：切学期在设置里，不在课表页） ──
+  /** 订阅全局学期覆盖值（'' = 跟随教务）；课表页也订阅同一个键。 */
+  @StorageLink(STORAGE_TERM) termOverride: string = '';
+  /** 可选学期（教务返回，新→旧）。空 = 还没取到/取失败。 */
+  @State termList: string[] = [];
+  @State termBusy: boolean = false;
+  /** 学期组的一行说明（取列表失败、已切换等，如实上屏，不吞）。 */
+  @State termMsg: string = '';
+
   private p(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
   }
@@ -76,6 +86,48 @@ struct SettingsPage {
   aboutToAppear(): void {
     this.refresh();
     this.loadVersion();
+    this.loadTermList();
+  }
+
+  /**
+   * 拉学期列表（失败就如实报，不静默）。
+   * ⚠️ 只在进设置页时拉一次：这个列表一天最多变一次，没必要每次点都联网。
+   */
+  private async loadTermList(): Promise<void> {
+    if (this.termBusy) {
+      return;
+    }
+    this.termBusy = true;
+    this.termMsg = '';
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const list: string[] = await SchoolService.getTermList(ctx);
+      this.termList = list;
+      if (list.length === 0) {
+        this.termMsg = '教务没有返回任何学期';
+      }
+      info('Settings termList=' + list.length);
+    } catch (e) {
+      this.termMsg = '取不到学期列表（' + (e as Error).message + '）';
+      warn('Settings termList fail: ' + JSON.stringify(e));
+    }
+    this.termBusy = false;
+  }
+
+  /** 切学期（'' = 跟随教务）。写完由 AppStorage 广播，课表页 @Watch 自己重载。 */
+  private async changeTerm(value: string): Promise<void> {
+    if (value === this.termOverride) {
+      return;
+    }
+    try {
+      const ctx: Context = getContext(this) as Context;
+      await TermStore.set(ctx, value);
+      this.termMsg = value.length > 0 ? '已切到 ' + value : '已恢复跟随教务';
+      info('Settings term -> ' + (value.length > 0 ? value : '(follow)'));
+    } catch (e) {
+      this.termMsg = '保存学期失败（' + (e as Error).message + '）';
+      warn('Settings changeTerm fail: ' + JSON.stringify(e));
+    }
   }
 
   private async refresh(): Promise<void> {
@@ -297,6 +349,21 @@ struct SettingsPage {
     })
   }
 
+  /** 学期 chip：与 modeChip 同范式（选中 primary 实底 / 未选 background 底）。 */
+  @Builder
+  termChip(label: string, value: string) {
+    Text(label)
+      .fontSize(13)
+      .fontColor(this.termOverride === value ? this.p().onPrimary : this.p().onSurfaceVariant)
+      .backgroundColor(this.termOverride === value ? this.p().primary : this.p().background)
+      .borderRadius(14)
+      .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+      .margin({ right: 8, bottom: 8 })
+      .onClick(() => {
+        this.changeTerm(value);
+      })
+  }
+
   build() {
     Column() {
       // 顶部
@@ -406,6 +473,58 @@ struct SettingsPage {
           }
           .width('100%').padding(12)
           .backgroundColor(this.p().secondaryContainer)
+          .borderRadius(12)
+
+          // ── 学期（对照原版 CalendarSettingPage：切学期在设置里） ──
+          // ⚠️ 为什么放在设置页而不是课表页：原版课表页**没有**学期选择器，
+          //    学期在「设置 → 日历设置」的 TermListDialog 里切；课表页多一行 chips
+          //    就是「和原版不是一套」最明显的一处。做这个组是删那行 chips 的前提。
+          this.groupTitle('学期')
+          Column() {
+            Row() {
+              Text('当前学期')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(this.termOverride.length > 0 ? this.termOverride : '跟随教务')
+                .fontSize(13).fontColor(this.p().onSurfaceVariant)
+              if (this.termBusy) {
+                LoadingProgress().width(16).height(16)
+                  .color(this.p().primary).margin({ left: 6 })
+              }
+            }
+            .width('100%').padding({ bottom: 10 })
+
+            if (this.termList.length > 0) {
+              Flex({ wrap: FlexWrap.Wrap }) {
+                this.termChip('跟随教务', '')
+                ForEach(this.termList, (t: string) => {
+                  this.termChip(t, t)
+                }, (t: string) => 'term_' + t)
+              }
+              .width('100%')
+            } else {
+              Text(this.termMsg.length > 0 ? this.termMsg : '正在读取学期列表…')
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
+                .width('100%')
+            }
+
+            if (this.termList.length > 0 && this.termMsg.length > 0) {
+              Text(this.termMsg)
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
+                .width('100%').padding({ top: 4 })
+            }
+            if (this.termList.length === 0 && !this.termBusy && this.termMsg.length === 0) {
+              Button('重新读取学期列表')
+                .fontSize(12).height(32).margin({ top: 6 })
+                .width('100%')
+                .backgroundColor(this.p().surface2)
+                .fontColor(this.p().onSurfaceVariant)
+                .onClick(() => {
+                  this.loadTermList();
+                })
+            }
+          }
+          .width('100%').padding(12)
+          .backgroundColor(this.p().surface2)
           .borderRadius(12)
 
           // ── 查找 ──
