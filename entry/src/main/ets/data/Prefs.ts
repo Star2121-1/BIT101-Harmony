@@ -72,6 +72,41 @@ export class Prefs {
     }
   }
 
+  static async getNumber(key: string, fallback: number): Promise<number> {
+    try {
+      const s: preferences.Preferences = await Prefs.ready();
+      const v: preferences.ValueType = await s.get(key, fallback);
+      return typeof v === 'number' ? v as number : fallback;
+    } catch (e) {
+      warn('Prefs getNumber fail key=' + key + ': ' + JSON.stringify(e));
+      return fallback;
+    }
+  }
+
+  /** 写数字并 flush（配额计数这类「跨进程要看到」的计数必须立刻落盘）。 */
+  static async putNumber(key: string, value: number): Promise<void> {
+    try {
+      const s: preferences.Preferences = await Prefs.ready();
+      await s.put(key, value);
+      await s.flush();
+    } catch (e) {
+      error('Prefs putNumber fail key=' + key + ': ' + JSON.stringify(e));
+      throw new Error('本地存储写入失败');
+    }
+  }
+
+  /** 写布尔并 flush。 */
+  static async putBool(key: string, value: boolean): Promise<void> {
+    try {
+      const s: preferences.Preferences = await Prefs.ready();
+      await s.put(key, value);
+      await s.flush();
+    } catch (e) {
+      error('Prefs putBool fail key=' + key + ': ' + JSON.stringify(e));
+      throw new Error('本地存储写入失败');
+    }
+  }
+
   /** 写字符串并立即 flush（会话类数据不许"延迟落盘"，进程被杀就丢）。 */
   static async putString(key: string, value: string): Promise<void> {
     try {

@@ -26,6 +26,9 @@ import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { DdlStore } from '../data/DdlStore.ts';
+import { DdlSourceStore } from '../data/DdlSourceStore.ts';
+import type { DdlSourcePrefs } from '../corelogic/DdlSourceLogic.ts';
+import { DEFAULT_DDL_SOURCE, noneEnabled, visibleEntries } from '../corelogic/DdlSourceLogic.ts';
 import { EclassSyncService } from '../service/EclassSyncService.ts';
 import { EclassService } from '../service/EclassService.ts';
 import { DdlEntry } from '../corelogic/DdlRules.ts';
@@ -58,6 +61,10 @@ export struct DdlPage {
   @State dDate: string = '';
   @State dTime: string = '23:59';
   @State addErr: string = '';
+  /** M4-5：来源开关（延河课堂 / 本地新增）。 */
+  @State srcPrefs: DdlSourcePrefs = DEFAULT_DDL_SOURCE;
+  /** 两个开关都关（空列表的原因是「没启用来源」而不是「没作业」，必须分开说）。 */
+  @State noSource: boolean = false;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -84,8 +91,12 @@ export struct DdlPage {
   }
 
   private async reload(): Promise<void> {
-    this.entries = await DdlStore.load();
     this.hasSession = await EclassService.hasSession();
+    // M4-5 来源开关：过滤在展示层做，库里始终保存两源数据（切回来不用重新同步）
+    this.srcPrefs = await DdlSourceStore.load();
+    this.noSource = noneEnabled(this.srcPrefs);
+    const all: DdlEntry[] = await DdlStore.load();
+    this.entries = visibleEntries(all, this.srcPrefs);
   }
 
   /** 勾选/取消（卡片与勾选框共用；同一帧内双触发也幂等——目标值同取自重前的快照）。 */
@@ -290,12 +301,23 @@ export struct DdlPage {
             // 空态分两种：没会话（引导登录）vs 有会话没数据（引导同步）。
             // 视觉对齐原版空态（secondaryContainer 卡），功能保持鸿蒙两分支。
             Column() {
-              Text(this.hasSession
-                ? '没有作业数据。点右上角「同步」从延河课堂拉取。'
-                : '还没有作业数据。先在延河课堂登录，再同步。')
+              Text(this.noSource
+                ? '没有启用任何作业来源。去「设置 → 作业来源」打开延河课堂或本地新增。'
+                : (this.hasSession
+                  ? '没有作业数据。点右上角「同步」从延河课堂拉取。'
+                  : '还没有作业数据。先在延河课堂登录，再同步。'))
                 .fontSize(12).fontColor(this.tk().onSecondaryContainer)
                 .width('100%').textAlign(TextAlign.Center)
-              if (!this.hasSession) {
+              if (this.noSource) {
+                Button('去设置')
+                  .fontSize(13).margin({ top: 8 })
+                  .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+                  .onClick(() => {
+                    router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
+                      warn('ddl -> settings fail: ' + JSON.stringify(e));
+                    });
+                  })
+              } else if (!this.hasSession) {
                 Button('去延河课堂登录')
                   .fontSize(13).margin({ top: 8 })
                   .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)

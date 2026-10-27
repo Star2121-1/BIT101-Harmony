@@ -22,9 +22,11 @@ import { Prefs } from '../data/Prefs.ts';
 import { ThemeStore } from '../data/ThemeStore.ts';
 import { TermStore } from '../data/TermStore.ts';
 import { ReminderScheduler } from '../service/ReminderScheduler.ts';
+import { ScoreCheckRunner } from '../service/ScoreCheckRunner.ts';
 import { setDumpDir } from '../core/log/DebugDump.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
 import { setForeground } from '../core/AppForegroundState.ts';
+import { sanitizeContentId, KEY_CARD_CONTENT, STORAGE_OPEN_CONTENT } from '../corelogic/WidgetDeepLink.ts';
 
 const DOMAIN = 0x0000;
 
@@ -55,6 +57,9 @@ export default class EntryAbility extends UIAbility {
       .then((r) => {
         hilog.info(DOMAIN, 'testTag', 'reminder rescheduled published=%{public}d reason=%{public}s',
           r.published, r.reason);
+        // M7-3/M10-2：出分提醒的自动检查。12h 闸门 + 双开关 + 有无保存凭据，
+        // 三道闸门全过才会真的打网络；全程不抛（启动路径不该被它拖住）。
+        return ScoreCheckRunner.autoOnStart(this.context);
       })
       .catch((e: Error) => {
         hilog.error(DOMAIN, 'testTag', 'Prefs/Theme/reminder init failed: %{public}s', JSON.stringify(e));
@@ -80,6 +85,18 @@ export default class EntryAbility extends UIAbility {
       if (String(params['probe_jxzx'] ?? '') === '1') {
         JxzxProbe.requestAutoRun();
         hilog.info(DOMAIN, 'testTag', 'probe_jxzx auto-run armed');
+      }
+      // M8-6 卡片深链：卡片点条目时带 `bit101Content`，落到对应页签。
+      // ⚠️ 只认已知内容 id（脏值丢掉，不回落 —— 卡片 payload 来自 JSON）。
+      const wantContent: string = String(params[KEY_CARD_CONTENT] ?? '');
+      if (wantContent.length > 0) {
+        const safe: string = sanitizeContentId(wantContent);
+        if (safe.length > 0) {
+          AppStorage.setOrCreate<string>(STORAGE_OPEN_CONTENT, safe);
+          hilog.info(DOMAIN, 'testTag', 'card deep link content=%{public}s', safe);
+        } else {
+          hilog.warn(DOMAIN, 'testTag', 'card deep link ignored: %{public}s', wantContent);
+        }
       }
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'probe param read failed: %{public}s', JSON.stringify(err));

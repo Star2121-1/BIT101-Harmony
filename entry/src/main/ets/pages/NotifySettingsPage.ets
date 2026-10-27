@@ -260,10 +260,10 @@ struct NotifySettingsPage {
           }
           .width('100%').padding({ top: 2, bottom: 4 })
 
-          // ── 出分（M7-3 预留）──
+          // ── 出分（M7-3：取数管道已接，需要先在「成绩」页保存学号密码）──
           Text('出分提醒').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 14, bottom: 4 })
           Row() {
-            Text('出分提醒（待上线）').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
+            Text('出分提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
             Text(this.scoreEnabled ? '开' : '关')
               .fontSize(13).fontColor(this.scoreEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
               .backgroundColor(this.scoreEnabled ? this.tk().primary : this.tk().surface2)
@@ -274,6 +274,9 @@ struct NotifySettingsPage {
             this.scoreEnabled = !this.scoreEnabled;
             this.commit();
           })
+          Text('需要先在「设置 → 成绩查询」里保存学号密码（存系统密钥库），否则无法自动检查。')
+            .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+            .width('100%').padding({ bottom: 4 })
 
           // ── 考试 ──
           Text('考试').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 14, bottom: 4 })

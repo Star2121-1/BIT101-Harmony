@@ -42,6 +42,10 @@ import { CampusInfo } from '../core/model/SchoolModels.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
 import { TimeTableStore } from '../data/TimeTableStore.ts';
+import { ScoreCheckRunner } from '../service/ScoreCheckRunner.ts';
+import { statusText, ScoreCheckCode } from '../corelogic/ScoreCheckLogic.ts';
+import { DdlSourceStore } from '../data/DdlSourceStore.ts';
+import type { DdlSourcePrefs } from '../corelogic/DdlSourceLogic.ts';
 
 /** 默认校区偏好的持久化键（ClassroomPage 也读这个）。 */
 export const KEY_DEFAULT_CAMPUS: string = 'default_campus_code';
@@ -72,6 +76,11 @@ struct SettingsPage {
   @State diagText: string = '';
   /** 作息是否为自定义（从 TimeTableStore 读）。 */
   @State ttCustom: boolean = false;
+  /** 最近一次出分检查的一句话状态（M7-3：后台静默跑的东西要看得见）。 */
+  @State scoreLine: string = '';
+  /** 作业来源开关（M4-5；落盘在 DdlSourceStore）。 */
+  @State ddlEclass: boolean = true;
+  @State ddlLocal: boolean = true;
 
   // ── 学期（对照原版：切学期在设置里，不在课表页） ──
   /** 订阅全局学期覆盖值（'' = 跟随教务）；课表页也订阅同一个键。 */
@@ -92,6 +101,75 @@ struct SettingsPage {
     this.refresh();
     this.loadVersion();
     this.loadTermList();
+    this.loadScoreLine();
+    this.loadDdlSource();
+  }
+
+  /** 出分检查的最近状态（读失败就给「还没检查过」，不抛）。 */
+  private async loadScoreLine(): Promise<void> {
+    const st = await ScoreCheckRunner.lastStatus();
+    this.scoreLine = statusText(st);
+  }
+
+  private async loadDdlSource(): Promise<void> {
+    const p: DdlSourcePrefs = await DdlSourceStore.load();
+    this.ddlEclass = p.eclass;
+    this.ddlLocal = p.local;
+  }
+
+  /**
+   * 手动跑一次出分检查（force = 跳过 12h 闸门）。
+   * 结果如实写进 `scoreLine`：这三类失败的下步动作完全不同，不能都写成「失败」。
+   */
+  private async runScoreCheckNow(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    this.toast = '';
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const out = await ScoreCheckRunner.check(ctx, true, true);
+      if (!out.ran) {
+        this.scoreLine = out.reason;
+      } else if (out.code === ScoreCheckCode.OK) {
+        let t: string = '刚检查：' + out.count + ' 门课';
+        if (out.newCount > 0) {
+          t = t + '（新出分 ' + out.newCount + ' 门）';
+        }
+        this.scoreLine = t;
+      } else if (out.code === ScoreCheckCode.AUTH_FAILED) {
+        this.scoreLine = '学校未通过登录（重试无效，请确认学号密码）';
+      } else if (out.code === ScoreCheckCode.NEED_SMS) {
+        this.scoreLine = '学校要求短信验证，本次无法检查';
+      } else if (out.code === ScoreCheckCode.NOT_LOGGED_IN) {
+        this.scoreLine = '还没保存学号密码（去「成绩查询」里保存）';
+      } else {
+        this.scoreLine = '检查失败' + (out.detail === null ? '' : '：' + out.detail);
+      }
+    } catch (e) {
+      this.toast = '检查异常：' + (e as Error).message;
+    }
+    this.busy = false;
+  }
+
+  /** 切一个来源开关（which 只认 'eclass' / 'local'；其它调用是 bug，按 no-op 处理）。 */
+  private async toggleDdlSource(which: string): Promise<void> {
+    const next: DdlSourcePrefs = { eclass: this.ddlEclass, local: this.ddlLocal };
+    if (which === 'eclass') {
+      next.eclass = !next.eclass;
+    } else if (which === 'local') {
+      next.local = !next.local;
+    } else {
+      return;
+    }
+    this.ddlEclass = next.eclass;
+    this.ddlLocal = next.local;
+    try {
+      await DdlSourceStore.save(next);
+    } catch (e) {
+      this.toast = '保存作业来源失败：' + (e as Error).message;
+    }
   }
 
   /**
@@ -566,6 +644,94 @@ struct SettingsPage {
           .backgroundColor(this.p().surface2)
           .borderRadius(12)
 
+          // ── 成绩（M10-2：查成绩 + 出分提醒的可见状态）──
+          this.groupTitle('成绩')
+          Column() {
+            Row() {
+              Text('成绩查询')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('按学期查看').fontSize(12).fontColor(this.p().onSurfaceVariant)
+              Text(' ›').fontSize(13).fontColor(this.p().onSurfaceVariant)
+            }
+            .width('100%')
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/ScorePage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+
+            Row() {
+              Text('出分提醒')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('开关在「提醒设置」里')
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
+            }
+            .width('100%').padding({ top: 10 })
+
+            // 「立即检查」：否则自动检查只能等冷启动/12h 闸门，用户没法手动确认能不能用
+            Row() {
+              Text('立即检查一次')
+                .fontSize(13).fontColor(this.p().onSurface).layoutWeight(1)
+              Button(this.busy ? '检查中…' : '开始')
+                .height(28).fontSize(11)
+                .enabled(!this.busy)
+                .onClick(() => {
+                  this.runScoreCheckNow();
+                })
+            }
+            .width('100%').padding({ top: 10 })
+
+            // 检查状态（M7-3 的可见性：后台静默跑的东西必须能看出「成没成、为什么没成」）
+            Text(this.scoreLine)
+              .fontSize(11).fontColor(this.p().onSurfaceVariant)
+              .width('100%').padding({ top: 8 })
+          }
+          .width('100%').padding(12)
+          .backgroundColor(this.p().surface)
+          .borderRadius(12)
+
+          // ── 作业来源（M4-5：过滤只在展示层，库里两源都存）──
+          this.groupTitle('作业来源')
+          Column() {
+            Row() {
+              Text('延河课堂')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(this.ddlEclass ? '开' : '关')
+                .fontSize(13)
+                .fontColor(this.ddlEclass ? this.p().onPrimary : this.p().onSurfaceVariant)
+                .backgroundColor(this.ddlEclass ? this.p().primary : this.p().surface2)
+                .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
+            }
+            .width('100%').padding({ bottom: 8 })
+            .onClick(() => {
+              this.toggleDdlSource('eclass');
+            })
+
+            Row() {
+              Text('本地新增')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(this.ddlLocal ? '开' : '关')
+                .fontSize(13)
+                .fontColor(this.ddlLocal ? this.p().onPrimary : this.p().onSurfaceVariant)
+                .backgroundColor(this.ddlLocal ? this.p().primary : this.p().surface2)
+                .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
+            }
+            .width('100%').padding({ bottom: 8 })
+            .onClick(() => {
+              this.toggleDdlSource('local');
+            })
+
+            Row() {
+              Text('乐学').fontSize(14).fontColor(this.p().onSurfaceVariant).layoutWeight(1)
+              Text('本版不提供（接口未验证）')
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
+            }
+            .width('100%').padding({ bottom: 4 })
+          }
+          .width('100%').padding(12)
+          .backgroundColor(this.p().surface)
+          .borderRadius(12)
+
           // ── 提醒 ──
           // 「提醒设置」的唯一入口原在「我」页入口组；对照原版拆入口组时
           // 必须先安置到这里（引用数=1，先搬再拆，避免成孤儿页）。
@@ -750,20 +916,39 @@ struct SettingsPage {
           this.groupTitle('关于')
           Column() {
             Row() {
-              Text('版本').fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('版本与更新说明').fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Text(this.versionText).fontSize(13).fontColor(this.p().onSurfaceVariant)
+              Text(' ›').fontSize(13).fontColor(this.p().onSurfaceVariant)
             }
             .width('100%').padding({ bottom: 8 })
+            .onClick(() => {
+              // M10-4：版本与更新说明单独一页（更新一律引导去商店，不做自下载）
+              router.pushUrl({ url: 'pages/AboutPage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+
+            Row() {
+              Text('网页服务').fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('门户 / 教务 / 图书馆').fontSize(11).fontColor(this.p().onSurfaceVariant)
+              Text(' ›').fontSize(13).fontColor(this.p().onSurfaceVariant)
+            }
+            .width('100%').padding({ bottom: 8 })
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/WebServicesPage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
 
             Row() {
               Text('项目主页').fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Text('github.com/Star2121-1/BIT101-Harmony')
-                .fontSize(11).fontColor(this.p().textPlaceholder)
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
             }
             .width('100%').padding({ bottom: 8 })
 
-            Text('非官方客户端，与学校无关。学号密码只在登录请求里用一次，不保存。')
-              .fontSize(11).fontColor(this.p().textPlaceholder)
+            Text('非官方客户端，与学校无关。学号密码只在登录请求里用一次，默认不保存（成绩页显式勾选「记住密码」时存系统密钥库）。')
+              .fontSize(11).fontColor(this.p().onSurfaceVariant)
               .width('100%')
           }
           .width('100%').padding(12)

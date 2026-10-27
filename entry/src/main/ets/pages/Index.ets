@@ -28,7 +28,10 @@ import {
   normalizeModule,
   normalizeTab,
   showsTopTabs,
+  shellStateOf,
 } from '../corelogic/shellNav.ts';
+import type { ShellSelection } from '../corelogic/shellNav.ts';
+import { STORAGE_OPEN_CONTENT } from '../corelogic/WidgetDeepLink.ts';
 import { TopTabBar } from '../components/shell/TopTabBar.ets';
 import { BottomNavBar } from '../components/shell/BottomNavBar.ets';
 import { ModulePlaceholder } from '../components/shell/ModulePlaceholder.ets';
@@ -90,6 +93,23 @@ struct Index {
   /** 切模块。 */
   private selectModule(key: string): void {
     this.moduleKey = normalizeModule(key);
+    this.markVisited(contentIdOf(this.moduleKey, this.tabKey));
+  }
+
+  /**
+   * M8-6：卡片深链落点。
+   * `EntryAbility.onCreate` 把卡片带来的内容 id 写进 AppStorage，这里消费一次就清空
+   * （否则每次回首页都会被它拽回同一页）。
+   */
+  aboutToAppear(): void {
+    const raw: string | undefined = AppStorage.get<string>(STORAGE_OPEN_CONTENT);
+    if (raw === undefined || raw.length === 0) {
+      return;
+    }
+    AppStorage.setOrCreate<string>(STORAGE_OPEN_CONTENT, '');
+    const sel: ShellSelection = shellStateOf(raw);
+    this.moduleKey = sel.module;
+    this.tabKey = sel.tab;
     this.markVisited(contentIdOf(this.moduleKey, this.tabKey));
   }
 

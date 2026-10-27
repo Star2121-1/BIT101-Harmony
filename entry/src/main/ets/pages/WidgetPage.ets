@@ -19,6 +19,21 @@ import { WidgetPage as WidgetPageData, PageKind, ClassState } from '../corelogic
 import { type WidgetLine } from '../corelogic/WidgetLogic.ts';
 import { gridTokens, getPaletteName } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
+import { contentIdForKind } from '../corelogic/WidgetDeepLink.ts';
+import { warn } from '../core/log/BitLog.ts';
+
+/** 卡片的 router 动作参数（显式接口：ArkTS 不接受对象字面量当类型）。 */
+interface CardRouterParams {
+  bit101Content: string;
+}
+
+/** `postCardAction` 的 router 动作。 */
+interface CardRouterAction {
+  action: string;
+  bundleName: string;
+  abilityName: string;
+  params: CardRouterParams;
+}
 
 // ── 卡片主组件 ─────────────────────────────────────────────────────────────
 
@@ -294,6 +309,34 @@ struct WidgetPage {
     .backgroundColor(this.lineBg(line))
     .borderRadius(4)
     .padding({ left: 6 })
+    // M8-6：点条目直接落到对应的 App 页签（不是只把 App 拉起来）
+    .onClick(() => {
+      this.openApp();
+    })
+  }
+
+  /**
+   * 卡片 → 主 App 的深链（M8-6）。
+   *
+   * 用 `postCardAction` 的 `router` 动作把「该落到哪个内容」作为参数带进 want；
+   * App 侧在 `EntryAbility.onCreate` 读参数、`Index` 消费。
+   * ⚠️ 不用 `action:'message'`：那要起 FormExtension 的事件通道，链路更长且预览态收不到。
+   */
+  private openApp(): void {
+    const page: WidgetPageData | null = this.currentPage();
+    const kind: string = page === null ? 'COURSE' : page.kind;
+    const params: CardRouterParams = { bit101Content: contentIdForKind(kind) };
+    const action: CardRouterAction = {
+      action: 'router',
+      bundleName: 'cn.bit101.next',
+      abilityName: 'EntryAbility',
+      params: params
+    };
+    try {
+      postCardAction(this, action);
+    } catch (e) {
+      warn('widget openApp fail: ' + JSON.stringify(e));
+    }
   }
 
   /** 获取当前日期文本（北京时间） */

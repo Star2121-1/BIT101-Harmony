@@ -34,8 +34,14 @@ import type { AdjustmentEntry } from '../corelogic/TeachingAdjustment.ts';
 import type { EclassActivity } from '../corelogic/EclassActivityLogic.ts';
 import type { TimeTable, DateTime } from '../corelogic/timeutil.ts';
 import type { CourseSchedule, DDLSchedule } from '../corelogic/WidgetLogic.ts';
+import type { RefreshState, RefreshDecision } from '../corelogic/WidgetRefreshLogic.ts';
+import { decide, decodeState, encodeState, emptyState, minutesUntil } from '../corelogic/WidgetRefreshLogic.ts';
+import { decodePrefs, visibleEntries } from '../corelogic/DdlSourceLogic.ts';
 
 const DOMAIN = 0x0003; // Form 专属域
+
+/** 刷新配额状态的偏好键（卡片进程独立读写，主进程不依赖它）。 */
+const KEY_REFRESH_STATE: string = 'widget_refresh_state';
 
 /** 卡片主题快照（与主进程同一份偏好：palette 三选一 + 深浅色）。 */
 interface WidgetTheme {
@@ -75,8 +81,13 @@ export default class FormExtension extends FormExtensionAbility {
     //   「卡片」菜单进得去、预览也有，但加进桌面只显示「请打开 App 查看完整功能」）。
     //   不 await：init 幂等，后续每个读写都会 await 同一个 promise。
     Prefs.init(this.context);
-    // 异步装配 + 推送（不阻塞 onAddForm 返回）
-    this.assembleAndPush(formId);
+    // 新卡片这一次必须给数据（force：不卡 30 分钟间隔），同时记一次计数并约下次刷新
+    this.consumeQuota(true).then((gate: RefreshDecision) => {
+      this.scheduleNext(formId, gate.nextAt);
+      return this.assembleAndPush(formId);
+    }).catch((e: Error) => {
+      hilog.error(DOMAIN, this.TAG, 'onAddForm quota/push fail: %{public}s', JSON.stringify(e));
+    });
     return formBindingData.createFormBindingData({
       widgetPayload: '', widgetPalette: 'warm', widgetDark: false
     });
@@ -135,12 +146,65 @@ export default class FormExtension extends FormExtensionAbility {
   /**
    * 卡片更新时调用（系统定时触发或手动刷新）
    * 签名对齐 d.ts：`onUpdateForm(formId: string, wantParams?: Record<string, Object>): void`
+   *
+   * ⚠️ M8-5 刷新配额：系统来敲门不等于必须真装配。30 分钟最小间隔 + 每天 50 次
+   * （纯逻辑在 `corelogic/WidgetRefreshLogic.ts`，有单测）。被拦下时要**顺手把下次
+   * 刷新时间推后**，否则系统会按旧节奏继续敲，白跑。
    */
   async onUpdateForm(formId: string, wantParams?: Record<string, Object>): Promise<void> {
     hilog.info(DOMAIN, this.TAG, 'onUpdateForm: %{public}s', formId);
     // 冷启动后系统直接触发更新时同样要补 init（进程可能刚起来）
     Prefs.init(this.context);
+    const gate: RefreshDecision = await this.consumeQuota(false);
+    if (!gate.allowed) {
+      hilog.info(DOMAIN, this.TAG, 'onUpdateForm skipped: %{public}s', gate.reason);
+      await this.scheduleNext(formId, gate.nextAt);
+      return;
+    }
     await this.assembleAndPush(formId);
+    await this.scheduleNext(formId, gate.nextAt);
+  }
+
+  /**
+   * 读 → 判 → 写回刷新配额。写回**无论允许与否**都要做（跨天重置也要落盘）。
+   * @param force true = 用户刚创建卡片，本次不卡间隔（但仍计数）
+   */
+  private async consumeQuota(force: boolean): Promise<RefreshDecision> {
+    const today: number = this.getNowDateTime().day;
+    const nowMs: number = Date.now();
+    let state: RefreshState = emptyState();
+    try {
+      const raw: string = await Prefs.getString(KEY_REFRESH_STATE, '');
+      const decoded: RefreshState | null = decodeState(raw);
+      if (decoded !== null) {
+        state = decoded;
+      }
+    } catch (e) {
+      hilog.warn(DOMAIN, this.TAG, 'quota read fail: %{public}s', JSON.stringify(e));
+    }
+    const d: RefreshDecision = decide(state, today, nowMs);
+    // force：用户刚把卡片加上桌面，这一次必须给数据（否则新卡片停在占位态）
+    const result: RefreshDecision = force
+      ? { allowed: true, state: d.state, reason: '', nextAt: nowMs + 30 * 60 * 1000 }
+      : d;
+    try {
+      await Prefs.putString(KEY_REFRESH_STATE, encodeState(result.state));
+    } catch (e) {
+      hilog.warn(DOMAIN, this.TAG, 'quota write fail: %{public}s', JSON.stringify(e));
+    }
+    return result;
+  }
+
+  /** 把下次自动刷新时间交给系统（分钟数有下限 5，太小会被静默忽略）。 */
+  private async scheduleNext(formId: string, nextAt: number): Promise<void> {
+    const minutes: number = minutesUntil(nextAt, Date.now());
+    try {
+      await formProvider.setFormNextRefreshTime(formId, minutes);
+      hilog.info(DOMAIN, this.TAG, 'next refresh in %{public}d min', minutes);
+    } catch (e) {
+      // 预览实例（无真 formId）会报 401，属预期；真卡片失败也只影响自动刷新节奏
+      hilog.warn(DOMAIN, this.TAG, 'setFormNextRefreshTime fail: %{public}s', JSON.stringify(e));
+    }
   }
 
   /**
@@ -215,12 +279,15 @@ export default class FormExtension extends FormExtensionAbility {
       hilog.warn(DOMAIN, this.TAG, '课程加载失败: %{public}s', JSON.stringify(e));
     }
 
-    // 2. 获取 DDL 数据（本地存储）
+    // 2. 获取 DDL 数据（本地存储；来源开关与作业页同源，M4-5）
     let ddls: DDLSchedule[] = [];
     try {
       const ddlEntries = await DdlStore.load();
-      ddls = ddlsToSchedule(ddlEntries);
-      hilog.info(DOMAIN, this.TAG, 'DDL 加载完成, count=%{public}d', ddls.length);
+      const srcRaw: string = await Prefs.getString('ddl_source_prefs', '');
+      const kept = visibleEntries(ddlEntries, decodePrefs(srcRaw));
+      ddls = ddlsToSchedule(kept);
+      hilog.info(DOMAIN, this.TAG, 'DDL 加载完成, all=%{public}d kept=%{public}d',
+        ddlEntries.length, kept.length);
     } catch (e) {
       hilog.warn(DOMAIN, this.TAG, 'DDL 加载失败: %{public}s', JSON.stringify(e));
     }
