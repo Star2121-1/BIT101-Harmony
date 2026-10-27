@@ -36,7 +36,7 @@ import { CardCookieStore } from '../data/CardCookieStore.ts';
 import { CampusCardStore } from '../data/CampusCardStore.ts';
 import { CampusNetTrafficStore } from '../data/CampusNetTrafficStore.ts';
 import { Prefs } from '../data/Prefs.ts';
-import { TermStore, STORAGE_TERM } from '../data/TermStore.ts';
+import { TermStore, STORAGE_TERM, splitTermsByRecentYears, TermSplit } from '../data/TermStore.ts';
 import { SchoolService } from '../service/SchoolService.ts';
 import { CampusInfo } from '../core/model/SchoolModels.ts';
 import { info, warn } from '../core/log/BitLog.ts';
@@ -46,6 +46,9 @@ import { TimeTableStore } from '../data/TimeTableStore.ts';
 /** 默认校区偏好的持久化键（ClassroomPage 也读这个）。 */
 export const KEY_DEFAULT_CAMPUS: string = 'default_campus_code';
 export const KEY_DEFAULT_CAMPUS_NAME: string = 'default_campus_name';
+
+/** 学期选择器中「近期」保留的学年数（默认 3 学年；更早的折叠进「展开旧学期」）。 */
+const RECENT_TERM_YEARS: number = 3;
 
 @Entry
 @Component
@@ -78,6 +81,8 @@ struct SettingsPage {
   @State termBusy: boolean = false;
   /** 学期组的一行说明（取列表失败、已切换等，如实上屏，不吞）。 */
   @State termMsg: string = '';
+  /** 旧学期是否展开（默认收起，避免一长串历史学期占满屏）。 */
+  @State termExpanded: boolean = false;
 
   private p(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -128,6 +133,29 @@ struct SettingsPage {
       this.termMsg = '保存学期失败（' + (e as Error).message + '）';
       warn('Settings changeTerm fail: ' + JSON.stringify(e));
     }
+  }
+
+  /**
+   * 把学期列表拆成「近期」与「旧学期」两截（委托纯函数，便于离线单测）。
+   */
+  private termSplit(): TermSplit {
+    return splitTermsByRecentYears(this.termList, RECENT_TERM_YEARS);
+  }
+
+  /** 折叠态/展开态实际要渲染的学期列表（build 里只能写 UI 语法，故抽到方法）。 */
+  private visibleTerms(): string[] {
+    const split: TermSplit = this.termSplit();
+    const collapsed: string[] = split.recent.slice();
+    // 当前选中的若是更旧的、不在近期里，单列出来，否则选了旧学期却看不见、切不回来
+    if (this.termOverride.length > 0 && !split.recent.includes(this.termOverride)) {
+      collapsed.push(this.termOverride);
+    }
+    return this.termExpanded ? split.recent.concat(split.old) : collapsed;
+  }
+
+  /** 旧学期数量（用于「展开旧学期（更早的 N 个）」文案）。 */
+  private oldTermCount(): number {
+    return this.termSplit().old.length;
   }
 
   private async refresh(): Promise<void> {
@@ -496,11 +524,22 @@ struct SettingsPage {
             if (this.termList.length > 0) {
               Flex({ wrap: FlexWrap.Wrap }) {
                 this.termChip('跟随教务', '')
-                ForEach(this.termList, (t: string) => {
+                ForEach(this.visibleTerms(), (t: string) => {
                   this.termChip(t, t)
                 }, (t: string) => 'term_' + t)
               }
               .width('100%')
+
+              if (this.oldTermCount() > 0) {
+                Text(this.termExpanded
+                  ? '收起旧学期'
+                  : '展开旧学期（更早的 ' + this.oldTermCount().toString() + ' 个）')
+                  .fontSize(11).fontColor(this.p().primary)
+                  .width('100%').margin({ top: 6 })
+                  .onClick(() => {
+                    this.termExpanded = !this.termExpanded;
+                  })
+              }
             } else {
               Text(this.termMsg.length > 0 ? this.termMsg : '正在读取学期列表…')
                 .fontSize(11).fontColor(this.p().onSurfaceVariant)

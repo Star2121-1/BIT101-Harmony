@@ -23,6 +23,9 @@
 import { Context } from '@kit.AbilityKit';
 import { Prefs } from './Prefs.ts';
 import { info, warn } from '../core/log/BitLog.ts';
+import { splitTermsByRecentYears, TermSplit } from './termUtil.ts';
+
+export { splitTermsByRecentYears, TermSplit } from './termUtil.ts';
 
 /** AppStorage 键：学期覆盖值（'' = 跟随教务）。页面用 @StorageLink 订阅它。 */
 export const STORAGE_TERM: string = 'ui_term_override';
