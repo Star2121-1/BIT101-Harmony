@@ -103,6 +103,12 @@ export struct ClassroomPage {
   @State roomsError: string = '';
   /** 拉教室时的「现在」（当天分钟数）；卡片双色与「现在空闲 N 间」同一口径。 */
   @State nowMinutes: number = -1;
+  /** 下拉刷新指示器（原版空教室也是下拉刷新 ⇒ 原先那颗「刷新」FAB 可以去掉）。 */
+  @State refreshing: boolean = false;
+  /** 滚过一屏才显示「回到顶部」（原版 BackToTopFab 的淡入时机，由调用方决定）。 */
+  @State showBackTop: boolean = false;
+  /** Scroll 控制器：判滚动位置 + 回到顶部。 */
+  private scroller: Scroller = new Scroller();
 
   aboutToAppear(): void {
     this.load();
@@ -350,30 +356,35 @@ export struct ClassroomPage {
     return mixHex(t.onErrorContainer, t.onSecondaryContainer, 0.5);
   }
 
-  /** 右下角悬浮按钮（原版 PageFab 规格）。这里先只挂「设置」——与原版各页最下面那颗一致。 */
+  /**
+   * 右下角悬浮按钮（原版 PageFab 规格）：**回到顶部 + 设置**两颗，与 ref-07 一致。
+   * 刷新不再是 FAB —— 原版本来就没有，它靠下拉刷新（本页现已补 Refresh）。
+   */
   private fabActions(): FabAction[] {
-    const list: FabAction[] = [
-      // 原版空教室没有「刷新」FAB（它有下拉刷新）。本端暂无下拉，嵌入外壳后顶栏刷新钮
-      // 也去掉了 ⇒ 必须留一颗，否则刷新无入口。
-      {
-        icon: 'ic_refresh.svg',
-        label: '刷新',
+    const list: FabAction[] = [];
+    // 原版 BackToTopFab：滚过一段才淡入，首屏不出现
+    if (this.showBackTop) {
+      list.push({
+        icon: 'ic_up.svg',
+        label: '回到顶部',
         onTap: () => {
-          if (!this.loading) {
-            this.load();
-          }
-        },
-      },
-      {
-        icon: 'ic_settings.svg',
-        label: '设置',
-        onTap: () => {
-          router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
-            warn('open settings fail: ' + JSON.stringify(e));
+          this.scroller.scrollTo({
+            xOffset: 0,
+            yOffset: 0,
+            animation: { duration: 240, curve: Curve.EaseOut },
           });
         },
+      });
+    }
+    list.push({
+      icon: 'ic_settings.svg',
+      label: '设置',
+      onTap: () => {
+        router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
+          warn('open settings fail: ' + JSON.stringify(e));
+        });
       },
-    ];
+    });
     return list;
   }
 
@@ -447,7 +458,9 @@ export struct ClassroomPage {
           .width('100%').padding(12)
           .backgroundColor(this.tk().secondaryContainer).borderRadius(CARD_RADIUS)
       } else {
-        Scroll() {
+        // 下拉刷新（原版 PullToRefreshContainer）：去掉「刷新」FAB 后，这是唯一刷新入口
+        Refresh({ refreshing: this.refreshing }) {
+        Scroll(this.scroller) {
           Column() {
             ForEach(this.groups, (g: CampusGroup) => {
               // ── 校区卡（三级折叠最外层）──
@@ -584,11 +597,28 @@ export struct ClassroomPage {
           .width('100%')
           .padding({ bottom: 8 })
         }
-        .layoutWeight(1)
+        .width('100%')
         // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
         .align(Alignment.Top)
-        .width('100%')
         .scrollBar(BarState.Auto)
+        // 滚动位置 → 「回到顶部」是否出现（原版 BackToTopFab：过一屏才淡入）
+        .onDidScroll(() => {
+          const y: number = this.scroller.currentOffset().yOffset;
+          const show: boolean = y > 260;
+          if (show !== this.showBackTop) {
+            this.showBackTop = show;
+          }
+        })
+        }
+        // ⚠️ onRefreshing 必须排在 layoutWeight 前面：`test-uiconventions` 规则 1 用
+        //    「.align(Top) → } → .layoutWeight(1)」这个形状判「align 挂错层」，反过来写会被误判。
+        .onRefreshing(() => {
+          this.refreshing = true;
+          this.load().then(() => {
+            this.refreshing = false;
+          });
+        })
+        .layoutWeight(1)
       }
 
       // 铁律 0.4：结果对应哪一天，写在屏幕上

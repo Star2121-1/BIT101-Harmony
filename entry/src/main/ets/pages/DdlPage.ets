@@ -32,6 +32,7 @@ import { DdlEntry } from '../corelogic/DdlRules.ts';
 import { remainTime } from '../corelogic/DdlFormat.ts';
 import { pendingList, doneList, cardColors } from '../corelogic/DdlListLogic.ts';
 import type { DateTime } from '../corelogic/timeutil.ts';
+import { isoDate, parseISODate, parseHM } from '../corelogic/timeutil.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 @Entry
@@ -50,6 +51,13 @@ export struct DdlPage {
   @State hasSession: boolean = false;
   /** 下拉刷新指示器（原版 `PullToRefreshContainer` 的 ArkUI 对应物）。 */
   @State refreshing: boolean = false;
+  /** 「＋ 新增」弹层是否打开。 */
+  @State addOpen: boolean = false;
+  @State dTitle: string = '';
+  @State dText: string = '';
+  @State dDate: string = '';
+  @State dTime: string = '23:59';
+  @State addErr: string = '';
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -127,9 +135,99 @@ export struct DdlPage {
     this.reload();
   }
 
-  /** 右下角悬浮按钮（原版 PageFab 规格）。这里先只挂「设置」——与原版各页最下面那颗一致。 */
+  /** 今天（epoch day）——新增作业的默认截止日。 */
+  private todayEpochDay(): number {
+    const d: Date = new Date();
+    return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+  }
+
+  /** 打开「＋ 新增」：默认截止 = 今天 23:59（原版新增弹窗的默认口径）。 */
+  private openAdd(): void {
+    this.dTitle = '';
+    this.dText = '';
+    this.dDate = isoDate(this.todayEpochDay());
+    this.dTime = '23:59';
+    this.addErr = '';
+    this.addOpen = true;
+  }
+
+  /** 保存本地作业：校验 → 落库 → 重载列表。校验失败如实上屏，不静默。 */
+  private async saveAdd(): Promise<void> {
+    const title: string = this.dTitle.trim();
+    if (title.length === 0) {
+      this.addErr = '标题不能为空';
+      return;
+    }
+    const day: number | null = parseISODate(this.dDate.trim());
+    if (day === null) {
+      this.addErr = '日期格式应为 YYYY-MM-DD';
+      return;
+    }
+    const minutes: number | null = parseHM(this.dTime.trim());
+    if (minutes === null) {
+      this.addErr = '时间格式应为 HH:MM';
+      return;
+    }
+    try {
+      await DdlStore.add(title, this.dText.trim(), day, minutes);
+      this.addOpen = false;
+      await this.reload();
+    } catch (e) {
+      this.addErr = '保存失败：' + (e as Error).message;
+      warn('DdlPage add fail: ' + JSON.stringify(e));
+    }
+  }
+
+  /** 长按本地条目 → 二次确认后删除（同步来的条目不给删，归教务管）。 */
+  private confirmDeleteLocal(e: DdlEntry): void {
+    if (!e.uid.startsWith('local_')) {
+      return;
+    }
+    AlertDialog.show({
+      title: '删除本地作业',
+      message: e.title,
+      primaryButton: {
+        value: '取消',
+        action: () => {
+        },
+      },
+      secondaryButton: {
+        value: '删除',
+        fontColor: this.tk().error,
+        action: () => {
+          DdlStore.removeLocal(e.uid).then(() => {
+            this.reload();
+          });
+        },
+      },
+    });
+  }
+
+  /**
+   * 右下角悬浮按钮（原版 PageFab 规格）：**＋ 新增 / 学士帽 / ⚙** 三颗，与 ref-02 一致。
+   * 学士帽 = 作业平台（延河课堂），用 App 内 Web 壳打开，带登录会话。
+   */
   private fabActions(): FabAction[] {
     const list: FabAction[] = [
+      {
+        icon: 'ic_add.svg',
+        label: '新增作业',
+        onTap: () => {
+          this.openAdd();
+        },
+      },
+      {
+        icon: 'ic_school.svg',
+        label: '作业平台',
+        onTap: () => {
+          router.pushUrl({
+            url: 'pages/WebShellPage',
+            params: { url: 'https://zy-eclass.bit.edu.cn/' },
+          }).catch((e: Error) => {
+            warn('open eclass web fail: ' + JSON.stringify(e));
+          });
+        },
+      },
       {
         icon: 'ic_settings.svg',
         label: '设置',
@@ -244,14 +342,101 @@ export struct DdlPage {
     .width('100%').height('100%')
     .backgroundColor(this.tk().background)
 
-      // 原版 DDL 是 3 颗（+ / 学士帽 / ⚙）。目前只挂 ⚙：
-      // 「+ 新增」与「去作业平台」要新增弹窗与平台选择，属下一页工作。
+      // 原版 DDL 是 3 颗（+ / 学士帽 / ⚙），现在齐了
       FabColumn({ actions: this.fabActions() })
+
+      // 「＋ 新增」弹层（内联遮罩 + 卡片）
+      if (this.addOpen) {
+        this.addDialog()
+      }
     }
     .width('100%').height('100%')
   }
 
   /** 分区标题（1:1 DdlSectionTitle：labelLarge + onSurfaceVariant）。 */
+  /**
+   * 「＋ 新增」弹层（内联，不引 CustomDialog：本页只有一个弹层，Stack 里铺一层足够）。
+   * 字段：标题（必填）/ 说明（可选）/ 截止日期 / 截止时间；校验失败在弹层内红字提示。
+   */
+  @Builder
+  addDialog() {
+    Column() {
+      Column() {
+        Text('新增作业')
+          .fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
+          .width('100%')
+
+        TextInput({ placeholder: '标题（必填）', text: this.dTitle })
+          .fontSize(14).fontColor(this.tk().onSurface)
+          .backgroundColor(this.tk().background)
+          .margin({ top: 12 })
+          .onChange((v: string) => {
+            this.dTitle = v;
+          })
+
+        TextInput({ placeholder: '课程 / 说明（可选）', text: this.dText })
+          .fontSize(14).fontColor(this.tk().onSurface)
+          .backgroundColor(this.tk().background)
+          .margin({ top: 8 })
+          .onChange((v: string) => {
+            this.dText = v;
+          })
+
+        Row() {
+          TextInput({ placeholder: 'YYYY-MM-DD', text: this.dDate })
+            .fontSize(14).fontColor(this.tk().onSurface)
+            .backgroundColor(this.tk().background)
+            .layoutWeight(1)
+            .onChange((v: string) => {
+              this.dDate = v;
+            })
+          TextInput({ placeholder: 'HH:MM', text: this.dTime })
+            .fontSize(14).fontColor(this.tk().onSurface)
+            .backgroundColor(this.tk().background)
+            .width(96).margin({ left: 8 })
+            .onChange((v: string) => {
+              this.dTime = v;
+            })
+        }
+        .width('100%').margin({ top: 8 })
+
+        if (this.addErr.length > 0) {
+          Text(this.addErr)
+            .fontSize(11).fontColor(this.tk().error)
+            .width('100%').margin({ top: 8 })
+        }
+
+        Row() {
+          Button('取消')
+            .height(34).fontSize(13)
+            .backgroundColor(this.tk().surface2)
+            .fontColor(this.tk().onSurfaceVariant)
+            .layoutWeight(1)
+            .onClick(() => {
+              this.addOpen = false;
+            })
+          Button('保存')
+            .height(34).fontSize(13)
+            .backgroundColor(this.tk().primary)
+            .fontColor(this.tk().onPrimary)
+            .layoutWeight(1).margin({ left: 10 })
+            .onClick(() => {
+              this.saveAdd();
+            })
+        }
+        .width('100%').margin({ top: 14 })
+      }
+      .width('88%')
+      .padding(16)
+      .backgroundColor(this.tk().surface)
+      .borderRadius(16)
+      .alignItems(HorizontalAlign.Start)
+    }
+    .width('100%').height('100%')
+    .backgroundColor('#66000000')
+    .justifyContent(FlexAlign.Center)
+  }
+
   @Builder
   sectionTitle(text: string, topMargin: number) {
     Text(text)
@@ -287,6 +472,16 @@ export struct DdlPage {
           .width('100%').margin({ top: 5 })
       }
       .layoutWeight(1)
+
+      // 本地新增的条目给一个删除入口（教务同步来的不给删，归教务管）
+      if (e.uid.startsWith('local_')) {
+        Text('删')
+          .fontSize(11).fontColor(this.tk().textPlaceholder)
+          .padding({ left: 8, right: 6 })
+          .onClick(() => {
+            this.confirmDeleteLocal(e);
+          })
+      }
 
       Checkbox()
         .select(e.done)

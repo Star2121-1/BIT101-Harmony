@@ -74,9 +74,53 @@ export class DdlStore {
     return { added: added, updated: updated, total: merged.length };
   }
 
-  /** 勾选/取消完成（按 uid）。找不到返回 false（调用方可提示「条目已消失」）。 */
-  static async setDone(uid: string, done: boolean): Promise<boolean> {
+  /**
+   * 本地新增（原版 DDL 页「＋」FAB，M4-3 之后的补齐项）。
+   *
+   * uid 统一带 `local_` 前缀：
+   * - 与教务的 `eclass:{id}` / `lexue:…` 不冲突，同步时不会互相覆盖；
+   * - `mergeDdl` 的「服务端消失的条目不删」同样保护它，同步后不会被清掉。
+   *
+   * ⚠️ 只存事实（epoch day + 当天分钟），不存格式化串（铁律 0.8）。
+   */
+  static async add(title: string, text: string, day: number, minutes: number): Promise<DdlEntry> {
     const all: DdlEntry[] = await DdlStore.load();
+    const uid: string = 'local_' + Date.now().toString();
+    const entry: DdlEntry = {
+      uid: uid, group: '本地', title: title, text: text,
+      day: day, minutes: minutes, done: false
+    };
+    all.push(entry);
+    await DdlStore.saveAll(all);
+    info('DdlStore add local uid=' + uid + ' title=' + title);
+    return entry;
+  }
+
+  /** 删除本地条目（只允许删 `local_` 前缀；同步来的条目归教务管，不在这里删）。 */
+  static async removeLocal(uid: string): Promise<boolean> {
+    if (!uid.startsWith('local_')) {
+      return false;
+    }
+    const all: DdlEntry[] = await DdlStore.load();
+    const kept: DdlEntry[] = [];
+    let hit: boolean = false;
+    for (let i = 0; i < all.length; i++) {
+      if (all[i].uid === uid) {
+        hit = true;
+      } else {
+        kept.push(all[i]);
+      }
+    }
+    if (!hit) {
+      return false;
+    }
+    await DdlStore.saveAll(kept);
+    info('DdlStore remove local uid=' + uid);
+    return true;
+  }
+
+  /** 勾选/取消完成（按 uid）。找不到返回 false（调用方可提示「条目已消失」）。 */
+  static async setDone(uid: string, done: boolean): Promise<boolean> {    const all: DdlEntry[] = await DdlStore.load();
     let hit: boolean = false;
     for (let i = 0; i < all.length; i++) {
       if (all[i].uid === uid) {
