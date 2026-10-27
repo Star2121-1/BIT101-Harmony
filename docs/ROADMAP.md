@@ -1,7 +1,14 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
-> 建立：2026-10-20 ｜ 更新：2026-10-24 20:57
-> 状态：**M0/M1 完成；M2 完成 8/9（仅剩覆盖层）；M3 完成 5/5；M4 完成 4/5；M5 四项代码完（欠真机）；M6 完成 5/5；M7 五项纯逻辑层全完（欠管道/真机）；M8 Form 平台壳 + 数据装配完；M9 八项逻辑层全完 + 契约层 SeatApiLogic（铁律 0.9）+ 座位主页 UI（SeatPage）+ M9-3 底图（裁图）+ M9-8 监控面板 UI（前台生命周期接线 + 状态条 + 任务卡 + 显式确认，绝不自动预约）已建**。已建独立 git 仓库，基线 tag `h-v1.0.0-alpha.1`（见 §8）。
+> 建立：2026-10-20 ｜ 更新：**2026-10-28**
+> 文档索引 → [`README.md`](README.md)（本目录）｜项目说明与截图 → [`../README.md`](../README.md)
+>
+> **当前状态（2026-10-28）**：M0/M1 ✅ ｜ M2 课表除「覆盖层待真机」外全完 ｜ M3 空教室/自习 5/5 ✅ ｜
+> M4 DDL/动态 4/5（缺源设置）｜ M5 班车 ✅、一卡通/校园网/图书馆代码完待真机 ｜ M6 设置 5/5 ✅ ｜
+> M7 提醒（逻辑 + 设置页 + 通知列表）已建，端到端管道未全验 ｜ M8 卡片 4×4 **真机已验**（点击深链 / 定时刷新未做）｜
+> M9 座位逻辑层全完 + UI 已建（提交需有效会话，未验）｜ M10 地图 / 成绩页 / 更新引导待做。
+> **UI 迁移 #81~#91 ✅**；2026-10-28 补齐 **DDL 三颗 FAB**（＋ 新增 / 学士帽 / ⚙）与**空教室回到顶部 + 下拉刷新**，
+> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **40 套件 2279 断言绿**；版本 `1.0.0-alpha.9`。
 > **UI 迁移线（2026-10-23 起，用户确认顺序逐页对齐原版 BIT101）**：#81 GridTokens / #82 共享组件 / #83 首页 / #84 课表 / #85 空教室 / #86 班车 / #87 座位（含 M9-8 监控面板改 Material3 风 + 应用名/图标补齐）/ #88 作业·DDL（分区结构 + 紧急度混色卡）已完成（全量 34/34 套件 2029 断言绿）；剩 #90 框架 chrome。#89 落 **palette 轴**：GridTokens 三层化（共享段 + Classic/Warm/Brand 三表 1:1 Android palette/ 目录，缺档 fail-fast），ThemeStore 持久化 ui_palette，11 个页面/组件订阅，SettingsPage 外观组加「配色方案」三选一（Brand 标实验性），MePage 贴 ref-03（头像区 + 一卡通/校园网双卡 + 入口组）。另 `4585296` 修 AppScope 层图标占位（桌面灰块根因）、`055a66f` 升级 CI 图标守卫。**#90 外壳已落地**（`corelogic/shellNav.ts` + TopTabBar/BottomNavBar/FabColumn/ModulePlaceholder，Index.ets 改为底部 6 模块 + 卷内 5 页签容器，Stack 保活 + 访问白名单懒建；图标换 Material Rounded 矢量 rawfile/icons/ 16 张；自习卡从首页搬进「我」页；`tools/test-shell.mjs` 66 断言）。**FAB 组未接**（需页面内状态）。基准 `harmony/ui-ref/MIGRATION-BASELINE.md`（仓库外）；tag 仍 alpha.8（纯 UI 提交不 bump 版本）。⚠️ 各页真机渲染未验（鸿蒙手机 reboot 后 USB 未重连）。
 > **2026-10-27 UI 对齐增量**（用户「对照原版改改里面的东西」）：桌面图标鸽子定档画布 **62%**（`tools/make-icon.py` + fixture 入库，可复现：`--percent 66` 重跑与旧包逐像素一致）；DDL 去页头、同步改下拉刷新；课表第 4 颗 FAB 改「＋ 改课表」（接 OverlayPage）；教学楼行双层 padding 叠加修掉（pitch 85→70vp，原版 64dp）。**学期切换已迁到设置页**（`TermStore` 单一来源 + `getCurrentTerm` 收口 + 课表 `@Watch` 重载；课表页 chips 行删除，栅栏 `test-termstore`），真机验过切学期/冷启动/恢复跟随三条路径。**学期列表折叠**（用户「保留近几年的，剩下的收缩可展开」）：默认只显示近 3 学年 + 「跟随教务」，更早的收进「展开旧学期（更早的 N 个）」；拆分抽成无 @kit 依赖的 `data/termUtil.ts` 纯函数（`splitTermsByRecentYears`），`test-termstore` 直接 import 真实函数跑算法断言（近期/脏值归旧/空列表/不足阈值 4 例）；选中的学期若落在旧区间则单列出来，防「选了旧学期却看不见、切不回」。
 > **欠**：旧学期的周次语义未实证（无原版内部页可拍）；课表 5 键 FAB 仍缺（→ ← 日历 ＋ ⚙，周次切换暂用页内按钮）。
@@ -88,6 +95,15 @@
 
 ### 2.3 工程现状
 
+**2026-10-28 实测**（`find … | wc -l`）：
+
+- **145 个源文件 / 31,025 行**（`.ets` + `.ts`，不含 `oh_modules` 与探针的注释量差异）
+- **28 个页面**（`pages/*.ets`）、**48 个纯逻辑模块**（`corelogic/*.ts`，全部可离线单测）
+- 分层：`core/{crypto,net,model,theme,log}` + `data` + `service` + `corelogic` + `pages` + `components` + `extensionability`
+- 存储：`Preferences`（会话 / 缓存 / 偏好），**缓存键按学期分键**；无 RDB（数据量不需要）
+- 测试：`bash tools/run-tests.sh` → **40 套件 / 2279 断言**；CI 在所有分支 push 上跑
+
+> 下面是 2026-10-20 建台账时的快照，保留作对照（当时只有 3 个页面）：
 - 37 个源文件 9114 行（含 M1 探针 `probe/CasProbe.ts` 1178 行、`pages/CasProbePage.ets` 183 行，属诊断代码，M2 收尾后可删）
 - 分层：`core/{crypto,net,model,theme,log}` + `data` + `service` + `corelogic` + `pages`
 - 已有页面：`Index`（入口）· `LoginPage` · `SchedulePage` · `CasProbePage`（诊断）
