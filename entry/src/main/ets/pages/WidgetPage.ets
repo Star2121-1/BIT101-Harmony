@@ -17,6 +17,8 @@
 
 import { WidgetPage as WidgetPageData, PageKind, ClassState } from '../corelogic/WidgetLogic.ts';
 import { type WidgetLine } from '../corelogic/WidgetLogic.ts';
+import { gridTokens, getPaletteName } from '../core/theme/GridTokens.ts';
+import type { GridTokens } from '../core/theme/GridTokens.ts';
 
 // ── 卡片主组件 ─────────────────────────────────────────────────────────────
 
@@ -25,10 +27,22 @@ import { type WidgetLine } from '../corelogic/WidgetLogic.ts';
 struct WidgetPage {
   // 卡片数据（FormExtensionAbility 经 formBindingData 注入 LocalStorage）
   @LocalStorageProp('widgetPayload') widgetPayload: string = '';
+  /**
+   * 主题（由 FormExtension 随 binding data 下发）。
+   * ⚠️ 卡片是独立进程，读不到主进程的 `AppStorage`，所以 palette/深色必须由扩展
+   *   算好传进来；以前这里写死深绿 #1A7F37 + 白底，和 App 的三套配色完全不搭
+   *   （2026-10-27 真机对照后改）。
+   */
+  @LocalStorageProp('widgetPalette') widgetPalette: string = 'warm';
+  @LocalStorageProp('widgetDark') widgetDark: boolean = false;
   @State private currentTabIndex: number = 0;
 
-  // 5 个页面名称（对应 PageKind）
+  /** 5 个页面名称（对应 PageKind） */
   private readonly tabLabels: string[] = ['课程', 'DDL', '动态', '座位', '自习'];
+
+  private tk(): GridTokens {
+    return gridTokens(this.widgetDark, getPaletteName(this.widgetPalette));
+  }
 
   /**
    * 现取现解析（铁律 0.8：卡片数据可能晚于 aboutToAppear 到达，不缓存派生）。
@@ -97,12 +111,12 @@ struct WidgetPage {
   /** 一行的背景色（按高亮态；普通方法才能写分支语句，@Builder 里只放 UI 语法）。 */
   private lineBg(line: WidgetLine): string {
     if (line.highlight === ClassState.ONGOING) {
-      return '#E8F5E9';
+      return this.tk().secondaryContainer;
     }
     if (line.highlight === ClassState.UPCOMING) {
-      return '#FFF3E0';
+      return this.tk().tertiaryContainer;
     }
-    return '#FFFFFF';
+    return this.tk().surface;
   }
 
   build() {
@@ -112,16 +126,16 @@ struct WidgetPage {
         Text('BIT101')
           .fontSize(14)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#FFFFFF')
+          .fontColor(this.tk().onPrimary)
         Blank()
         Text(this.getCurrentDateText())
           .fontSize(11)
-          .fontColor('#FFFFFF')
+          .fontColor(this.tk().onPrimary)
           .opacity(0.8)
       }
       .width('100%')
       .height(36)
-      .backgroundColor('#1A7F37')
+      .backgroundColor(this.tk().primary)
       .padding({ left: 12, right: 12 })
       .alignItems(VerticalAlign.Center)
 
@@ -133,7 +147,8 @@ struct WidgetPage {
             ForEach(this.shownPages(), (page: WidgetPageData) => {
               Text(page.title)
                 .fontSize(11)
-                .fontColor(this.shownPages().indexOf(page) === this.currentTabIndex ? '#1A7F37' : '#888888')
+                .fontColor(this.shownPages().indexOf(page) === this.currentTabIndex
+                  ? this.tk().primary : this.tk().onSurfaceVariant)
                 .fontWeight(this.shownPages().indexOf(page) === this.currentTabIndex ? FontWeight.Bold : FontWeight.Normal)
                 .padding({ left: 8, right: 8, top: 4, bottom: 4 })
                 .onClick(() => {
@@ -144,7 +159,7 @@ struct WidgetPage {
           .width('100%')
           .justifyContent(FlexAlign.SpaceAround)
           .border({ width: { bottom: 1 } })
-          .borderColor('#E0E0E0')
+          .borderColor(this.tk().outlineVariant)
 
           // 当前页内容
           this.currentPageView()
@@ -158,14 +173,14 @@ struct WidgetPage {
           Text('BIT101')
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
-            .fontColor('#1A7F37')
+            .fontColor(this.tk().primary)
           Text('桌面卡片')
             .fontSize(12)
-            .fontColor('#888888')
+            .fontColor(this.tk().onSurfaceVariant)
             .margin({ top: 8 })
           Text('请打开 App 查看完整功能')
             .fontSize(11)
-            .fontColor('#AAAAAA')
+            .fontColor(this.tk().textPlaceholder)
             .margin({ top: 4 })
         }
         .width('100%')
@@ -176,7 +191,7 @@ struct WidgetPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor(this.tk().background)
     .borderRadius(12)
   }
 
@@ -205,7 +220,7 @@ struct WidgetPage {
           // 空态文本
           Text(this.currentEmptyText())
             .fontSize(11)
-            .fontColor('#999999')
+            .fontColor(this.tk().onSurfaceVariant)
             .width('100%')
             .textAlign(TextAlign.Center)
             .margin({ top: 20 })
@@ -215,7 +230,7 @@ struct WidgetPage {
         if (this.currentFooterText().length > 0) {
           Text(this.currentFooterText())
             .fontSize(9)
-            .fontColor('#AAAAAA')
+            .fontColor(this.tk().textPlaceholder)
             .width('100%')
             .textAlign(TextAlign.Center)
             .margin({ top: 4 })
@@ -234,7 +249,7 @@ struct WidgetPage {
       Column() {
         Text(line.time)
           .fontSize(9)
-          .fontColor('#888888')
+          .fontColor(this.tk().onSurfaceVariant)
       }
       .width(36)
       .alignItems(HorizontalAlign.Center)
@@ -250,7 +265,7 @@ struct WidgetPage {
           }
           Text(line.main)
             .fontSize(12)
-            .fontColor(line.muted ? '#AAAAAA' : '#333333')
+            .fontColor(line.muted ? this.tk().textPlaceholder : this.tk().onSurface)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
@@ -261,7 +276,7 @@ struct WidgetPage {
         if (line.lead.length > 0 || line.trail.length > 0) {
           Text((line.lead.length > 0 ? line.lead : '') + ' ' + (line.trail.length > 0 ? line.trail : ''))
             .fontSize(9)
-            .fontColor('#999999')
+            .fontColor(this.tk().onSurfaceVariant)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
