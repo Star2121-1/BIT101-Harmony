@@ -59,6 +59,34 @@ export const SCHEDULE_TABS: ShellTab[] = [
 /** 默认落地模块（原版 `PageSettings.homePage` 默认 = 第一个 = 卷）。 */
 export const DEFAULT_MODULE: string = 'schedule';
 
+/**
+ * 模块的**全名**（无障碍朗读与搜索用）。
+ *
+ * 底栏标签是单字（卷/图/网/话/我/座）—— 读屏念「卷」没有任何信息量，
+ * 所以可点元素要用全名。未知 key 回退到 key 本身（不编名字）。
+ */
+export function moduleFullName(key: string): string {
+  if (key === 'schedule') {
+    return '课表';
+  }
+  if (key === 'map') {
+    return '校园楼栋';
+  }
+  if (key === 'web') {
+    return '网页服务';
+  }
+  if (key === 'gallery') {
+    return '话廊';
+  }
+  if (key === 'mine') {
+    return '我';
+  }
+  if (key === 'seat') {
+    return '座位';
+  }
+  return key;
+}
+
 /** 默认落地页签（原版 `TabPager` 起始页 0 = 课表）。 */
 export const DEFAULT_TAB: string = 'timetable';
 

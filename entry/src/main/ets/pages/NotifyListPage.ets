@@ -14,6 +14,8 @@ import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { NotifyRecord, kindLabel } from '../corelogic/NotifyRecordLogic.ts';
 import { NotifyRecordStore } from '../data/NotifyRecordStore.ts';
+import { NotifySeenStore } from '../data/NotifySeenStore.ts';
+import { NotifyTimedItem, GroupSpan, groupSpans, unreadCount, badgeText, clearConfirmText } from '../corelogic/NotifyGroupLogic.ts';
 import { ReminderKind } from '../corelogic/NotifyLogic.ts';
 import { warn } from '../core/log/BitLog.ts';
 
@@ -32,6 +34,9 @@ struct NotifyListPage {
   @State records: NotifyRecord[] = [];
   @State busy: boolean = false;
   @State emptyMsg: string = '';
+  @State unread: number = 0;
+  @State spans: GroupSpan[] = [];
+  @State clearing: boolean = false;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -43,7 +48,47 @@ struct NotifyListPage {
   }
 
   onPageShow(): void {
-    this.reload();
+    this.reload().then(() => {
+      // 先算出未读（reload 内），再记「已看到此刻」——
+      // 顺序反了会让徽标永远为 0（自己把未读清掉了）。
+      NotifySeenStore.markSeen(Date.now()).catch((e: Error) => {
+        warn('NotifyListPage markSeen fail: ' + JSON.stringify(e));
+      });
+    });
+  }
+
+  /** 清空要二次确认，且说清「不影响提醒设置」。 */
+  private confirmClear(): void {
+    AlertDialog.show({
+      title: '清空提醒记录',
+      message: clearConfirmText(this.records.length),
+      primaryButton: {
+        value: '取消',
+        action: () => {
+        },
+      },
+      secondaryButton: {
+        value: '清空',
+        fontColor: this.tk().error,
+        action: () => {
+          this.doClear();
+        },
+      },
+    });
+  }
+
+  private async doClear(): Promise<void> {
+    if (this.clearing) {
+      return;
+    }
+    this.clearing = true;
+    try {
+      await NotifyRecordStore.clear();
+      await this.reload();
+    } catch (e) {
+      warn('NotifyListPage clear fail: ' + JSON.stringify(e));
+    }
+    this.clearing = false;
   }
 
   /** 现算「还剩 N 分钟 / 已过 N 分钟」（未发条目才显示）。 */
@@ -65,6 +110,11 @@ struct NotifyListPage {
       const tab: TabItem | null = this.tabs.length > this.activeTab ? this.tabs[this.activeTab] : null;
       const kind: ReminderKind | null = tab !== null ? tab.kind : null;
       this.records = NotifyRecordStore.byKind(all, kind);
+      // 未读与分组：全量算一次（不按 tab 算 —— 徽标要反映「所有没看的」，不是当前 tab 的）
+      const seen: number = await NotifySeenStore.load();
+      const timed: NotifyTimedItem[] = all;
+      this.unread = unreadCount(timed, seen);
+      this.spans = groupSpans(this.records, Date.now(), -new Date().getTimezoneOffset() * 60000);
       if (this.records.length === 0) {
         this.emptyMsg = kind === null
           ? '还没有排入提醒。开课后第一次打开「我」页会生成。'
@@ -86,7 +136,24 @@ struct NotifyListPage {
           .textAlign(TextAlign.Center).margin({ left: 8 })
           .onClick(() => router.back())
         Text('通知')
-          .fontSize(18).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).layoutWeight(1)
+          .fontSize(18).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
+        if (this.unread > 0) {
+          Text(badgeText(this.unread))
+            .fontSize(10).fontColor(this.tk().onError)
+            .backgroundColor(this.tk().error)
+            .borderRadius(8).padding({ left: 5, right: 5, top: 1, bottom: 1 })
+            .margin({ left: 6 })
+            .accessibilityText(String(this.unread) + ' 条未读')
+        }
+        Text('')
+          .layoutWeight(1)
+        if (this.records.length > 0) {
+          Text('清空')
+            .fontSize(14).fontColor(this.tk().error)
+            .padding({ left: 8, right: 12 })
+            .accessibilityText('清空提醒记录')
+            .onClick(() => this.confirmClear())
+        }
         Text('刷新')
           .fontSize(14).fontColor(this.tk().primary)
           .onClick(() => this.reload())
@@ -124,7 +191,11 @@ struct NotifyListPage {
       } else {
         Scroll() {
           Column() {
-            ForEach(this.records, (rec: NotifyRecord) => {
+            ForEach(this.spans, (span: GroupSpan) => {
+              Text(span.label)
+                .fontSize(11).fontColor(this.tk().primary)
+                .width('100%').padding({ top: 10, bottom: 4 })
+              ForEach(this.records.slice(span.start, span.end), (rec: NotifyRecord) => {
               Column() {
                 Row() {
                   Text(kindLabel(rec.kind))
@@ -159,7 +230,10 @@ struct NotifyListPage {
               .width('100%').padding(12)
               .backgroundColor(this.tk().surface2)
               .borderRadius(10).margin({ bottom: 8 })
-            }, (rec: NotifyRecord) => rec.key)
+              .accessibilityText(kindLabel(rec.kind) + '，' + rec.title + '，' + rec.text +
+                (rec.firedMillis > 0 ? '，已发出' : '，' + this.remainText(rec, Date.now())))
+              }, (rec: NotifyRecord) => rec.key)
+            }, (span: GroupSpan) => span.label)
           }
           .width('100%')
         }

@@ -46,6 +46,10 @@ import { TeachingAdjustmentService } from '../service/TeachingAdjustmentService.
 import { DayPlan, DayPlanMakeUp, dayPlanOf } from '../corelogic/TeachingAdjustment.ts';
 import { TeachingEntry } from '../corelogic/TeachingAdjustmentParser.ts';
 import { info, warn } from '../core/log/BitLog.ts';
+import { weekSpanText } from '../corelogic/WeekSpan.ts';
+import { creditText, categoryText, summaryText } from '../corelogic/CourseDetailLogic.ts';
+import { todayBadge } from '../corelogic/TeachingAdjustmentView.ts';
+import { STORAGE_FOCUS_COURSE, sanitizeCourseName } from '../corelogic/SearchNav.ts';
 
 const CELL_H: number = 46;
 const TOTAL_SECTIONS: number = 13;
@@ -114,6 +118,10 @@ export struct SchedulePage {
   @State selected: CourseRow | null = null;
   /** 选中课程所在列的调休标记（如「按周周四」）；空 = 正常日。 */
   @State selectedPlanNote: string = '';
+  /** 今天的教学调整角标（「今天放假（不上课）」这类；非调整日为空）。 */
+  @State adjustBadge: string = '';
+  /** 搜索页要定位的课程名（读后即清，避免下次进页又弹同一个）。 */
+  @StorageLink(STORAGE_FOCUS_COURSE) @Watch('onFocusCourseChanged') focusCourse: string = '';
   /** 教学安排调整（放假/补课）。取不到就是空数组，课表照常显示。 */
   @State adjustments: TeachingEntry[] = [];
   /** 本周（显示周）里的调整计数，仅用于状态条说清范围。 */
@@ -203,6 +211,10 @@ export struct SchedulePage {
       const ta = await TeachingAdjustmentService.load(ctx, false);
       this.adjustments = ta.entries;
       this.recountWeek();
+      // 今日角标（只讲今天；全量在「设置 → 教学安排调整」）
+      const d0: Date = new Date();
+      const today0: number = Math.floor(Date.UTC(d0.getFullYear(), d0.getMonth(), d0.getDate()) / 86400000);
+      this.adjustBadge = todayBadge(ta.entries, today0);
       info('SchedulePage adjustments=' + ta.entries.length +
         ' notices=' + ta.notices.length + ' fromCache=' + ta.fromCache);
     } catch (e) {
@@ -342,6 +354,44 @@ export struct SchedulePage {
   }
 
   /** 本周节数 + 冲突数 + 教学调整天数（范围各自说清，不混算）。 */
+  /**
+   * 搜索页要求定位某门课：选中它并跳到它在上的那一周。
+   * 读完立刻清空 `AppStorage` 键 —— 否则用户下次进课表又被弹一次。
+   */
+  private onFocusCourseChanged(): void {
+    const name: string = sanitizeCourseName(this.focusCourse);
+    if (name.length === 0) {
+      return;
+    }
+    this.focusCourse = '';
+    for (let i = 0; i < this.courses.length; i++) {
+      if (this.courses[i].KCM !== name) {
+        continue;
+      }
+      this.selected = this.courses[i];
+      this.selectedPlanNote = '';
+      // 跳到该课第一次上课的周（课程可能不在当前周）
+      const w: number = this.firstWeekOf(this.courses[i].SKZC);
+      if (w > 0) {
+        this.week = w;
+        this.recountWeek();
+      }
+      info('SchedulePage focus course=' + name + ' week=' + this.week);
+      return;
+    }
+    warn('SchedulePage focus course not found: ' + name);
+  }
+
+  /** 周次串里第一个上课周；没有返回 0。 */
+  private firstWeekOf(skzc: string): number {
+    for (let i = 0; i < skzc.length; i++) {
+      if (skzc.charAt(i) === '1') {
+        return i + 1;
+      }
+    }
+    return 0;
+  }
+
   private recountWeek(): void {
     let count: number = 0;
     let conflict: number = 0;
@@ -934,6 +984,26 @@ export struct SchedulePage {
       }
       .width('100%').padding({ left: 12, right: 12, top: 4, bottom: 8 })
 
+      // 今日教学调整角标（只讲今天，点进设置页看全量）
+      if (this.adjustBadge.length > 0) {
+        Row() {
+          Text(this.adjustBadge)
+            .fontSize(12).fontColor(this.p().onError)
+            .layoutWeight(1)
+          Text('全部调整 ›')
+            .fontSize(11).fontColor(this.p().primary)
+        }
+        .width('100%')
+        .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+        .backgroundColor(this.p().errorContainer)
+        .accessibilityText(this.adjustBadge + '，点此查看全部教学调整')
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/TeachingAdjustmentPage' }).catch((e: Error) => {
+            warn('schedule -> adjustments fail: ' + JSON.stringify(e));
+          });
+        })
+      }
+
       // 课程详情（点块弹出）
       if (this.selected !== null) {
         Column() {
@@ -957,8 +1027,7 @@ export struct SchedulePage {
             .fontSize(12).fontColor(this.p().onSurfaceVariant).width('100%').margin({ top: 2 })
           Text('教师：' + (this.selected!.SKJS.length > 0 ? this.selected!.SKJS : '未标注'))
             .fontSize(12).fontColor(this.p().onSurfaceVariant).width('100%').margin({ top: 2 })
-          Text('周次：' + (skzcToWeeks(this.selected!.SKZC).length > 0
-            ? skzcToWeeks(this.selected!.SKZC) : '未标注') +
+          Text('周次：' + weekSpanText(this.selected!.SKZC) +
             (this.selected!.KCH.length > 0 ? ' · 课号 ' + this.selected!.KCH : ''))
             .fontSize(12).fontColor(this.p().onSurfaceVariant).width('100%').margin({ top: 2 })
           // 教学调整标记：补课日必须点明，否则用户会以为是这天的课
@@ -1038,6 +1107,10 @@ export struct SchedulePage {
     .backgroundColor(this.tintedColors(b.colorIndex, dayIndex).fill)
     .borderRadius(6)
     .border({ width: { left: 4 }, color: this.tintedColors(b.colorIndex, dayIndex).ink })
+    // 无障碍：读屏要念「课程名，第几节到第几节，教室」，只念课名等于没信息
+    .accessibilityText(b.course === null ? '' : (b.course.KCM + '，周' + DAY_LABELS[dayIndex] +
+      '第 ' + b.course.KSJC + '-' + b.course.JSJC + ' 节，' +
+      (b.course.JASMC.length > 0 ? b.course.JASMC : '教室未标注')))
     .onClick(() => {
       if (b.course !== null) {
         this.selected = b.course;
@@ -1053,37 +1126,23 @@ export struct SchedulePage {
     return tintedCourseColors(colorIndex, this.isDark, this.columnTint(dayIndex));
   }
 
-  /** 学分/学时行：空则返回空串（调用方据此不渲染，**不留空行**）。 */
+  /**
+   * 学分/学时行：空则返回空串（调用方据此不渲染，**不留空行**）。
+   * 装配逻辑在 `CourseDetailLogic.creditText`（与搜索副标题、无障碍共用一套口径）。
+   */
   private detailCredits(): string {
     if (this.selected === null) {
       return '';
     }
-    const parts: string[] = [];
-    if (this.selected.XF > 0) {
-      parts.push('学分 ' + this.selected.XF);
-    }
-    if (this.selected.XS > 0) {
-      parts.push('学时 ' + this.selected.XS);
-    }
-    return parts.join(' · ');
+    return creditText(this.selected);
   }
 
-  /** 课程性质 / 类别 / 开课单位：空则空串。 */
+  /** 课程性质 / 类别 / 开课单位：空则空串（同样复用纯函数）。 */
   private detailCategory(): string {
     if (this.selected === null) {
       return '';
     }
-    const parts: string[] = [];
-    if (this.selected.KCXZDM_DISPLAY.length > 0) {
-      parts.push(this.selected.KCXZDM_DISPLAY);
-    }
-    if (this.selected.KCLBDM_DISPLAY.length > 0) {
-      parts.push(this.selected.KCLBDM_DISPLAY);
-    }
-    if (this.selected.KKDWDM_DISPLAY.length > 0) {
-      parts.push(this.selected.KKDWDM_DISPLAY);
-    }
-    return parts.join(' · ');
+    return categoryText(this.selected);
   }
 
   /**

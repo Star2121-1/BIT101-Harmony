@@ -14,7 +14,15 @@
  */
 
 import { notificationManager } from '@kit.NotificationKit';
+import { wantAgent } from '@kit.AbilityKit';
 import { info, warn } from '../core/log/BitLog.ts';
+
+/**
+ * 应用包名 —— 与 `AppScope/app.json5` 的 `bundleName` 一致。
+ * ⚠️ 改包名时必须同步（否则通知点击打不开 App，且**没有任何报错**，只是点了没反应）。
+ */
+const BUNDLE_NAME: string = 'cn.bit101.next';
+const ENTRY_ABILITY: string = 'EntryAbility';
 
 /** 通知 id（同 id 会覆盖前一条；出分提醒固定用一个，避免刷屏堆叠）。 */
 export const NOTIFY_ID_SCORES: number = 1001;
@@ -23,7 +31,7 @@ export const NOTIFY_ID_SCORES: number = 1001;
  * 发一条纯文本通知。
  * @returns 是否真的发出去了（开关关闭/无权限 → false，不抛）
  */
-export async function publishText(id: number, title: string, text: string): Promise<boolean> {
+export async function publishText(id: number, title: string, text: string, page: string = ''): Promise<boolean> {
   if (title.length === 0 || text.length === 0) {
     return false;
   }
@@ -48,6 +56,26 @@ export async function publishText(id: number, title: string, text: string): Prom
       }
     }
   };
+  // 点击落点：带 `bit101Page` 参数，EntryAbility 校验后由 Index pushUrl。
+  // 失败（系统不支持 wantAgent）不影响通知本身 —— 退化成「只打开 App」。
+  if (page.length > 0) {
+    try {
+      const info2: wantAgent.WantAgentInfo = {
+        wants: [{
+          bundleName: BUNDLE_NAME,
+          abilityName: ENTRY_ABILITY,
+          // 键名必须与 `NotifyDeepLink.KEY_NOTIFY_PAGE` 一致（对象字面量里不能用计算属性，故写字面量）
+          parameters: { bit101Page: page },
+        }],
+        actionType: wantAgent.OperationType.START_ABILITY,
+        requestCode: id,
+      };
+      request.wantAgent = await wantAgent.getWantAgent(info2);
+      info('InstantNotify wantAgent page=' + page);
+    } catch (e) {
+      warn('InstantNotify wantAgent fail (通知仍会发): ' + JSON.stringify(e));
+    }
+  }
   try {
     await notificationManager.publish(request);
     info('InstantNotify published id=' + id);

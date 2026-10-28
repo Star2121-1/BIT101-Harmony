@@ -27,6 +27,7 @@ import { setDumpDir } from '../core/log/DebugDump.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
 import { setForeground } from '../core/AppForegroundState.ts';
 import { sanitizeContentId, KEY_CARD_CONTENT, STORAGE_OPEN_CONTENT } from '../corelogic/WidgetDeepLink.ts';
+import { sanitizePage, KEY_NOTIFY_PAGE, STORAGE_OPEN_PAGE } from '../corelogic/NotifyDeepLink.ts';
 
 const DOMAIN = 0x0000;
 
@@ -96,6 +97,18 @@ export default class EntryAbility extends UIAbility {
           hilog.info(DOMAIN, 'testTag', 'card deep link content=%{public}s', safe);
         } else {
           hilog.warn(DOMAIN, 'testTag', 'card deep link ignored: %{public}s', wantContent);
+        }
+      }
+      // 通知深链：独立页（成绩/考试/教学调整）。白名单在 sanitizePage 里，
+      // 这里只负责写下目标；Index 可见时消费并 pushUrl。
+      const wantPage: string = String(params[KEY_NOTIFY_PAGE] ?? '');
+      if (wantPage.length > 0) {
+        const page: string = sanitizePage(wantPage);
+        if (page.length > 0) {
+          AppStorage.setOrCreate<string>(STORAGE_OPEN_PAGE, page);
+          hilog.info(DOMAIN, 'testTag', 'notify deep link page=%{public}s', page);
+        } else {
+          hilog.warn(DOMAIN, 'testTag', 'notify deep link ignored: %{public}s', wantPage);
         }
       }
     } catch (err) {

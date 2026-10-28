@@ -519,6 +519,9 @@ export struct DdlPage {
     .backgroundColor(this.cardBg(e))
     .borderRadius(12)
     .alignItems(VerticalAlign.Center)
+    // 无障碍：说清「哪门作业、什么时候交、完成没」，读屏只念标题等于没状态
+    .accessibilityText(e.title + '，' + remainTime({ day: e.day, minutes: e.minutes }, this.now()) +
+      (e.done ? '，已完成' : '，未完成') + '，双击切换完成状态')
     .onClick(() => {
       this.toggle(e);
     })

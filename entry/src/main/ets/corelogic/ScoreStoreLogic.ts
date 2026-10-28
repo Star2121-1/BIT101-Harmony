@@ -45,7 +45,12 @@ export function encodeCached(c: CachedScores): string {
   const rows: ScoreEntry[] = [];
   for (let i = 0; i < c.entries.length; i++) {
     const e: ScoreEntry = c.entries[i];
-    rows.push({ course: e.course, score: e.score, term: e.term });
+    // credit 只在有值时写（旧缓存没有这个键 ⇒ 解码得到 undefined，不影响统计）
+    if (e.credit !== undefined && e.credit > 0) {
+      rows.push({ course: e.course, score: e.score, term: e.term, credit: e.credit });
+    } else {
+      rows.push({ course: e.course, score: e.score, term: e.term });
+    }
   }
   return JSON.stringify({ at: c.atMillis, rows: rows } as CachedScoresJson);
 }
@@ -87,7 +92,15 @@ export function decodeCached(raw: string): CachedScores | null {
     }
     const score: string | null = optStr(rec['score']);
     const term: string | null = optStr(rec['term']);
-    entries.push({ course: course, score: score, term: term });
+    const creditVal: Object | undefined = rec['credit'];
+    const credit: number | undefined = typeof creditVal === 'number' && Number.isFinite(creditVal as number) && (creditVal as number) > 0
+      ? creditVal as number
+      : undefined;
+    if (credit !== undefined) {
+      entries.push({ course: course, score: score, term: term, credit: credit });
+    } else {
+      entries.push({ course: course, score: score, term: term });
+    }
   }
   return { atMillis: at, entries: entries };
 }

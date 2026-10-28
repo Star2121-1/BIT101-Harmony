@@ -29,6 +29,11 @@
     "pages/SeatMonitorPage",
     "pages/ScorePage",
     "pages/AboutPage",
-    "pages/WebServicesPage"
+    "pages/WebServicesPage",
+    "pages/SearchPage",
+    "pages/CampusMapPage",
+    "pages/TeachingAdjustmentPage",
+    "pages/DiagnosticsPage",
+    "pages/CacheCleanPage"
   ]
 }

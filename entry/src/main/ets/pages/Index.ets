@@ -17,7 +17,9 @@
  * ⚠️ build() 根部不声明局部变量（编译器只认根节点起手）⇒ 派生值走私有方法。
  */
 
+import { router } from '@kit.ArkUI';
 import { gridTokens } from '../core/theme/GridTokens.ts';
+import { warn } from '../core/log/BitLog.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import {
   NAV_MODULES,
@@ -32,6 +34,7 @@ import {
 } from '../corelogic/shellNav.ts';
 import type { ShellSelection } from '../corelogic/shellNav.ts';
 import { STORAGE_OPEN_CONTENT } from '../corelogic/WidgetDeepLink.ts';
+import { STORAGE_OPEN_PAGE, sanitizePage } from '../corelogic/NotifyDeepLink.ts';
 import { TopTabBar } from '../components/shell/TopTabBar.ets';
 import { BottomNavBar } from '../components/shell/BottomNavBar.ets';
 import { ModulePlaceholder } from '../components/shell/ModulePlaceholder.ets';
@@ -113,6 +116,30 @@ struct Index {
     this.markVisited(contentIdOf(this.moduleKey, this.tabKey));
   }
 
+  /**
+   * 通知深链带来的独立页（`bit101Page`）：读完清空再 pushUrl。
+   * 路径已在 `NotifyDeepLink.sanitizePage` 过白名单，这里不重复判断（但清空是必须的）。
+   */
+  private consumeOpenPage(): void {
+    const raw: string | undefined = AppStorage.get<string>(STORAGE_OPEN_PAGE);
+    if (raw === undefined || raw.length === 0) {
+      return;
+    }
+    AppStorage.setOrCreate<string>(STORAGE_OPEN_PAGE, '');
+    const page: string = sanitizePage(raw);
+    if (page.length === 0) {
+      return;
+    }
+    router.pushUrl({ url: page }).catch((e: Error) => {
+      warn('Index open page fail: ' + JSON.stringify(e));
+    });
+  }
+
+  onPageShow(): void {
+    // 通知点击进来时 App 可能已在运行 ⇒ 每次可见都消费一次（读完即清）
+    this.consumeOpenPage();
+  }
+
   build() {
     Column() {
       // ── 顶部 5 页签：只有「卷」有（座位页自带「预约/列表」双 chip，不共用这行）──
@@ -186,11 +213,28 @@ struct Index {
 
         // 图 / 网 / 话：格子保留（原版固定 6 格），内容如实说明现状
         if (this.currentId() === 'map') {
-          ModulePlaceholder({
-            title: '校园地图',
-            reason: '鸿蒙侧还没接地图底图与地点数据。原版这页是校内地点检索 + 地图定位。',
-            icon: 'nav_map.svg',
-          })
+          // 原版这页是地图；鸿蒙侧不做在线瓦片（配额 + ODbL 条款），
+          // 改成「楼栋索引 + 系统地图打开」——能真用，且不假装是地图。
+          Column() {
+            Text('校园楼栋')
+              .fontSize(18).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
+              .width('100%')
+            Text('按校区列出 48 栋楼，可查「本机课表里在这栋楼上过什么课」，并可用系统地图打开。')
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+              .width('100%').margin({ top: 8 })
+            Button('打开楼栋索引')
+              .height(36).fontSize(13).margin({ top: 16 })
+              .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+              .onClick(() => {
+                router.pushUrl({ url: 'pages/CampusMapPage' }).catch((e: Error) => {
+                  warn('Index -> map fail: ' + JSON.stringify(e));
+                });
+              })
+          }
+          .width('100%').height('100%')
+          .padding({ left: 20, right: 20, top: 40 })
+          .alignItems(HorizontalAlign.Start)
+          .backgroundColor(this.tk().background)
         }
         if (this.currentId() === 'web') {
           ModulePlaceholder({

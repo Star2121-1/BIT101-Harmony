@@ -16,6 +16,7 @@
 
 import { gridTokens } from '../../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../../data/ThemeStore.ts';
+import { moduleFullName } from '../../corelogic/shellNav.ts';
 import type { ShellModule } from '../../corelogic/shellNav.ts';
 
 @Component
@@ -66,6 +67,8 @@ export struct BottomNavBar {
         }
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
+        // 底栏只有单字（卷/图/网/话/我/座），读屏念单字等于没念 —— 给全名
+        .accessibilityText(moduleFullName(m.key) + (m.key === this.selectedKey ? '，当前页' : ''))
         .onClick(() => {
           this.onSelect(m.key);
         })

@@ -31,6 +31,10 @@ import type { CachedScores } from '../corelogic/ScoreStoreLogic.ts';
 import { isFresh, SCORE_CACHE_TTL_MS } from '../corelogic/ScoreStoreLogic.ts';
 import type { ScoreEntry } from '../corelogic/ScoreLogic.ts';
 import { groupByTerm, summarize, summaryLine, hasScore } from '../corelogic/ScoreFlowLogic.ts';
+import {
+  creditSummary, creditLine, buckets, bucketLine, formatCredit,
+} from '../corelogic/ScoreSummaryLogic.ts';
+import type { CreditSummary, BucketCount, TermCredit } from '../corelogic/ScoreSummaryLogic.ts';
 import type { ScoreTermGroup } from '../corelogic/ScoreFlowLogic.ts';
 import { statusText, fmtCheckTime, humanReason, ScoreCheckCode } from '../corelogic/ScoreCheckLogic.ts';
 import type { ScoreCheckStatus } from '../corelogic/ScoreCheckLogic.ts';
@@ -55,6 +59,10 @@ export struct ScorePage {
   @State msg: string = '';
   /** 最近一次检查状态（`ScoreCheckLogic.statusText`）。 */
   @State lastLine: string = '';
+  /** 折叠起来的学期（默认只展开最新一个；其余折叠，避免几十门课一次铺满）。 */
+  @State collapsed: string[] = [];
+  /** 课程名过滤（成绩多时按课名找）。 */
+  @State filter: string = '';
 
   // ── 临时凭据输入（不保存时只在内存里活一次）──
   @State inputUser: string = '';
@@ -68,6 +76,68 @@ export struct ScorePage {
 
   private groups(): ScoreTermGroup[] {
     return groupByTerm(this.entries);
+  }
+
+  /** 按课名过滤后的分组（过滤为空则原样）。 */
+  private visibleGroups(): ScoreTermGroup[] {
+    const kw: string = this.filter.trim();
+    if (kw.length === 0) {
+      return this.groups();
+    }
+    const out: ScoreTermGroup[] = [];
+    const src: ScoreTermGroup[] = this.groups();
+    for (let i = 0; i < src.length; i++) {
+      const kept: ScoreEntry[] = [];
+      for (let j = 0; j < src[i].entries.length; j++) {
+        if (src[i].entries[j].course.indexOf(kw) >= 0) {
+          kept.push(src[i].entries[j]);
+        }
+      }
+      if (kept.length > 0) {
+        out.push({
+          term: src[i].term, label: src[i].label, entries: kept,
+          scored: src[i].scored,
+        });
+      }
+    }
+    return out;
+  }
+
+  /** 学分一行（没有学分列就是空串，整块不显示）。 */
+  private creditText(): string {
+    const c: CreditSummary = creditSummary(this.entries);
+    return creditLine(c);
+  }
+
+  /** 分档一行。 */
+  private bucketText(): string {
+    const list: BucketCount[] = buckets(this.entries);
+    return bucketLine(list);
+  }
+
+  /** 某个学期的学分小计（找不到给空串）。 */
+  private termCreditText(term: string): string {
+    const c: CreditSummary = creditSummary(this.entries);
+    for (let i = 0; i < c.terms.length; i++) {
+      const t: TermCredit = c.terms[i];
+      if (t.term === term && t.creditSum > 0) {
+        return (t.partial ? '≥ ' : '') + formatCredit(t.creditSum) + ' 学分';
+      }
+    }
+    return '';
+  }
+
+  /** 该学期是否折叠（默认：除第一个以外都折叠）。 */
+  private isCollapsed(term: string): boolean {
+    return this.collapsed.indexOf(term) >= 0;
+  }
+
+  private toggleCollapse(term: string): void {
+    if (this.isCollapsed(term)) {
+      this.collapsed = this.collapsed.filter((t: string) => t !== term);
+      return;
+    }
+    this.collapsed = this.collapsed.concat([term]);
   }
 
   /** 页头摘要（只讲条数）。 */
@@ -309,9 +379,37 @@ export struct ScorePage {
             }
 
             // ── 学期分组列表 ──
-            ForEach(this.groups(), (g: ScoreTermGroup) => {
+            // 学分与分档（没有学分列时 creditText 为空，整行不显示）
+            if (this.creditText().length > 0) {
+              Text(this.creditText())
+                .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').margin({ top: 10 })
+            }
+            if (this.bucketText().length > 0) {
+              Text(this.bucketText())
+                .fontSize(11).fontColor(this.tk().textPlaceholder)
+                .width('100%').margin({ top: 2 })
+            }
+
+            if (this.entries.length > 0) {
+              TextInput({ placeholder: '按课名筛选（如：数学）', text: this.filter })
+                .fontSize(13).fontColor(this.tk().onSurface)
+                .backgroundColor(this.tk().surface)
+                .height(38).margin({ top: 12 })
+                .onChange((v: string) => {
+                  this.filter = v;
+                })
+            }
+
+            ForEach(this.visibleGroups(), (g: ScoreTermGroup) => {
               this.termBlock(g)
             }, (g: ScoreTermGroup) => 'term_' + g.term)
+
+            if (this.filter.trim().length > 0 && this.visibleGroups().length === 0) {
+              Text('没有匹配「' + this.filter.trim() + '」的课程')
+                .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').margin({ top: 14 })
+            }
 
             // ── 隐私说明（原版的成绩在网页里；这里的边界要写清楚）──
             Text('成绩只存在本机（沙箱偏好），不上传；通知里只有课名、不含分数。')
@@ -411,12 +509,24 @@ export struct ScorePage {
           .fontSize(13).fontWeight(FontWeight.Medium)
           .fontColor(this.tk().onSurfaceVariant)
           .layoutWeight(1)
+        if (this.termCreditText(g.term).length > 0) {
+          Text(this.termCreditText(g.term))
+            .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+            .margin({ right: 8 })
+        }
         Text(g.entries.length + ' 门')
           .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+        Text(this.isCollapsed(g.term) ? ' ▸' : ' ▾')
+          .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+          .margin({ left: 4 })
       }
       .width('100%')
       .padding({ top: 14, bottom: 6 })
+      .accessibilityText(g.label + '，' + g.entries.length + ' 门，' +
+        (this.isCollapsed(g.term) ? '已折叠，点按展开' : '点按折叠'))
+      .onClick(() => this.toggleCollapse(g.term))
 
+      if (!this.isCollapsed(g.term)) {
       Column() {
         ForEach(g.entries, (e: ScoreEntry, idx: number) => {
           // 分隔线用 1vp 条而不是 border：border 的三元写法在 ArkTS 里要显式类型，不值得
@@ -441,6 +551,7 @@ export struct ScorePage {
       }
       .width('100%').padding({ left: 12, right: 12 })
       .backgroundColor(this.tk().surface).borderRadius(12)
+      }
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

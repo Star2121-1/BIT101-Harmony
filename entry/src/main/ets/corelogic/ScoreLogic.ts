@@ -26,6 +26,11 @@ export interface ScoreEntry {
   score: string | null;
   /** 学期（如 2025-2026-2）；表头没有该列时为 null。 */
   term: string | null;
+  /**
+   * 学分（表里有「学分」列且能解析成数字时才有；否则 undefined）。
+   * ⚠️ **不进 `scoreKey`**：改学分不该触发「新出分」提醒。
+   */
+  credit?: number;
 }
 
 /**
@@ -41,6 +46,8 @@ const COURSE_KEYWORDS: string[] = ['课程名', '课程'];
 const COURSE_EXCLUDE: string[] = ['编号', '代码', '号'];
 const SCORE_KEYWORDS: string[] = ['成绩', '分数', '总评', '得分'];
 const TERM_KEYWORDS: string[] = ['学期', '学年'];
+/** 学分列（真实表头里有「学分」；取不到就不给学分统计，不猜）。 */
+const CREDIT_KEYWORDS: string[] = ['学分'];
 
 /** 一个单元格取成字符串（primitive → 串；对象/数组/null → 空）。 */
 function cellToString(v: JsonValue | undefined): string {
@@ -168,6 +175,7 @@ export function parseTable(data: JsonValue | null): ScoreEntry[] {
   }
   const scoreCol: number = findColumn(header, SCORE_KEYWORDS, []);
   const termCol: number = findColumn(header, TERM_KEYWORDS, []);
+  const creditCol: number = findColumn(header, CREDIT_KEYWORDS, []);
 
   const out: ScoreEntry[] = [];
   for (let i = headerIndex + 1; i < all.length; i++) {
@@ -178,6 +186,15 @@ export function parseTable(data: JsonValue | null): ScoreEntry[] {
     }
     const score: string | null = scoreCol >= 0 && scoreCol < row.length ? (row[scoreCol].trim().length > 0 ? row[scoreCol].trim() : null) : null;
     const term: string | null = termCol >= 0 && termCol < row.length ? (row[termCol].trim().length > 0 ? row[termCol].trim() : null) : null;
+    // 学分：只有解析成有限正数才带上（「3.0」→ 3；「免修」之类原文不动，给 undefined）
+    const creditRaw: string = creditCol >= 0 && creditCol < row.length ? row[creditCol].trim() : '';
+    if (creditRaw.length > 0) {
+      const n: number = Number(creditRaw);
+      if (Number.isFinite(n) && n > 0) {
+        out.push({ course: course, score: score, term: term, credit: n });
+        continue;
+      }
+    }
     out.push({ course: course, score: score, term: term });
   }
   return out;

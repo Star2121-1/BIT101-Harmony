@@ -46,6 +46,11 @@ import { ScoreCheckRunner } from '../service/ScoreCheckRunner.ts';
 import { statusText, ScoreCheckCode } from '../corelogic/ScoreCheckLogic.ts';
 import { DdlSourceStore } from '../data/DdlSourceStore.ts';
 import type { DdlSourcePrefs } from '../corelogic/DdlSourceLogic.ts';
+import {
+  PAGE_TEACHING_ADJUSTMENT, PAGE_CAMPUS_MAP, PAGE_DIAGNOSTICS, PAGE_CACHE_CLEAN, PAGE_SEARCH,
+} from '../corelogic/SearchNav.ts';
+import { measure as measureCache } from '../data/CacheCleaner.ts';
+import { totalBytes, sizeText } from '../corelogic/CacheIndex.ts';
 
 /** 默认校区偏好的持久化键（ClassroomPage 也读这个）。 */
 export const KEY_DEFAULT_CAMPUS: string = 'default_campus_code';
@@ -78,6 +83,9 @@ struct SettingsPage {
   @State ttCustom: boolean = false;
   /** 最近一次出分检查的一句话状态（M7-3：后台静默跑的东西要看得见）。 */
   @State scoreLine: string = '';
+
+  /** 「清理本地缓存」右侧那一行占用（进页时算一次）。 */
+  @State cacheLine: string = '';
   /** 作业来源开关（M4-5；落盘在 DdlSourceStore）。 */
   @State ddlEclass: boolean = true;
   @State ddlLocal: boolean = true;
@@ -103,6 +111,24 @@ struct SettingsPage {
     this.loadTermList();
     this.loadScoreLine();
     this.loadDdlSource();
+    this.loadCacheLine();
+  }
+
+  /** 缓存占用：算不出来就显示「未知」，不显示 0 B 骗人。 */
+  private async loadCacheLine(): Promise<void> {
+    try {
+      const list = await measureCache(false);
+      const values: number[] = [];
+      let items: number = 0;
+      for (let i = 0; i < list.length; i++) {
+        values.push(list[i].bytes);
+        items += list[i].keys.length;
+      }
+      this.cacheLine = items === 0 ? '暂无缓存' : items + ' 项 · ' + sizeText(totalBytes(values));
+    } catch (e) {
+      this.cacheLine = '未知';
+      warn('SettingsPage cache line fail: ' + JSON.stringify(e));
+    }
   }
 
   /** 出分检查的最近状态（读失败就给「还没检查过」，不抛）。 */
@@ -758,6 +784,21 @@ struct SettingsPage {
           this.groupTitle('查找')
           Column() {
             Row() {
+              Text('搜索')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('课程 / 作业 / 楼栋')
+                .fontSize(11).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
+            }
+            .width('100%').padding({ bottom: 10 })
+            .accessibilityText('搜索课程、作业、楼栋')
+            .onClick(() => {
+              router.pushUrl({ url: PAGE_SEARCH }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+
+            Row() {
               Text('作息时间')
                 .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Text(this.ttCustom ? '自定义' : '学校官方')
@@ -910,6 +951,80 @@ struct SettingsPage {
           }
           .width('100%').padding(12)
           .backgroundColor(this.p().secondaryContainer)
+          .borderRadius(12)
+
+          // ── 校园 ──
+          this.groupTitle('校园')
+          Column() {
+            Row() {
+              Text('教学安排调整')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('放假 / 补课')
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
+              Text(' ›').fontSize(13).fontColor(this.p().onSurfaceVariant)
+            }
+            .width('100%')
+            .accessibilityText('教学安排调整，放假与补课')
+            .onClick(() => {
+              router.pushUrl({ url: PAGE_TEACHING_ADJUSTMENT }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+
+            Row() {
+              Text('校园楼栋')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('48 栋 · 按校区')
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
+              Text(' ›').fontSize(13).fontColor(this.p().onSurfaceVariant)
+            }
+            .width('100%').padding({ top: 10 })
+            .accessibilityText('校园楼栋索引')
+            .onClick(() => {
+              router.pushUrl({ url: PAGE_CAMPUS_MAP }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+          }
+          .width('100%').padding(12)
+          .backgroundColor(this.p().surface)
+          .borderRadius(12)
+
+          // ── 存储与诊断 ──
+          this.groupTitle('存储与诊断')
+          Column() {
+            Row() {
+              Text('清理本地缓存')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(this.cacheLine)
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
+              Text(' ›').fontSize(13).fontColor(this.p().onSurfaceVariant)
+            }
+            .width('100%')
+            .accessibilityText('清理本地缓存，' + this.cacheLine)
+            .onClick(() => {
+              router.pushUrl({ url: PAGE_CACHE_CLEAN }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+
+            Row() {
+              Text('诊断信息')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('反馈问题用')
+                .fontSize(11).fontColor(this.p().onSurfaceVariant)
+              Text(' ›').fontSize(13).fontColor(this.p().onSurfaceVariant)
+            }
+            .width('100%').padding({ top: 10 })
+            .accessibilityText('诊断信息，可复制给开发者')
+            .onClick(() => {
+              router.pushUrl({ url: PAGE_DIAGNOSTICS }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
+          }
+          .width('100%').padding(12)
+          .backgroundColor(this.p().surface)
           .borderRadius(12)
 
           // ── 关于 ──

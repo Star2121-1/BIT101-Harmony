@@ -124,7 +124,7 @@ export class ScoreCheckRunner {
     if (newOnes.length > 0) {
       const text: string = summaryText(newOnes);
       if (allowNotify && text.length > 0) {
-        await publishText(NOTIFY_ID_SCORES, '成绩更新', text);
+        await publishText(NOTIFY_ID_SCORES, '成绩更新', text, 'pages/ScorePage');
       }
       info('ScoreCheckRunner new scores=' + newOnes.length + ' notify=' + allowNotify);
     }

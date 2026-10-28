@@ -128,4 +128,39 @@ export class Prefs {
       warn('Prefs remove fail key=' + key + ': ' + JSON.stringify(e));
     }
   }
+
+  /**
+   * 全部键名（只读，供「存储与清理」统计/清理用）。
+   * 读失败返回空数组 —— 清理页宁可显示「0 项」也不要白屏。
+   */
+  static async keys(): Promise<string[]> {
+    try {
+      const s: preferences.Preferences = await Prefs.ready();
+      const all: Object = await s.getAll();
+      const rec: Record<string, Object> = all as Record<string, Object>;
+      const out: string[] = [];
+      const names: string[] = Object.keys(rec);
+      for (let i = 0; i < names.length; i++) {
+        out.push(names[i]);
+      }
+      return out;
+    } catch (e) {
+      warn('Prefs keys fail: ' + JSON.stringify(e));
+      return [];
+    }
+  }
+
+  /** 单个键的原文（非字符串值返回空串，仅用于估体积）。 */
+  static async rawSize(key: string): Promise<number> {
+    try {
+      const s: preferences.Preferences = await Prefs.ready();
+      const v: Object = await s.get(key, '');
+      if (typeof v === 'string') {
+        return (v as string).length;
+      }
+      return JSON.stringify(v).length;
+    } catch (e) {
+      return 0;
+    }
+  }
 }
