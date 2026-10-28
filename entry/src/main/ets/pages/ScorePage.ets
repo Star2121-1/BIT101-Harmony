@@ -38,6 +38,7 @@ import type { CreditSummary, BucketCount, TermCredit } from '../corelogic/ScoreS
 import type { ScoreTermGroup } from '../corelogic/ScoreFlowLogic.ts';
 import { statusText, fmtCheckTime, humanReason, ScoreCheckCode } from '../corelogic/ScoreCheckLogic.ts';
 import type { ScoreCheckStatus } from '../corelogic/ScoreCheckLogic.ts';
+import { rowA11y } from '../corelogic/A11yText.ts';
 import { warn } from '../core/log/BitLog.ts';
 
 @Entry
@@ -547,6 +548,12 @@ export struct ScorePage {
           }
           .width('100%')
           .padding({ top: 9, bottom: 9 })
+          // 读屏：一门课念全「课程名 + 分数 + 学分」，别只念课程名
+          .accessibilityText(rowA11y(
+            e.course,
+            hasScore(e) ? (e.score as string) : '未出分',
+            (e.credit !== undefined && e.credit > 0) ? formatCredit(e.credit) + ' 学分' : ''
+          ))
         }, (e: ScoreEntry) => g.term + '|' + e.course + '|' + (e.score === null ? '' : e.score))
       }
       .width('100%').padding({ left: 12, right: 12 })

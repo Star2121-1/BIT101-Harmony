@@ -15,16 +15,12 @@
 
 import { notificationManager } from '@kit.NotificationKit';
 import { wantAgent } from '@kit.AbilityKit';
+import { BUNDLE_NAME, ENTRY_ABILITY } from '../corelogic/NotifyDeepLink.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 /**
- * 应用包名 —— 与 `AppScope/app.json5` 的 `bundleName` 一致。
- * ⚠️ 改包名时必须同步（否则通知点击打不开 App，且**没有任何报错**，只是点了没反应）。
+ * 通知 id（同 id 会覆盖前一条；出分提醒固定用一个，避免刷屏堆叠）。
  */
-const BUNDLE_NAME: string = 'cn.bit101.next';
-const ENTRY_ABILITY: string = 'EntryAbility';
-
-/** 通知 id（同 id 会覆盖前一条；出分提醒固定用一个，避免刷屏堆叠）。 */
 export const NOTIFY_ID_SCORES: number = 1001;
 
 /**

@@ -47,6 +47,7 @@ import { DayPlan, DayPlanMakeUp, dayPlanOf } from '../corelogic/TeachingAdjustme
 import { TeachingEntry } from '../corelogic/TeachingAdjustmentParser.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 import { weekSpanText } from '../corelogic/WeekSpan.ts';
+import { shiftWeek, swipeWeek, weekLabel, weekA11y, swipeDirFromAngle, WeekMove } from '../corelogic/WeekNav.ts';
 import { creditText, categoryText, summaryText } from '../corelogic/CourseDetailLogic.ts';
 import { todayBadge } from '../corelogic/TeachingAdjustmentView.ts';
 import { STORAGE_FOCUS_COURSE, sanitizeCourseName } from '../corelogic/SearchNav.ts';
@@ -559,12 +560,26 @@ export struct SchedulePage {
     return '#00000000';
   }
 
+  /**
+   * 切周的唯一入口（‹ › 按钮 / 右下角 FAB / 左右滑动三处共用）。
+   * 落点算法在 `corelogic/WeekNav.ts`（有 40 条断言），这里只管「换完重算本周」。
+   */
   private goWeek(delta: number): void {
-    const next: number = this.week + delta;
-    if (next < 1 || next > this.maxWeek) {
+    const mv: WeekMove = shiftWeek(this.week, delta, this.maxWeek);
+    if (!mv.moved) {
       return;
     }
-    this.week = next;
+    this.week = mv.week;
+    this.recountWeek();
+  }
+
+  /** 左右滑动切周：手往左 = 时间往后（与日历同向）。撞边界不给假反馈。 */
+  private onWeekSwipe(dir: number): void {
+    const mv: WeekMove = swipeWeek(this.week, dir, this.maxWeek);
+    if (!mv.moved) {
+      return;
+    }
+    this.week = mv.week;
     this.recountWeek();
   }
 
@@ -866,7 +881,7 @@ export struct SchedulePage {
           .onClick(() => {
             this.goWeek(-1);
           })
-        Text('第 ' + this.week + ' / ' + this.maxWeek + ' 周')
+        Text(weekLabel(this.week, this.maxWeek))
           .fontSize(13).layoutWeight(1).textAlign(TextAlign.Center)
           .fontColor(this.p().onSurface)
         Button('本周')
@@ -970,6 +985,14 @@ export struct SchedulePage {
       // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
       .align(Alignment.Top)
       .scrollBar(BarState.Auto)
+      .accessibilityText(weekA11y(this.week, this.maxWeek))
+      // 左右滑动切周（M12-1）：只认近水平的手势，竖划/斜划留给上下滚动
+      .gesture(
+        SwipeGesture({ fingers: 1, direction: SwipeDirection.Horizontal })
+          .onAction((event: GestureEvent) => {
+            this.onWeekSwipe(swipeDirFromAngle(event.angle));
+          })
+      )
 
       // 状态条：范围各自说清（0.4）；缓存/刷新失败必须如实标注（不许把缓存当最新）
       Row() {

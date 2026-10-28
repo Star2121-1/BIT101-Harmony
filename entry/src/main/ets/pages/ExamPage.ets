@@ -18,6 +18,7 @@ import { SchoolService, SchoolAuthError } from '../service/SchoolService.ts';
 import { ExamRow } from '../core/model/SchoolModels.ts';
 import { ExamCache } from '../data/ExamCache.ts';
 import { SessionStore, SessionSnapshot } from '../data/SessionStore.ts';
+import { joinA11y } from '../corelogic/A11yText.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 @Entry
@@ -179,6 +180,15 @@ struct ExamPage {
               .backgroundColor(this.tk().surface)
               .borderRadius(8)
               .border({ width: 0.5, color: this.tk().surface2 })
+              // 读屏：科目 + 类型 + 时间 + 考场 + 座位 + 教师（空项自动跳过）
+              .accessibilityText(joinA11y([
+                e.KCM.length > 0 ? e.KCM : '未命名考试',
+                e.KSMC,
+                e.KSSJMS.length > 0 ? e.KSSJMS : this.dateOnly(e.KSRQ),
+                e.JASMC.length > 0 ? '考场 ' + e.JASMC : '',
+                e.ZWH.length > 0 ? '座位 ' + e.ZWH : '',
+                e.ZJJSXM.length > 0 ? '教师 ' + e.ZJJSXM : ''
+              ]))
             }
             .margin({ bottom: 8 })
           }, (e: ExamRow) => 'ex_' + e.KCH + '_' + e.KSRQ)

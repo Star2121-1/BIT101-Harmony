@@ -15,7 +15,7 @@
  *  3. 空库且无 eclass 会话 ⇒ 给登录入口，不给空白。
  *
  * 数据来源：DdlStore（同步落库）。本页不发同步以外的请求。
- * ⚠️ 倒计时/卡片色现算不缓存（铁律 0.8）；派生列表走 pendingList/doneList 纯函数
+ * ⚠️ 倒计时/卡片色现算不缓存（铁律 0.8）；派生列表走 DdlSortLogic 的 sortPending/sortDone
  * （1:1 Android DdlListOrder，corelogic/DdlListLogic.ts 有单测）。
  */
 
@@ -33,10 +33,18 @@ import { EclassSyncService } from '../service/EclassSyncService.ts';
 import { EclassService } from '../service/EclassService.ts';
 import { DdlEntry } from '../corelogic/DdlRules.ts';
 import { remainTime } from '../corelogic/DdlFormat.ts';
-import { pendingList, doneList, cardColors } from '../corelogic/DdlListLogic.ts';
+import { cardColors } from '../corelogic/DdlListLogic.ts';
+import {
+  DdlSortMode, DEFAULT_DDL_SORT, parseSortMode, sortPending, sortDone,
+  sortLabel, nextSortMode
+} from '../corelogic/DdlSortLogic.ts';
 import type { DateTime } from '../corelogic/timeutil.ts';
 import { isoDate, parseISODate, parseHM } from '../corelogic/timeutil.ts';
+import { Prefs } from '../data/Prefs.ts';
 import { info, warn } from '../core/log/BitLog.ts';
+
+/** 排序档位的存储键（值就是 DdlSortMode 的字符串）。 */
+const KEY_DDL_SORT: string = 'ddl_sort_mode';
 
 @Entry
 @Component
@@ -65,6 +73,8 @@ export struct DdlPage {
   @State srcPrefs: DdlSourcePrefs = DEFAULT_DDL_SOURCE;
   /** 两个开关都关（空列表的原因是「没启用来源」而不是「没作业」，必须分开说）。 */
   @State noSource: boolean = false;
+  /** 排序模式（M12-5）：按截止 / 按课程；落 Prefs，下次进来还是上次那档。 */
+  @State sortMode: DdlSortMode = DEFAULT_DDL_SORT;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -80,14 +90,23 @@ export struct DdlPage {
     };
   }
 
-  /** 未完成区（截止升序，1:1 DdlListOrder.pending）。 */
+  /** 未完成区（M12-5 起按用户选的模式排；默认仍是截止升序）。 */
   private pending(): DdlEntry[] {
-    return pendingList(this.entries);
+    return sortPending(this.entries, this.sortMode);
   }
 
-  /** 已完成区（截止倒序，1:1 DdlListOrder.done）。 */
+  /** 已完成区（截止倒序，与排序模式无关：刚划掉那条要留在最上面）。 */
   private done(): DdlEntry[] {
-    return doneList(this.entries);
+    return sortDone(this.entries);
+  }
+
+  /** 切换排序并按新档位重排（不联网、不重读库）。 */
+  private toggleSort(): void {
+    this.sortMode = nextSortMode(this.sortMode);
+    Prefs.putString(KEY_DDL_SORT, String(this.sortMode)).catch((e: Error) => {
+      warn('ddl sort save fail: ' + JSON.stringify(e));
+    });
+    info('ddl sort mode=' + this.sortMode);
   }
 
   private async reload(): Promise<void> {
@@ -95,6 +114,12 @@ export struct DdlPage {
     // M4-5 来源开关：过滤在展示层做，库里始终保存两源数据（切回来不用重新同步）
     this.srcPrefs = await DdlSourceStore.load();
     this.noSource = noneEnabled(this.srcPrefs);
+    // 排序档位（读失败就用默认，不值得为此挡住列表）
+    try {
+      this.sortMode = parseSortMode(await Prefs.getString(KEY_DDL_SORT, ''));
+    } catch (e) {
+      this.sortMode = DEFAULT_DDL_SORT;
+    }
     const all: DdlEntry[] = await DdlStore.load();
     this.entries = visibleEntries(all, this.srcPrefs);
   }
@@ -331,9 +356,24 @@ export struct DdlPage {
             .width('100%').padding(16).margin({ top: 8 })
             .backgroundColor(this.tk().secondaryContainer).borderRadius(12)
           } else {
-            // 未完成区（原版：分区标题 + 截止升序条目）
+            // 未完成区（原版：分区标题 + 条目；排序按用户选的档位）
             if (this.pending().length > 0) {
-              this.sectionTitle('未完成 · ' + this.pending().length, 0)
+              Row() {
+                Text('未完成 · ' + this.pending().length)
+                  .fontSize(14).fontWeight(FontWeight.Medium)
+                  .fontColor(this.tk().onSurfaceVariant)
+                  .layoutWeight(1).textAlign(TextAlign.Start)
+                Text(sortLabel(this.sortMode))
+                  .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                  .backgroundColor(this.tk().surface2).borderRadius(10)
+                  .padding({ left: 9, right: 9, top: 3, bottom: 3 })
+                  .accessibilityText('排序方式，' + sortLabel(this.sortMode) +
+                    '，点按改为' + sortLabel(nextSortMode(this.sortMode)))
+                  .onClick(() => {
+                    this.toggleSort();
+                  })
+              }
+              .width('100%').padding({ top: 0, bottom: 2 })
               ForEach(this.pending(), (e: DdlEntry) => {
                 this.ddlCard(e)
               }, (e: DdlEntry) => e.uid)

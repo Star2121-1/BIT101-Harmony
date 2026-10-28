@@ -28,6 +28,15 @@ import {
   EXAM_LEAD_OPTIONS
 } from '../data/NotifySettingsStore.ts';
 import { ReminderScheduler } from '../service/ReminderScheduler.ts';
+import { QuietHoursStore } from '../data/QuietHoursStore.ts';
+import {
+  type QuietHours,
+  type QuietPreset,
+  QUIET_PRESETS,
+  DEFAULT_QUIET_HOURS,
+  quietSummary,
+  quietHint
+} from '../corelogic/QuietHoursLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 @Entry
@@ -48,6 +57,10 @@ struct NotifySettingsPage {
   @State examDayEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.examDayEnabled;
   @State examLead: number = DEFAULT_NOTIFY_SETTINGS.examLeadMinutes;
   @State adjustmentEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.adjustmentEnabled;
+  /** 免打扰（M12-2）：与提醒设置分开存，关掉提醒总开关也留着。 */
+  @State quietOn: boolean = DEFAULT_QUIET_HOURS.enabled;
+  @State quietStart: number = DEFAULT_QUIET_HOURS.startMinute;
+  @State quietEnd: number = DEFAULT_QUIET_HOURS.endMinute;
   @State status: string = '';
   @State busy: boolean = false;
 
@@ -74,6 +87,15 @@ struct NotifySettingsPage {
     this.examDayEnabled = s.examDayEnabled;
     this.examLead = s.examLeadMinutes;
     this.adjustmentEnabled = s.adjustmentEnabled;
+    // 免打扰单独读（它不在 notify_settings_v1 里）
+    try {
+      const q: QuietHours = await QuietHoursStore.load();
+      this.quietOn = q.enabled;
+      this.quietStart = q.startMinute;
+      this.quietEnd = q.endMinute;
+    } catch (e) {
+      warn('NotifySettings reload quiet fail: ' + JSON.stringify(e));
+    }
   }
 
   /** 提交当前 13 项：落库 → 重排 → 回显结果（改动即生效，对照 Android write 块）。 */
@@ -107,14 +129,48 @@ struct NotifySettingsPage {
         this.status = '系统通知开关未开，提醒暂不生效。请到系统「通知」里允许本 App 通知。';
       } else if (r.reason === 'empty_plan') {
         this.status = '本地暂无可排的提醒（还没同步课表 / 没有 DDL）。';
+      } else if (r.reason === 'all_in_quiet_hours') {
+        this.status = '未来一周的提醒全落在免打扰时段，已全部跳过（' + r.quietDropped + ' 条）。';
       } else {
         this.status = '已重排 ' + r.published + ' 条' +
           (r.quotaDropped > 0 ? '（另裁 ' + r.quotaDropped + ' 条超限）' : '') +
+          (r.quietDelayed > 0 ? ' · ' + r.quietDelayed + ' 条推迟出免打扰' : '') +
+          (r.quietDropped > 0 ? ' · ' + r.quietDropped + ' 条在免打扰内且已过期，跳过' : '') +
           (r.failed > 0 ? ' · ' + r.failed + ' 条发布失败' : '');
       }
       info('notify settings commit status=' + this.status);
     } catch (e) {
       warn('notify settings commit fail: ' + JSON.stringify(e));
+      this.status = '保存失败：' + JSON.stringify(e);
+    }
+    this.busy = false;
+  }
+
+  /** 提交免打扰（M12-2）：单独落库 + 重排（换了窗口，已排的时刻就变了）。 */
+  private async commitQuiet(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const q: QuietHours = {
+        enabled: this.quietOn,
+        startMinute: this.quietStart,
+        endMinute: this.quietEnd
+      };
+      await QuietHoursStore.save(q);
+      const r = await ReminderScheduler.reschedule(ctx);
+      if (r.reason === 'all_in_quiet_hours') {
+        this.status = '免打扰生效：未来一周 ' + r.quietDropped + ' 条提醒全落在该时段，已跳过。';
+      } else {
+        this.status = '免打扰已保存 · 已重排 ' + r.published + ' 条' +
+          (r.quietDelayed > 0 ? '，' + r.quietDelayed + ' 条推迟出免打扰' : '') +
+          (r.quietDropped > 0 ? '，' + r.quietDropped + ' 条过期跳过' : '');
+      }
+      info('quiet commit status=' + this.status);
+    } catch (e) {
+      warn('quiet commit fail: ' + JSON.stringify(e));
       this.status = '保存失败：' + JSON.stringify(e);
     }
     this.busy = false;
@@ -334,6 +390,51 @@ struct NotifySettingsPage {
             this.adjustmentEnabled = !this.adjustmentEnabled;
             this.commit();
           })
+
+          // ── 免打扰时段（M12-2）──
+          Text('免打扰').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 18, bottom: 4 })
+          Row() {
+            Text('免打扰时段').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
+            Text(quietSummary({ enabled: this.quietOn, startMinute: this.quietStart, endMinute: this.quietEnd }))
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant).margin({ right: 10 })
+            Text(this.quietOn ? '开' : '关')
+              .fontSize(13).fontColor(this.quietOn ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.quietOn ? this.tk().primary : this.tk().surface2)
+              .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
+          }
+          .width('100%').padding({ top: 8, bottom: 4 })
+          .accessibilityText('免打扰时段，当前' +
+            quietSummary({ enabled: this.quietOn, startMinute: this.quietStart, endMinute: this.quietEnd }) +
+            '，' + (this.quietOn ? '已开启' : '已关闭'))
+          .onClick(() => {
+            this.quietOn = !this.quietOn;
+            this.commitQuiet();
+          })
+
+          // 预设三选一（与 Android 一样不给自由输入；跨零点的窗口最常见）
+          if (this.quietOn) {
+            Row() {
+              ForEach(QUIET_PRESETS, (p: QuietPreset) => {
+                Text(p.label)
+                  .fontSize(12)
+                  .fontColor((this.quietStart === p.startMinute && this.quietEnd === p.endMinute)
+                    ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+                  .backgroundColor((this.quietStart === p.startMinute && this.quietEnd === p.endMinute)
+                    ? this.tk().primary : this.tk().surface2)
+                  .borderRadius(12).padding({ left: 10, right: 10, top: 5, bottom: 5 })
+                  .margin({ right: 8 })
+                  .onClick(() => {
+                    this.quietStart = p.startMinute;
+                    this.quietEnd = p.endMinute;
+                    this.commitQuiet();
+                  })
+              }, (p: QuietPreset) => 'qp_' + p.label)
+            }
+            .width('100%').padding({ top: 2, bottom: 2 })
+
+            Text(quietHint({ enabled: this.quietOn, startMinute: this.quietStart, endMinute: this.quietEnd }))
+              .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').padding({ top: 2, bottom: 4 })
+          }
 
           // ── 重排结果 ──
           if (this.status.length > 0) {

@@ -39,6 +39,7 @@ import { CampusNetResult, LIMIT_BYTES, formatTraffic } from '../corelogic/Campus
 import { TrafficTrend, emptyTrafficTrend, todayText } from '../corelogic/CampusNetTrafficLogic.ts';
 import { cardSummary } from '../corelogic/LibBorrowLogic.ts';
 import type { DateTime } from '../corelogic/timeutil.ts';
+import { rowA11y, joinA11y } from '../corelogic/A11yText.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 import { StudySpotCard } from '../components/me/StudySpotCard.ets';
 
@@ -296,6 +297,7 @@ export struct MePage {
             .width('48%').padding(12)
             .backgroundColor(this.p().secondaryContainer).borderRadius(12)
             .alignItems(HorizontalAlign.Start)
+            .accessibilityText(rowA11y('一卡通', this.cardLine(), '点按查看明细'))
             .onClick(() => {
               router.pushUrl({ url: 'pages/CardPage' }).catch((e: Error) => {
                 warn('me -> card fail: ' + JSON.stringify(e));
@@ -317,6 +319,8 @@ export struct MePage {
             .width('48%').padding(12)
             .backgroundColor(this.p().secondaryContainer).borderRadius(12)
             .alignItems(HorizontalAlign.Start)
+            .accessibilityText(rowA11y('校园网',
+              joinA11y([this.netLine(), this.netSubLine()]), '点按查看流量'))
             .onClick(() => {
               router.pushUrl({ url: 'pages/NetPage' }).catch((e: Error) => {
                 warn('me -> net fail: ' + JSON.stringify(e));
@@ -344,6 +348,8 @@ export struct MePage {
           .width('100%').padding(12).margin({ top: 10 })
           .backgroundColor(this.p().surface).borderRadius(12)
           .alignItems(HorizontalAlign.Start)
+          .accessibilityText(rowA11y('图书馆借阅',
+            joinA11y([this.libLine(), this.libSubLine()]), '点按查看借阅'))
           .onClick(() => {
             router.pushUrl({ url: 'pages/LibBorrowPage' }).catch((e: Error) => {
               warn('me -> lib fail: ' + JSON.stringify(e));

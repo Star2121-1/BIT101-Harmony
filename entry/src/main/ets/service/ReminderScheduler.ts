@@ -25,6 +25,7 @@
 
 import { reminderAgentManager } from '@kit.BackgroundTasksKit';
 import { notificationManager } from '@kit.NotificationKit';
+import { wantAgent } from '@kit.AbilityKit';
 import { Context } from '@kit.AbilityKit';
 import {
   plan,
@@ -36,6 +37,16 @@ import {
 } from '../corelogic/NotifyLogic.ts';
 import { coursesToNotify, ddlsToNotify, examsToNotify } from '../corelogic/NotifyAdapter.ts';
 import { specsForPublish, AGENT_REMINDER_LIMIT, type AgentReminderSpec } from '../corelogic/NotifyScheduleLogic.ts';
+import { applyQuiet, type QuietHours, type QuietBudget, DEFAULT_QUIET_HOURS } from '../corelogic/QuietHoursLogic.ts';
+import { QuietHoursStore } from '../data/QuietHoursStore.ts';
+import {
+  routeOfKind,
+  type NotifyRoute,
+  KEY_NOTIFY_CONTENT,
+  KEY_NOTIFY_PAGE,
+  BUNDLE_NAME,
+  ENTRY_ABILITY
+} from '../corelogic/NotifyDeepLink.ts';
 import { localEpochDay } from '../corelogic/CampusCardBalanceLogic.ts';
 import { parseISODate, type DateTime, type TimeTable } from '../corelogic/timeutil.ts';
 import { type AdjustmentEntry } from '../corelogic/TeachingAdjustment.ts';
@@ -63,6 +74,10 @@ export interface ScheduleResult {
   quotaDropped: number;
   /** 因「过去的时刻」被剔的条数。 */
   pastDropped: number;
+  /** 因免打扰时段被推迟到窗口结束的条数（M12-2）。 */
+  quietDelayed: number;
+  /** 因免打扰被**丢弃**的条数（推迟后事件已过期 ⇒ 不再发假信息）。 */
+  quietDropped: number;
   /** publish 失败条数（网络/系统侧）。 */
   failed: number;
   /**
@@ -95,7 +110,10 @@ export class ReminderScheduler {
    * 设置页每次改动后调本方法即「改了立即重排」）。
    */
   static async reschedule(context: Context): Promise<ScheduleResult> {
-    const result: ScheduleResult = { published: 0, quotaDropped: 0, pastDropped: 0, failed: 0, reason: '' };
+    const result: ScheduleResult = {
+      published: 0, quotaDropped: 0, pastDropped: 0, failed: 0,
+      quietDelayed: 0, quietDropped: 0, reason: ''
+    };
 
     // 用户总开关（M7-5）：关了就把已排的清掉、一条都不排
     let settings: NotifySettings = DEFAULT_NOTIFY_SETTINGS;
@@ -176,8 +194,41 @@ export class ReminderScheduler {
     result.pastDropped = publish.droppedPast;
     result.quotaDropped = publish.droppedQuota;
 
-    if (publish.specs.length === 0) {
-      result.reason = 'empty_plan';
+    // ── 免打扰时段（M12-2）：排期最后一道闸 ──────────────────────────
+    // 必须放在配额裁剪**之后**：先裁出真正要发的几十条，再按静默窗口调整，
+    // 否则被推迟的条目会把配额吃掉，等于静默期挤掉白天的提醒。
+    let quiet: QuietHours = DEFAULT_QUIET_HOURS;
+    try {
+      quiet = await QuietHoursStore.load();
+    } catch (e) {
+      warn('reminder quiet load fail, use default(off): ' + JSON.stringify(e));
+    }
+    // 推迟预算 = 「这件事还成立吗」的容忍度：
+    // 上课/考试/签到是时刻性事件 ⇒ 只能推到事件开始前（提前量 + 一点余量）；
+    // DDL/调整是截止性事件 ⇒ 给半小时余量吸收窗口边界的抖动，超了就丢。
+    const budget: QuietBudget = {
+      classMax: policy.classLeadMinutes + 5,
+      examMax: policy.examLeadMinutes + 10,
+      seatMax: policy.seatSignInLeadMinutes + 5,
+      ddlMax: 30,
+      otherMax: 30
+    };
+    const quieted = applyQuiet(publish.specs, quiet, budget);
+    result.quietDelayed = quieted.delayed;
+    result.quietDropped = quieted.dropped;
+    const specs: AgentReminderSpec[] = quieted.specs;
+
+    if (specs.length === 0) {
+      // 静默期把最后几条也吃掉了 ⇒ 仍要 cancelAll，别留着上一轮排的旧提醒
+      if (quieted.dropped > 0 || publish.specs.length > 0) {
+        try {
+          await reminderAgentManager.cancelAllReminders();
+        } catch (e) {
+          warn('reminder cancelAll fail: ' + JSON.stringify(e));
+        }
+      }
+      result.reason = quieted.dropped > 0 ? 'all_in_quiet_hours' : 'empty_plan';
+      info('reminder reschedule: quiet ate all, dropped=' + quieted.dropped);
       return result;
     }
 
@@ -189,10 +240,11 @@ export class ReminderScheduler {
     }
 
     const records: NotifyRecord[] = [];
-    for (let i = 0; i < publish.specs.length; i++) {
-      const spec: AgentReminderSpec = publish.specs[i];
+    for (let i = 0; i < specs.length; i++) {
+      const spec: AgentReminderSpec = specs[i];
       try {
-        await reminderAgentManager.publishReminder(ReminderScheduler.toRequest(spec));
+        // toRequest 里顺带挂点击落点（挂不上退化成「只开 App」，不影响发送）
+        await reminderAgentManager.publishReminder(await ReminderScheduler.toRequest(spec, i + 1));
         result.published++;
       } catch (e) {
         result.failed++;
@@ -216,13 +268,28 @@ export class ReminderScheduler {
     }
 
     info('reminder reschedule done: published=' + result.published +
-      ' failed=' + result.failed + ' past=' + result.pastDropped + ' quota=' + result.quotaDropped);
+      ' failed=' + result.failed + ' past=' + result.pastDropped + ' quota=' + result.quotaDropped +
+      ' quietDelayed=' + result.quietDelayed + ' quietDropped=' + result.quietDropped);
     return result;
   }
 
-  /** AgentReminderSpec → reminderAgent 的日历提醒请求。 */
-  private static toRequest(spec: AgentReminderSpec): reminderAgentManager.ReminderRequestCalendar {
-    return {
+  /**
+   * AgentReminderSpec → reminderAgent 的日历提醒请求，**顺手挂点击落点**（M11-3 遗留补齐）。
+   *
+   * 为什么合在一个方法里：`wantAgent.getWantAgent()` 的返回类型不在
+   * `wantAgent` 命名空间里导出（`wantAgent.WantAgent` 编译不过），
+   * 只能靠「赋值给 request.wantAgent」让编译器自己推导。硬造类型只会绕远。
+   *
+   * `requestCode` 必须每条不同：同 code 的 wantAgent 会被系统当成同一个，
+   * 点哪条都跳同一个落点。这里用序号（≤30 条，够用）。
+   *
+   * 挂不上就退化成「只打开 App」——**绝不因此不发提醒**。
+   */
+  private static async toRequest(
+    spec: AgentReminderSpec,
+    requestCode: number
+  ): Promise<reminderAgentManager.ReminderRequestCalendar> {
+    const req: reminderAgentManager.ReminderRequestCalendar = {
       reminderType: reminderAgentManager.ReminderType.REMINDER_TYPE_CALENDAR,
       dateTime: {
         year: spec.year,
@@ -234,6 +301,40 @@ export class ReminderScheduler {
       title: spec.title,
       content: spec.content
     };
+    const route: NotifyRoute = routeOfKind(String(spec.kind));
+    const parameters: Record<string, Object> = {};
+    if (route.content.length > 0) {
+      parameters[KEY_NOTIFY_CONTENT] = route.content;
+    }
+    if (route.page.length > 0) {
+      parameters[KEY_NOTIFY_PAGE] = route.page;
+    }
+    if (Object.keys(parameters).length === 0) {
+      return req;
+    }
+    try {
+      const info2: wantAgent.WantAgentInfo = {
+        wants: [{
+          bundleName: BUNDLE_NAME,
+          abilityName: ENTRY_ABILITY,
+          parameters: parameters
+        }],
+        actionType: wantAgent.OperationType.START_ABILITY,
+        requestCode: requestCode
+      };
+      const agent = await wantAgent.getWantAgent(info2);
+      // ⚠️ 这里**不能**直接 `req.wantAgent = agent`：SDK 的 d.ts 把
+      // `ReminderRequest.wantAgent` 标成了遗留全局接口 `WantAgent { pkgName, abilityName }`
+      //（@ohos.reminderAgentManager.d.ts 里没 import 新定义），而
+      // `getWantAgent` 返回的是新 API 的不透明句柄 ⇒ 静态类型对不上，编译直接报
+      // 「Type '{}' is missing properties pkgName, abilityName」。
+      // 这是**声明文件的锅**不是运行时的：官方文档给的用法就是把 getWantAgent 的返回塞进去。
+      // 用 Object.assign 跳过这层错误类型，并在注释里留下证据。
+      Object.assign(req, { wantAgent: agent });
+    } catch (e) {
+      warn('reminder wantAgent fail (提醒仍会发): ' + JSON.stringify(e));
+    }
+    return req;
   }
 
   /**

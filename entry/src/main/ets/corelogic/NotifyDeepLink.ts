@@ -12,7 +12,7 @@
  *   通知参数由系统透传，形状不可信；脏值一律丢弃，不当作导航指令。
  */
 
-import { isKnownModule, isKnownTab, normalizeModule } from './shellNav.ts';
+import { sanitizeContentId } from './WidgetDeepLink.ts';
 
 /** 通知种类 → 落点。`kind` 用 `ReminderKind` 的字符串值（不 import 枚举，避免环依赖）。 */
 export interface NotifyRoute {
@@ -60,19 +60,15 @@ export function routeOfKind(kind: string): NotifyRoute {
   return EMPTY_ROUTE;
 }
 
-/** 校验外来内容 id；非法 → 空串（不回落成「首页」以外的猜测）。 */
+/**
+ * 校验外来内容 id；非法 → 空串（不回落成「首页」以外的猜测）。
+ *
+ * ⚠️ 直接复用卡片的 `sanitizeContentId`，**不再手抄一份**：
+ * 两份「已知内容 id」白名单迟早会漂移（一份加了新页签、另一份没加），
+ * 表现就是「卡片能跳、通知跳不了」这种查半天的问题。
+ */
 export function sanitizeContent(raw: string): string {
-  const s: string = raw.trim();
-  if (s.length === 0) {
-    return '';
-  }
-  if (isKnownTab(s)) {
-    return s;
-  }
-  if (isKnownModule(s)) {
-    return normalizeModule(s);
-  }
-  return '';
+  return sanitizeContentId(raw);
 }
 
 /** 校验外来页面路径；不在白名单 → 空串（绝不 `pushUrl` 任意串）。 */
@@ -92,6 +88,15 @@ export function sanitizePage(raw: string): string {
 /** 通知参数的键（发通知侧与 EntryAbility 侧共用，防手写错）。 */
 export const KEY_NOTIFY_CONTENT: string = 'bit101Content';
 export const KEY_NOTIFY_PAGE: string = 'bit101Page';
+
+/**
+ * 应用包名 / 入口 Ability —— 与 `AppScope/app.json5` 的 `bundleName` 一致。
+ *
+ * ⚠️ 这里和 `InstantNotify`、`ReminderScheduler`、卡片三处都要用，**只能有一份**：
+ * 复制出去改包名时漏改一处，那条通路的点击就「静默失效」——点了没反应且没有任何报错。
+ */
+export const BUNDLE_NAME: string = 'cn.bit101.next';
+export const ENTRY_ABILITY: string = 'EntryAbility';
 
 /** AppStorage 键（EntryAbility 写、Index 读后清空）。 */
 export const STORAGE_OPEN_PAGE: string = 'ui_open_page';
