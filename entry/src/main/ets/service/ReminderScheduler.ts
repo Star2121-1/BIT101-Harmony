@@ -26,6 +26,7 @@
 import { reminderAgentManager } from '@kit.BackgroundTasksKit';
 import { notificationManager } from '@kit.NotificationKit';
 import { wantAgent } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { Context } from '@kit.AbilityKit';
 import {
   plan,
@@ -78,6 +79,16 @@ export interface ScheduleResult {
   quietDelayed: number;
   /** 因免打扰被**丢弃**的条数（推迟后事件已过期 ⇒ 不再发假信息）。 */
   quietDropped: number;
+  /**
+   * 被系统以 1700002 拒掉（「数量超限」）的条数。
+   *
+   * ⚠️ 真机实测（2026-10-28）：某些设备上这个错误**不等于**「已有 30 条占满」，
+   * 而是 Ans 侧把「不允许提醒」笼统报成 1700002，日志里能看到
+   * `VerifyCloudCapability failed ... capability = reminder_capability` 与
+   * `ReminderControl <bundle>, notification not allowed`，上限被判成 `limit[0]`。
+   * 单独计数是为了让 UI 能说「系统拒绝了全部提醒」而不是含糊的「N 条发布失败」。
+   */
+  quotaRejected: number;
   /** publish 失败条数（网络/系统侧）。 */
   failed: number;
   /**
@@ -112,7 +123,7 @@ export class ReminderScheduler {
   static async reschedule(context: Context): Promise<ScheduleResult> {
     const result: ScheduleResult = {
       published: 0, quotaDropped: 0, pastDropped: 0, failed: 0,
-      quietDelayed: 0, quietDropped: 0, reason: ''
+      quietDelayed: 0, quietDropped: 0, quotaRejected: 0, reason: ''
     };
 
     // 用户总开关（M7-5）：关了就把已排的清掉、一条都不排
@@ -248,6 +259,11 @@ export class ReminderScheduler {
         result.published++;
       } catch (e) {
         result.failed++;
+        // 1700002 = 「数量超限」。真机上它也可能表示「系统不允许发提醒」，见字段注释
+        const code: number = (e as BusinessError).code;
+        if (code === 1700002) {
+          result.quotaRejected++;
+        }
         warn('reminder publish fail ' + spec.key + ': ' + JSON.stringify(e));
       }
       // 无论 publish 成败都落一条 M7-1 历史（排期意图 = 事实；失败的是「没发出去」不是「没排」）
@@ -269,7 +285,8 @@ export class ReminderScheduler {
 
     info('reminder reschedule done: published=' + result.published +
       ' failed=' + result.failed + ' past=' + result.pastDropped + ' quota=' + result.quotaDropped +
-      ' quietDelayed=' + result.quietDelayed + ' quietDropped=' + result.quietDropped);
+      ' quietDelayed=' + result.quietDelayed + ' quietDropped=' + result.quietDropped +
+      ' rejected=' + result.quotaRejected);
     return result;
   }
 

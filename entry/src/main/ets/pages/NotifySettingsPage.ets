@@ -29,6 +29,7 @@ import {
 } from '../data/NotifySettingsStore.ts';
 import { ReminderScheduler } from '../service/ReminderScheduler.ts';
 import { QuietHoursStore } from '../data/QuietHoursStore.ts';
+import { scheduleStatusText, needsNotificationPermission } from '../corelogic/NotifyStatusText.ts';
 import {
   type QuietHours,
   type QuietPreset,
@@ -62,6 +63,8 @@ struct NotifySettingsPage {
   @State quietStart: number = DEFAULT_QUIET_HOURS.startMinute;
   @State quietEnd: number = DEFAULT_QUIET_HOURS.endMinute;
   @State status: string = '';
+  /** 系统通知未授权（页面据此显示「开启通知」按钮）。 */
+  @State needPerm: boolean = false;
   @State busy: boolean = false;
 
   private tk(): GridTokens {
@@ -123,25 +126,47 @@ struct NotifySettingsPage {
       };
       await NotifySettingsStore.save(s);
       const r = await ReminderScheduler.reschedule(ctx);
-      if (r.reason === 'user_disabled') {
-        this.status = '提醒已关闭（点上方总开关恢复）。';
-      } else if (r.reason === 'notification_disabled') {
-        this.status = '系统通知开关未开，提醒暂不生效。请到系统「通知」里允许本 App 通知。';
-      } else if (r.reason === 'empty_plan') {
-        this.status = '本地暂无可排的提醒（还没同步课表 / 没有 DDL）。';
-      } else if (r.reason === 'all_in_quiet_hours') {
-        this.status = '未来一周的提醒全落在免打扰时段，已全部跳过（' + r.quietDropped + ' 条）。';
-      } else {
-        this.status = '已重排 ' + r.published + ' 条' +
-          (r.quotaDropped > 0 ? '（另裁 ' + r.quotaDropped + ' 条超限）' : '') +
-          (r.quietDelayed > 0 ? ' · ' + r.quietDelayed + ' 条推迟出免打扰' : '') +
-          (r.quietDropped > 0 ? ' · ' + r.quietDropped + ' 条在免打扰内且已过期，跳过' : '') +
-          (r.failed > 0 ? ' · ' + r.failed + ' 条发布失败' : '');
-      }
+      // 文案走纯函数（两个入口共用一份；单测钉住「每个 reason 都有自己的话」）
+      this.status = scheduleStatusText(r);
+      // 系统没授权时给一颗真的能点的按钮（此前只有一行小字，用户无从下手）
+      this.needPerm = needsNotificationPermission(r.reason);
       info('notify settings commit status=' + this.status);
     } catch (e) {
       warn('notify settings commit fail: ' + JSON.stringify(e));
       this.status = '保存失败：' + JSON.stringify(e);
+    }
+    this.busy = false;
+  }
+
+  /**
+   * 请求系统通知权限并重排（M12-8）。
+   *
+   * ⚠️ 这条链原本是断的：`ReminderScheduler.ensureNotificationEnabled()` 写好了
+   * 但**全仓零引用**，于是用户在真机上只能看到「系统通知开关未开」一行小字，
+   * 没有任何入口去开。reminderAgent 的前置硬条件就是这个开关，
+   * 不开 ⇒ 一条提醒都排不出去（fail-closed，行为本身是对的）。
+   */
+  private async grantPermission(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    try {
+      const okPerm: boolean = await ReminderScheduler.ensureNotificationEnabled();
+      if (!okPerm) {
+        this.status = '仍未获得通知权限。请到系统「设置 → 通知」里手动允许本应用。';
+        this.needPerm = true;
+        info('notify permission still denied');
+      } else {
+        const ctx: Context = getContext(this) as Context;
+        const r = await ReminderScheduler.reschedule(ctx);
+        this.status = scheduleStatusText(r);
+        this.needPerm = needsNotificationPermission(r.reason);
+        info('notify permission granted, reschedule published=' + r.published);
+      }
+    } catch (e) {
+      warn('grantPermission fail: ' + JSON.stringify(e));
+      this.status = '请求通知权限失败：' + JSON.stringify(e);
     }
     this.busy = false;
   }
@@ -161,13 +186,10 @@ struct NotifySettingsPage {
       };
       await QuietHoursStore.save(q);
       const r = await ReminderScheduler.reschedule(ctx);
-      if (r.reason === 'all_in_quiet_hours') {
-        this.status = '免打扰生效：未来一周 ' + r.quietDropped + ' 条提醒全落在该时段，已跳过。';
-      } else {
-        this.status = '免打扰已保存 · 已重排 ' + r.published + ' 条' +
-          (r.quietDelayed > 0 ? '，' + r.quietDelayed + ' 条推迟出免打扰' : '') +
-          (r.quietDropped > 0 ? '，' + r.quietDropped + ' 条过期跳过' : '');
-      }
+      // ⚠️ 这里原来只处理了 all_in_quiet_hours，其余全落进 else ——
+      // 于是「系统通知没授权」被显示成「已重排 0 条」（真机实踩）。
+      this.status = '免打扰已保存。' + scheduleStatusText(r);
+      this.needPerm = needsNotificationPermission(r.reason);
       info('quiet commit status=' + this.status);
     } catch (e) {
       warn('quiet commit fail: ' + JSON.stringify(e));
@@ -439,6 +461,17 @@ struct NotifySettingsPage {
           // ── 重排结果 ──
           if (this.status.length > 0) {
             Text(this.status).fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').padding({ top: 12, bottom: 8 })
+          }
+          // 未授权时给一个**能点**的入口（否则用户只看到一句「通知未开」无从下手）
+          if (this.needPerm) {
+            Button('开启通知')
+              .height(38).fontSize(13).width('100%')
+              .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+              .enabled(!this.busy)
+              .accessibilityText('开启通知权限，点按后系统会询问是否允许本应用发送通知')
+              .onClick(() => {
+                this.grantPermission();
+              })
           }
         }
         .width('100%').padding({ left: 12, right: 12, top: 8, bottom: 24 })

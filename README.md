@@ -116,6 +116,15 @@ Android 版是用 WebView 承载学校 CAS 登录页的，在 HarmonyOS 上这�
 | 作业排序切换 | ✅ | 「按截止」/「按课程」两档，同一门课的作业能聚在一起；已完成区恒按截止倒序（刚划掉那条留在最上） |
 | 无障碍文案 | ✅ | 统一层 `A11yText`：布尔念「已开启/已关闭」、空字段不留悬空逗号、未读 0 说「没有未读」、金额取不到说「未知」而不是 0.00 |
 
+> ⚠️ **代理提醒的上真机实测结论（2026-10-28，nova 14 Pro / OpenHarmony-7.0.0.111）**：
+> 排期链路（取数 → plan → 配额裁剪 → 免打扰 → publish → 历史）全部走通了，但**系统一条都不接受**：
+> 8 条 `publishReminder` 全部返回 `1700002 The number of reminders exceeds the limit`，
+> 而系统日志同时打出 `VerifyCloudCapability failed ... reminder_capability` 与
+> `ReminderControl <bundle>, notification not allowed`，上限被判成 `limit[0]`。
+> 也就是说 **1700002 在这类机器上不是「排满 30 条」，而是「本机不允许代理提醒」**。
+> 应用侧已按错误码如实说明（「提醒没能交给系统：N 条全部被系统拒绝（错误码 1700002）」），
+> 不再含糊地写「N 条发布失败」。**这条限制不是代码能绕过的**，需要在支持代理提醒的设备上复验。
+
 > 成绩取数走 BIT101 **认证主机**（`login.bit101.flwfdd.xyz`）的异步挑战三步：
 > `POST /api/jwb/bit101/score` 起挑战 → 轮询 `/api/auth/{id}` 到 `jwb` 就绪 → 带 `Bearer` 取二维表。
 > 凭据默认不保存；勾选「记住密码」后才进**系统密钥库**（`@kit.AssetStoreKit`，首次解锁可读）。
@@ -193,7 +202,7 @@ entry/src/main/ets/
 ├── components/    共享组件（shell 骨架、FAB 列、卡片）
 └── extensionability/  FormExtension（桌面卡片独立进程）
 
-tools/            离线单测（56 套件）+ 真机取证脚本 + fixtures（真机抓的原始页面）
+tools/            离线单测（57 套件）+ 真机取证脚本 + fixtures（真机抓的原始页面）
 docs/             ROADMAP 台账、截图、文档索引
 ```
 
@@ -232,7 +241,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version            # 需要 22.7+（--experimental-transform-types）
-bash tools/run-tests.sh   # 56 个套件，2966 条断言
+bash tools/run-tests.sh   # 57 个套件，3005 条断言
 ```
 
 设计原则是**断言对着语义写，不写"非空"**：比如登录页解析吃真机抓的原始 HTML fixture；

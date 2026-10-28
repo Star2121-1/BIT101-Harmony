@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // 楼栋索引纯逻辑守卫（P4）。
 //
 // 判据：校区顺序固定、楼栋数不丢、别名归一化能搜到、搜索命中不到就给空（不猜）、
@@ -91,6 +92,28 @@ ok(/^-?\d+\.\d{5}, -?\d+\.\d{5}$/.test(txt), '经纬度 5 位小数', txt);
 const uri = geoUri(loc);
 ok(uri.indexOf('geo:') === 0, 'geo URI 前缀', uri.substring(0, 20));
 ok(uri.indexOf('?q=') > 0, 'geo URI 带 ?q= 定位');
+
+
+// ── 源码栅栏：楼栋页必须「先 await 课表，再 refresh」 ─────────────────────
+// 真机实踩（2026-10-28）：两条并列写成 `loadCourses(); refresh();` 时，
+// refresh 跑在 courses 还没读回来之前 ⇒ 每栋楼都显示「没有课」，
+// 看起来像匹配坏了，其实纯逻辑全对。这个顺序只能靠读源码钉住。
+const pageRaw = readFileSync(
+  new URL('../entry/src/main/ets/pages/CampusMapPage.ets', import.meta.url), 'utf-8');
+// 注释里也会出现 `this.refresh()` 这些字样，必须先剔掉注释行再判断，否则断言自己咬自己
+const pageSrc = pageRaw.split('\n')
+  .filter((ln) => { const t = ln.trim(); return !t.startsWith('*') && !t.startsWith('//') && !t.startsWith('/*'); })
+  .join('\n');
+ok(/await\s+this\.loadCourses\(\)/.test(pageSrc), '楼栋页必须 await loadCourses()');
+const idxAwait = pageSrc.indexOf('await this.loadCourses()');
+// 取「await 之后第一次 refresh()」，而不是全文第一次（那可能是方法定义）
+const idxRefresh = pageSrc.indexOf('this.refresh()', idxAwait + 1);
+ok(idxAwait >= 0 && idxRefresh > idxAwait, 'refresh() 必须在 await loadCourses 之后',
+  'await@' + idxAwait + ' refresh@' + idxRefresh);
+// ⚠️ 不能直接 indexOf 这串：`await this.loadCourses();` 里也含 `this.loadCourses();`，
+// 会把自己那条正确写法判成违规。必须排除前面是 await 的情况。
+ok(!/(?<!await )this\.loadCourses\(\);\s*\n\s*this\.refresh\(\);/.test(pageSrc),
+  '不许再出现「loadCourses(); refresh();」的并列写法（无 await）');
 
 console.log('\n' + (fail === 0 ? 'ALL PASS' : 'FAILED') + '  pass=' + pass + ' fail=' + fail);
 process.exit(fail === 0 ? 0 : 1);

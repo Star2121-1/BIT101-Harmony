@@ -59,7 +59,20 @@ export struct CampusMapPage {
 
   aboutToAppear(): void {
     this.groups = groupByCampus();
-    this.loadCourses();
+    this.init();
+  }
+
+  /**
+   * ⚠️ 必须先 await 课表、再 refresh。
+   *
+   * 真机实踩（2026-10-28）：这里原来是 `this.loadCourses(); this.refresh();` 两条并列，
+   * loadCourses 是 async 且没 await ⇒ refresh() 跑的时候 `places` 还是空数组，
+   * 于是**每一栋楼都显示「课表里没有这栋楼的课」**，看起来像楼栋匹配坏了，
+   * 实际匹配逻辑（有单测）完全正确。@State places 变了也不会自动重建 cards
+   * （cards 是另一个 @State，只有 refresh 会写）。
+   */
+  private async init(): Promise<void> {
+    await this.loadCourses();
     this.refresh();
   }
 
@@ -189,7 +202,7 @@ export struct CampusMapPage {
         .fontSize(14).fontColor(this.tk().onSurface)
         .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
-      Text(card.courses.length > 0 ? '本机课表 ' + String(card.courses.length) + ' 门' : '本机课表无这门楼')
+      Text(card.courses.length > 0 ? '本机课表 ' + String(card.courses.length) + ' 门' : '课表里没有这栋楼的课')
         .fontSize(11)
         .fontColor(card.courses.length > 0 ? this.tk().primary : this.tk().textPlaceholder)
         .width('100%').margin({ top: 4 })
