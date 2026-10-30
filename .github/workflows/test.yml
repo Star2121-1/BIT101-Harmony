@@ -39,7 +39,8 @@ jobs:
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
             echo "::error::单测红：$(grep -E '失败套件' /tmp/unit.log | tr '\n' ' ')"
-            echo "::error::日志尾部：$(tail -40 /tmp/unit.log | tr '\n' '|' | sed 's/%/%25/g')"
+            echo "::error::FAIL 行：$(grep -E '^FAIL|违规' /tmp/unit.log | head -30 | tr '\n' '|' | sed 's/%/%25/g')"
+            echo "::error::日志尾部：$(tail -25 /tmp/unit.log | tr '\n' '|' | sed 's/%/%25/g')"
             exit "$code"
           fi
 
