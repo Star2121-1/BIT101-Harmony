@@ -31,7 +31,17 @@ jobs:
       - name: 单测（全部套件，由 run-tests.sh 统计）
         # 用与本地完全相同的入口，别在 CI 里再抄一份循环 ——
         # 两套实现迟早会不一致（谁是准的说不清），断言条数也会变成两处手抄。
-        run: bash tools/run-tests.sh
+        # 失败时打一条 ::error:: 注解（含失败套件与日志尾部）：job 日志要鉴权才读得到，
+        # 注解经 /check-runs/{id}/annotations 公开可读，是本仓库唯一的远程诊断通道。
+        run: |
+          set +e
+          bash tools/run-tests.sh 2>&1 | tee /tmp/unit.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            echo "::error::单测红：$(grep -E '失败套件' /tmp/unit.log | tr '\n' ' ')"
+            echo "::error::日志尾部：$(tail -40 /tmp/unit.log | tr '\n' '|' | sed 's/%/%25/g')"
+            exit "$code"
+          fi
 
       - name: 关键资源必须在仓库里
         # 这两条是 .gitignore 最容易被写错的地方，用 CI 钉死：
