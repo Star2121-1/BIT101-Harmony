@@ -113,4 +113,7 @@ ok(!afterText.includes('08:00'), '新文案不含 08:00');
 eq(courseTimeText(custom, 2, 2), courseTimeText(FALLBACK_TIME_TABLE, 2, 2), '未改动的节次文案不变');
 
 console.log('\n' + (failed === 0 ? 'ALL PASS' : 'FAILED') + '  pass=' + passed + ' fail=' + failed);
-process.exit(failed === 0 ? 0 : 1);
+// 不用 process.exit()：Windows + Node 24 下退出瞬间会撞 libuv 断言
+// `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), src\win\async.c:76`，
+// 断言全过却退出 127，被记成假红。
+process.exitCode = failed === 0 ? 0 : 1;

@@ -27,14 +27,21 @@ if [ "${major:-0}" -lt 22 ] || { [ "${major:-0}" -eq 22 ] && [ "${minor:-0}" -lt
   exit 1
 fi
 
-suites="test-splash test-uiconventions test-termstore test-gridcontrast test-pairstyle test-shell test-parser test-teaching test-edges test-shuttle test-colors test-gridtokens test-gridcomponents test-scheduletint test-campusgrouping test-classroomfree test-timetable test-eclass test-ddl test-libborrow test-routes test-card test-net test-overlay test-netalert test-notify test-schedule test-settings test-score test-seat test-seatapi test-seatmap test-seatreserve test-seatviolation test-seatreservation test-seatmonitor test-seminar test-seatview test-widget test-enums test-scoreflow test-scorestore test-widgetrefresh test-version test-weblinks test-ddlsource test-search test-weektext test-campusdir test-scoresummary test-notifygroup test-cacheindex test-weeknav test-quiethours test-a11ytext test-ddlsort test-notifystatus"
+suites="test-splash test-uiconventions test-termstore test-gridcontrast test-pairstyle test-shell test-parser test-teaching test-edges test-shuttle test-colors test-gridtokens test-gridcomponents test-scheduletint test-campusgrouping test-classroomfree test-timetable test-eclass test-ddl test-libborrow test-routes test-card test-net test-overlay test-netalert test-notify test-schedule test-settings test-score test-seat test-seatapi test-seatmap test-seatreserve test-seatviolation test-seatreservation test-seatmonitor test-seminar test-seatview test-widget test-enums test-scoreflow test-scorestore test-widgetrefresh test-version test-weblinks test-ddlsource test-search test-weektext test-campusdir test-scoresummary test-notifygroup test-cacheindex test-weeknav test-quiethours test-a11ytext test-ddlsort test-notifystatus test-appforeground"
+# 这个套件的 import 链会摸到 @kit.*（SeatTaskStore → Prefs），要靠 node-loader 重映射到 kit-stub。
+# 不加 loader 时它以 ERR_INVALID_MODULE_SPECIFIER 直接崩，所以必须显式区分，别混在一起跑。
+loader_suites=" test-appforeground "
 total=0
 passed=0
 failed_suites=""
 
 for s in $suites; do
   printf '\n──────── %s ────────\n' "$s"
-  out="$("$NODE_BIN" --experimental-transform-types "tools/$s.mjs" 2>&1)"
+  if [ "${loader_suites#* $s }" != "$loader_suites" ]; then
+    out="$("$NODE_BIN" --experimental-transform-types --experimental-loader ./tools/node-loader.mjs "tools/$s.mjs" 2>&1)"
+  else
+    out="$("$NODE_BIN" --experimental-transform-types "tools/$s.mjs" 2>&1)"
+  fi
   code=$?
   printf '%s\n' "$out"
 
