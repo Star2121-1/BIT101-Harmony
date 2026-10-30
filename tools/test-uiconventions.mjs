@@ -50,10 +50,15 @@ const MISPLACED = /\.align\(Alignment\.Top\)[ \t]*\r?\n[ \t]*\}[ \t]*\r?\n[ \t]*
 // 用「缩进相同 + 行首是 `}`」（允许 `}.align(...)` 这种紧凑写法）定位 Scroll 的收尾行，
 // 再读它后面的修饰链；链里允许夹注释行（本项目大量在修饰链中间写 ⚠️ 说明）。
 function scanScrolls(src) {
-  const lines = src.split('\n');
+  // ⚠️ 必须按 /\r?\n/ 切：本机有 14 个 .ets 是 CRLF 工作副本（提交进库是 LF），
+  // 只按 '\n' 切会留下行尾 '\r'，第 56 行的 `\{$` 匹配不上 ⇒ 悄悄漏扫这些文件里的
+  // Scroll()（Windows 漏扫、Linux CI 全扫，同一个提交两边结论不一致）。
+  const lines = src.split(/\r?\n/);
   const issues = [];
   for (let i = 0; i < lines.length; i++) {
-    const m = /^(\s*)Scroll\(\)\s*\{$/.exec(lines[i]);
+    // `Scroll(this.scroller)` 这种带参形态同样要查（ClassroomPage 就是），
+    // 只认 `Scroll()` 会把带滚动控制器的页面整页漏掉。
+    const m = /^(\s*)Scroll\([^)]*\)\s*\{$/.exec(lines[i]);
     if (m === null) continue;
     const indent = m[1];
     let close = -1;
@@ -97,7 +102,8 @@ for (const f of files) {
   const src = readFileSync(f, 'utf8');
   const rel = f.slice(ROOT.length + 1);
 
-  const body = src.split('\n').filter((l) => l.trim().startsWith('Scroll()')).length;
+  // 计数也按前缀算，含 `Scroll(this.scroller)` —— 断言里的数字必须和扫描器查到的是同一批。
+  const body = src.split(/\r?\n/).filter((l) => l.trim().startsWith('Scroll(')).length;
   scrollTotal += body;
 
   if (MISPLACED.test(src)) {

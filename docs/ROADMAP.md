@@ -17,6 +17,11 @@
 > **2026-10-30 复核**：main `22f7c5b` 与 tag `h-v1.0.0-alpha.10` 均已推远端，工作区干净。本机 Node 24 下
 > `test-timetable` 曾因末尾 `process.exit()` 在退出瞬间触发 libuv 断言（`src\win\async.c:76`，28 条断言全过但退出码 127）
 > 被记成假红；已改 `process.exitCode`，复跑 58/58、3017 断言、exit 0。§9 统计表按 §4 行首标记重算。
+> **CI 自 2026-10-26 起连续红 20+ 次的根因（2026-10-30 定位）**：`test-uiconventions` 在 Ubuntu 报「违规 1 处」、
+> 本机却绿 —— 本机 14 个 `.ets` 是 CRLF 工作副本（入库是 LF），扫描器按 `'\n'` 切后行尾残留 `\r`，`\{$` 匹配不上，
+> **悄悄漏扫这些文件里的 `Scroll()`**。改成 `/\r?\n/` 后本机立刻复现出真 bug：`SeatMonitorPage.ets:345` 的 `Scroll`
+> 有 `layoutWeight(1)` 缺 `.align(Alignment.Top)`（内容不足一屏会垂直居中）。已补 align；扫描器同时覆盖
+> `Scroll(this.scroller)` 带参形态（覆盖 28→29 处），并做了「拆掉 align 看红」的负向对照。CI 注解 grep 补上明细行前缀。
 > **UI 迁移线（2026-10-23 起，用户确认顺序逐页对齐原版 BIT101）**：#81 GridTokens / #82 共享组件 / #83 首页 / #84 课表 / #85 空教室 / #86 班车 / #87 座位（含 M9-8 监控面板改 Material3 风 + 应用名/图标补齐）/ #88 作业·DDL（分区结构 + 紧急度混色卡）已完成（全量 34/34 套件 2029 断言绿）；剩 #90 框架 chrome。#89 落 **palette 轴**：GridTokens 三层化（共享段 + Classic/Warm/Brand 三表 1:1 Android palette/ 目录，缺档 fail-fast），ThemeStore 持久化 ui_palette，11 个页面/组件订阅，SettingsPage 外观组加「配色方案」三选一（Brand 标实验性），MePage 贴 ref-03（头像区 + 一卡通/校园网双卡 + 入口组）。另 `4585296` 修 AppScope 层图标占位（桌面灰块根因）、`055a66f` 升级 CI 图标守卫。**#90 外壳已落地**（`corelogic/shellNav.ts` + TopTabBar/BottomNavBar/FabColumn/ModulePlaceholder，Index.ets 改为底部 6 模块 + 卷内 5 页签容器，Stack 保活 + 访问白名单懒建；图标换 Material Rounded 矢量 rawfile/icons/ 16 张；自习卡从首页搬进「我」页；`tools/test-shell.mjs` 66 断言）。**FAB 组未接**（需页面内状态）。基准 `harmony/ui-ref/MIGRATION-BASELINE.md`（仓库外）；tag 仍 alpha.8（纯 UI 提交不 bump 版本）。⚠️ 各页真机渲染未验（鸿蒙手机 reboot 后 USB 未重连）。
 > **2026-10-27 UI 对齐增量**（用户「对照原版改改里面的东西」）：桌面图标鸽子定档画布 **62%**（`tools/make-icon.py` + fixture 入库，可复现：`--percent 66` 重跑与旧包逐像素一致）；DDL 去页头、同步改下拉刷新；课表第 4 颗 FAB 改「＋ 改课表」（接 OverlayPage）；教学楼行双层 padding 叠加修掉（pitch 85→70vp，原版 64dp）。**学期切换已迁到设置页**（`TermStore` 单一来源 + `getCurrentTerm` 收口 + 课表 `@Watch` 重载；课表页 chips 行删除，栅栏 `test-termstore`），真机验过切学期/冷启动/恢复跟随三条路径。**学期列表折叠**（用户「保留近几年的，剩下的收缩可展开」）：默认只显示近 3 学年 + 「跟随教务」，更早的收进「展开旧学期（更早的 N 个）」；拆分抽成无 @kit 依赖的 `data/termUtil.ts` 纯函数（`splitTermsByRecentYears`），`test-termstore` 直接 import 真实函数跑算法断言（近期/脏值归旧/空列表/不足阈值 4 例）；选中的学期若落在旧区间则单列出来，防「选了旧学期却看不见、切不回」。
 > **欠**：旧学期的周次语义未实证（无原版内部页可拍）；课表第 4 颗「＋」在原版里的语义未实证（当前接手动改课表）。
