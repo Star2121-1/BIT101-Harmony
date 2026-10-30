@@ -195,14 +195,14 @@ Android 版是用 WebView 承载学校 CAS 登录页的，在 HarmonyOS 上这�
 entry/src/main/ets/
 ├── core/          crypto（AES / 风控指纹 / CAS 锚点）、net（rcp 工厂 / cookie 罐）、
 │                  model、log（脱敏 + 长文本落盘）、theme（token 层 gridTokens）
-├── corelogic/     算法层：13+ 个纯函数模块（从 Android 版移植，逐条单测）
+├── corelogic/     算法层：72 个纯函数模块（从 Android 版移植，逐条单测）
 ├── data/          Prefs / 各类 Store（会话、课表缓存、DDL、覆盖层、主题、学期）
 ├── service/       登录、教务、空教室、自习、eclass、座位、提醒
-├── pages/         24 个页面（登录 / 课表 / DDL / 动态 / 空教室 / 班车 / 座位 / 我 / 设置…）
+├── pages/         35 个页面（登录 / 课表 / DDL / 动态 / 空教室 / 班车 / 座位 / 我 / 设置…）
 ├── components/    共享组件（shell 骨架、FAB 列、卡片）
 └── extensionability/  FormExtension（桌面卡片独立进程）
 
-tools/            离线单测（57 套件）+ 真机取证脚本 + fixtures（真机抓的原始页面）
+tools/            离线单测（58 套件）+ 真机取证脚本 + fixtures（真机抓的原始页面）
 docs/             ROADMAP 台账、截图、文档索引
 ```
 
@@ -241,7 +241,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version            # 需要 22.7+（--experimental-transform-types）
-bash tools/run-tests.sh   # 57 个套件，3005 条断言
+bash tools/run-tests.sh   # 58 个套件，3017 条断言
 ```
 
 设计原则是**断言对着语义写，不写"非空"**：比如登录页解析吃真机抓的原始 HTML fixture；
