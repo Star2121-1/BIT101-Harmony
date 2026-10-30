@@ -14,7 +14,7 @@
 > **全部真机零验证**（用户明确要求先只改代码，后面统一 debug）。
 > **UI 迁移 #81~#91 ✅**；2026-10-28 补齐 **DDL 三颗 FAB**（＋ 新增 / 学士帽 / ⚙）与**空教室回到顶部 + 下拉刷新**，
 > 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **58 套件 3017 断言绿**；版本 `1.0.0-alpha.10`。
-> **2026-10-30 复核**：main `22f7c5b` 与 tag `h-v1.0.0-alpha.10` 均已推远端，工作区干净。本机 Node 24 下
+> **2026-10-30 复核**：main `ae2ee06` 与 tag `h-v1.0.0-alpha.10` 均已推远端，工作区干净。本机 Node 24 下
 > `test-timetable` 曾因末尾 `process.exit()` 在退出瞬间触发 libuv 断言（`src\win\async.c:76`，28 条断言全过但退出码 127）
 > 被记成假红；已改 `process.exitCode`，复跑 58/58、3017 断言、exit 0。§9 统计表按 §4 行首标记重算。
 > **CI 自 2026-10-26 起连续红 20+ 次的根因（2026-10-30 定位）**：`test-uiconventions` 在 Ubuntu 报「违规 1 处」、
@@ -25,6 +25,7 @@
 > 修复提交 `050843e` 已推，CI `unit` 恢复绿（2026-10-30 08:14Z，之前最后一次绿是 2026-10-26 `82d2525`）；
 > 本地 58/58、3017 断言、exit 0，debug HAP 编译成功。**教训**：栅栏读源码别按 `'\n'` 切，Windows 工作副本
 > 可能是 CRLF（入库 LF）⇒ 本地绿、CI 红；本机绿不能替代跨平台复核。
+> 证据：`harmony/evidence/ci-2026-10-30/`（单测日志 58/3017、构建日志、check-run JSON）。
 > **UI 迁移线（2026-10-23 起，用户确认顺序逐页对齐原版 BIT101）**：#81 GridTokens / #82 共享组件 / #83 首页 / #84 课表 / #85 空教室 / #86 班车 / #87 座位（含 M9-8 监控面板改 Material3 风 + 应用名/图标补齐）/ #88 作业·DDL（分区结构 + 紧急度混色卡）已完成（全量 34/34 套件 2029 断言绿）；剩 #90 框架 chrome。#89 落 **palette 轴**：GridTokens 三层化（共享段 + Classic/Warm/Brand 三表 1:1 Android palette/ 目录，缺档 fail-fast），ThemeStore 持久化 ui_palette，11 个页面/组件订阅，SettingsPage 外观组加「配色方案」三选一（Brand 标实验性），MePage 贴 ref-03（头像区 + 一卡通/校园网双卡 + 入口组）。另 `4585296` 修 AppScope 层图标占位（桌面灰块根因）、`055a66f` 升级 CI 图标守卫。**#90 外壳已落地**（`corelogic/shellNav.ts` + TopTabBar/BottomNavBar/FabColumn/ModulePlaceholder，Index.ets 改为底部 6 模块 + 卷内 5 页签容器，Stack 保活 + 访问白名单懒建；图标换 Material Rounded 矢量 rawfile/icons/ 16 张；自习卡从首页搬进「我」页；`tools/test-shell.mjs` 66 断言）。**FAB 组未接**（需页面内状态）。基准 `harmony/ui-ref/MIGRATION-BASELINE.md`（仓库外）；tag 仍 alpha.8（纯 UI 提交不 bump 版本）。⚠️ 各页真机渲染未验（鸿蒙手机 reboot 后 USB 未重连）。
 > **2026-10-27 UI 对齐增量**（用户「对照原版改改里面的东西」）：桌面图标鸽子定档画布 **62%**（`tools/make-icon.py` + fixture 入库，可复现：`--percent 66` 重跑与旧包逐像素一致）；DDL 去页头、同步改下拉刷新；课表第 4 颗 FAB 改「＋ 改课表」（接 OverlayPage）；教学楼行双层 padding 叠加修掉（pitch 85→70vp，原版 64dp）。**学期切换已迁到设置页**（`TermStore` 单一来源 + `getCurrentTerm` 收口 + 课表 `@Watch` 重载；课表页 chips 行删除，栅栏 `test-termstore`），真机验过切学期/冷启动/恢复跟随三条路径。**学期列表折叠**（用户「保留近几年的，剩下的收缩可展开」）：默认只显示近 3 学年 + 「跟随教务」，更早的收进「展开旧学期（更早的 N 个）」；拆分抽成无 @kit 依赖的 `data/termUtil.ts` 纯函数（`splitTermsByRecentYears`），`test-termstore` 直接 import 真实函数跑算法断言（近期/脏值归旧/空列表/不足阈值 4 例）；选中的学期若落在旧区间则单列出来，防「选了旧学期却看不见、切不回」。
 > **欠**：旧学期的周次语义未实证（无原版内部页可拍）；课表第 4 颗「＋」在原版里的语义未实证（当前接手动改课表）。
@@ -495,6 +496,15 @@ M9-1 JWT ✅ ──▶ M9-2 树 ──▶ M9-3 底图 ──▶ M9-4 预约 ─�
     ⑥ ⚠️ **SeatReservationLogic/SeatMonitorLogic 零 import**（⇒ SeatModel/SeatTask 不在编译图，
     enum 改造不会被编译器验证）⇒ probe 补拉 SeatModel/SeatTask/SeatReservationLogic 进编译图
     （SeatMonitorLogic 依赖 SeatTaskStore→@kit 链，Node probe 吃不了，留待 M9-8 接线）。
+28. **[10-30] ⚠️⚠️ 「本机单测绿」不等于「CI 绿」：先把栅栏的读法改成平台无关的**。
+    `test-uiconventions` 按 `'\n'` 切源码，本机 14 个 `.ets` 是 CRLF 工作副本（入库是 LF）⇒
+    行尾残留 `\r`、`\{$` 匹配不上 ⇒ **本机悄悄漏扫这些文件里的 `Scroll()`，Linux CI 全扫**。
+    CI 因此从 10-26 红到 10-30（20+ 次，无人发现），本机却一路绿。改按 `/\r?\n/` 切后立刻复现真 bug：
+    `SeatMonitorPage.ets:345` 的 `Scroll` 有 `layoutWeight(1)` 缺 `.align(Alignment.Top)`（第 10 条同类）。
+    ⇒ ① 读源码的脚本一律 `/\r?\n/`；② 工作副本 CRLF ≠ 入库 LF，别拿本机绿当结论；
+    ③ 拿两套换行各跑一遍，或用 CI 复核。**顺带**：本仓库 job 日志要 admin 权限才读得到（403），
+    唯一能匿名取证的通道是 **check-run annotations**；CI 失败时必须 `echo "::error::…"` 把失败套件
+    与明细行打出来（`.github/workflows/test.yml` 已接），否则远端红了只能干瞪眼。
 
 ---
 
@@ -548,6 +558,12 @@ M9-1 JWT ✅ ──▶ M9-2 树 ──▶ M9-3 底图 ──▶ M9-4 预约 ─�
 2. **关键资源检查** —— TLS 中间证书在位；**图标三件套两处 × 三个全部验维度**（AppScope+entry，边长 ≥64；2026-10-24 堵 1x1 占位图漏检，见 `055a66f`）
 
 > ⚠️ 原配置写成 `branches: [main]`，结果自检分支推上去压根不触发 CI，白等一轮。**功能分支也要跑**。
+>
+> **远端红了怎么查**：job 日志要仓库 admin 权限（匿名 `GET /actions/jobs/{id}/logs` → 403），
+> 唯一匿名可读的是 **check-run annotations**（`GET /repos/{owner}/{repo}/check-runs/{id}/annotations`）。
+> 所以单测 step 失败时会 `echo "::error::…"` 打出失败套件 + `FAIL`/`违规`/`entry/src/main/ets/` 明细行
+> （`0bd93c1` + `050843e`）。**本机绿 ≠ CI 绿**：2026-10-30 的 CRLF 漏扫事故就是这么瞒了 4 天
+> （详见 §7 第 28 条）。
 
 **CI 守卫做过故意拆坏检验**（不然「CI 绿」可能只是检查写反了）：
 开 `ci-selfcheck` 分支 → `.gitignore` 加 `*.pem` + `git rm --cached` 证书 → 推送：

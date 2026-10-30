@@ -248,9 +248,10 @@ bash tools/run-tests.sh   # 58 个套件，3017 条断言
 `test-routes` 检查每个 `router.pushUrl` 目标都在 `main_pages.json` 里（漏注册会构建假绿）；
 `test-uiconventions` 扫页面修饰链，防止 `.align(Top)` 挂错层导致内容垂直居中。
 
-CI（`.github/workflows/test.yml`）在**所有分支**的 push 上跑这些，外加一条资源存在性检查 ——
+CI（`.github/workflows/test.yml`）在**所有分支**的 push 上跑这些，外加资源检查 ——
 它守两个真实踩过的坑：TLS 中间证书被 `.gitignore` 误伤（编译能过、运行期静默降级）、
-app 图标被全局 `*.png` 误删。
+app 图标被全局 `*.png` 误删。失败时会打 `::error::` 注解（job 日志要仓库权限，注解公开可读），
+里面带失败套件名和具体文件行号。
 
 ---
 
@@ -264,6 +265,8 @@ app 图标被全局 `*.png` 误删。
 6. **`*.pem` 不能进 `.gitignore`**：工程依赖一份 TLS 中间证书，忽略后编译照过、运行期静默降级。
 7. **Form Extension 是独立进程**：不补 `Prefs.init` 就永远显示占位态；深色模式要用 `resourceManager.getConfiguration().colorMode`（FormExtensionContext 没有 `configuration` 字段）。
 8. **颜色不进 `@State`**：一律渲染期从 `gridTokens(isDark, palette)` 现算，否则切换皮肤时页面残留旧色。
+9. **「本机单测绿」不等于「CI 绿」**：读源码的栅栏若按 `'\n'` 切，CRLF 工作副本会让行尾多出 `\r`、
+   正则锚点失配 → 本机漏扫、CI 全扫。工作副本是 CRLF 不代表入库是 CRLF（`.gitattributes` 写的是 LF）。
 
 ---
 
