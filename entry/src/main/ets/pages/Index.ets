@@ -60,7 +60,7 @@ struct Index {
   @State private visited: string[] = [DEFAULT_TAB];
   /**
    * 外壳重新可见的序号：从登录页/详情页 back 回来时自增，
-   * 传给「我」页触发刷新 —— 壳里的页是保活的，收不到 onPageShow（2026-10-31）。
+   * 传给「我」页与课表页触发刷新 —— 壳里的页是保活的，收不到 onPageShow（2026-10-31）。
    */
   @State private epoch: number = 0;
 
@@ -164,7 +164,11 @@ struct Index {
       Stack() {
         if (this.isVisited('timetable')) {
           Column() {
-            SchedulePage({ isEmbedded: true })
+            SchedulePage({
+              isEmbedded: true,
+              active: this.currentId() === 'timetable',
+              epoch: this.epoch,
+            })
           }
           .width('100%').height('100%')
           .visibility(this.visOf('timetable'))

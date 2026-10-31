@@ -93,6 +93,15 @@ export struct SchedulePage {
    *    `@Watch` 接住 AppStorage 变化，否则「设置里切了学期、课表还是老学期」。
    */
   @StorageLink(STORAGE_TERM) @Watch('onTermOverrideChanged') termOverride: string = '';
+  /**
+   * 是否可见（外壳 Stack 保活时由 Index 传；独立路由页默认 true）。
+   * ⚠️ 壳里的子组件收不到 `onPageShow`（那是 @Entry 页面的钩子）——
+   *    2026-10-31 真机实锤：在「手动改课表」里把教室改掉并保存，返回后网格仍显示教务原值
+   *    （`reloadOverlaysAndRemerge` 一次都没跑）。
+   */
+  @Prop @Watch('onWake') active: boolean = true;
+  /** 外壳重新可见的序号（Index.onPageShow 自增）；从子页回来时 active 不变、只有它会变。 */
+  @Prop @Watch('onWake') epoch: number = 0;
   @State loading: boolean = true;
   @State statusText: string = '正在读取课表…';
   @State errorText: string = '';
@@ -332,7 +341,15 @@ export struct SchedulePage {
 
   /** 从「手动改课表」页回来时重读覆盖层并重算（M2-8）。 */
   onPageShow(): void {
+    // 独立路由页（isEmbedded=false）走这里；壳里不会触发
     this.reloadOverlaysAndRemerge();
+  }
+
+  /** active / epoch 变化都走这里（切回课表页签、从子页返回）。 */
+  private onWake(): void {
+    if (this.active) {
+      this.reloadOverlaysAndRemerge();
+    }
   }
 
   private async reloadOverlaysAndRemerge(): Promise<void> {
@@ -1180,7 +1197,11 @@ export struct SchedulePage {
     if (b.course === null) {
       return 'e_' + day + '_' + idx;
     }
-    return 'c_' + day + '_' + idx + '_' + b.course.KCM + '_' + b.course.KSJC + '_' + b.course.JSJC;
+    // ⚠️ key 必须覆盖**所有会变的显示字段**：ForEach 只在 key 变化时重建节点。
+    //    2026-10-31 真机实锤：改教室后覆盖层已重读、courses 已换新，但 key 里没有 JASMC
+    //    ⇒ 节点被复用，网格仍显示旧教室（保存「506」后仍显示「文萃楼I404」，反之亦然）。
+    return 'c_' + day + '_' + idx + '_' + b.course.KCM + '_' + b.course.KSJC + '_' +
+      b.course.JSJC + '_' + b.course.JASMC;
   }
 
   private timeText(section: number): string {
