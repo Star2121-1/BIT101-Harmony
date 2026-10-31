@@ -46,6 +46,10 @@ import { ScoreCheckRunner } from '../service/ScoreCheckRunner.ts';
 import { statusText, ScoreCheckCode } from '../corelogic/ScoreCheckLogic.ts';
 import { DdlSourceStore } from '../data/DdlSourceStore.ts';
 import type { DdlSourcePrefs } from '../corelogic/DdlSourceLogic.ts';
+import { STORAGE_DDL_EPOCH } from '../data/DdlStore.ts';
+import { EclassService, EclassAuthError } from '../service/EclassService.ts';
+import { EclassSyncService } from '../service/EclassSyncService.ts';
+import type { SyncStats } from '../service/EclassSyncService.ts';
 import {
   PAGE_TEACHING_ADJUSTMENT, PAGE_CAMPUS_MAP, PAGE_DIAGNOSTICS, PAGE_CACHE_CLEAN, PAGE_SEARCH,
 } from '../corelogic/SearchNav.ts';
@@ -90,6 +94,15 @@ struct SettingsPage {
   @State ddlEclass: boolean = true;
   @State ddlLocal: boolean = true;
 
+  /** 延河课堂会话检查结果：0=检查中 1=已登录 2=未确认（未登录或网络不可用）。 */
+  @State eclassState: number = 0;
+  /** 重新拉取作业的一行结果（成功/失败都如实上屏）。 */
+  @State eclassSyncLine: string = '';
+  @State eclassSyncBusy: boolean = false;
+  private eclassChecking: boolean = false;
+  /** 刚从延河课堂登录页返回 ⇒ onPageShow 自动复查一次（用户可能刚在 Web 里登录完）。 */
+  private eclassReloginPending: boolean = false;
+
   // ── 学期（对照原版：切学期在设置里，不在课表页） ──
   /** 订阅全局学期覆盖值（'' = 跟随教务）；课表页也订阅同一个键。 */
   @StorageLink(STORAGE_TERM) termOverride: string = '';
@@ -112,6 +125,15 @@ struct SettingsPage {
     this.loadScoreLine();
     this.loadDdlSource();
     this.loadCacheLine();
+    this.checkEclassSession();
+  }
+
+  /** 从延河课堂登录页返回：会话可能刚建好，自动复查一次（其余子页返回不联网）。 */
+  onPageShow(): void {
+    if (this.eclassReloginPending) {
+      this.eclassReloginPending = false;
+      this.checkEclassSession();
+    }
   }
 
   /** 缓存占用：算不出来就显示「未知」，不显示 0 B 骗人。 */
@@ -196,6 +218,94 @@ struct SettingsPage {
     } catch (e) {
       this.toast = '保存作业来源失败：' + (e as Error).message;
     }
+  }
+
+  /**
+   * 延河课堂会话检查（上游 d7d349a 同款）。
+   * 判据是**真实请求**而不是本地有没有 cookie；先同步 Web 会话，失败重试一次。
+   */
+  private async checkEclassSession(): Promise<void> {
+    if (this.eclassChecking) {
+      return;
+    }
+    this.eclassChecking = true;
+    this.eclassState = 0;
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const alive: boolean = await EclassService.isSessionAlive(ctx);
+      this.eclassState = alive ? 1 : 2;
+      info('Settings eclass session alive=' + alive);
+    } catch (e) {
+      this.eclassState = 2;
+      warn('Settings eclass session check fail: ' + JSON.stringify(e));
+    }
+    this.eclassChecking = false;
+  }
+
+  /** 会话状态文案（检查中也要能显示，不能留空）。 */
+  private eclassStateText(): string {
+    if (this.eclassState === 0) {
+      return '检查中…';
+    }
+    if (this.eclassState === 1) {
+      return '已登录';
+    }
+    return '未确认（未登录或网络不可用）';
+  }
+
+  /**
+   * 重新拉取延河课堂作业（上游 8ed3ecb 的设置页动作项）。
+   * 与作业页共用 EclassSyncService（同一份合并规则，已完成状态保留）；
+   * 写库后广播信号让嵌入壳里的 DdlPage 重载。
+   */
+  private async pullEclassDdl(): Promise<void> {
+    if (this.eclassSyncBusy) {
+      return;
+    }
+    this.eclassSyncBusy = true;
+    this.eclassSyncLine = '正在拉取…';
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const s: SyncStats = await EclassSyncService.sync(ctx);
+      if (s.courses === 0) {
+        this.eclassSyncLine = '延河课堂返回 0 门课程（可能还没访问过课程，或接口变了）——未写入本地';
+      } else {
+        let line: string = '已同步：' + s.courses + ' 门课 / ' + s.items + ' 条作业（新 ' +
+          s.added + ' · 更 ' + s.updated + '）';
+        if (s.failedCourses > 0) {
+          line = line + '；' + s.failedCourses + ' 门课失败';
+        }
+        this.eclassSyncLine = line;
+      }
+      // 能拉完就说明会话可用（哪怕 0 门课）
+      this.eclassState = 1;
+      this.bumpDdlEpoch();
+      info('Settings eclass pull ok ' + JSON.stringify(s));
+    } catch (e) {
+      const msg: string = (e as Error).message;
+      if (e instanceof EclassAuthError) {
+        this.eclassState = 2;
+        this.eclassSyncLine = '拉取失败：没有可用的延河课堂会话，请先登录';
+      } else {
+        this.eclassSyncLine = '拉取失败：' + msg;
+      }
+      warn('Settings eclass pull fail: ' + msg);
+    }
+    this.eclassSyncBusy = false;
+  }
+
+  private bumpDdlEpoch(): void {
+    const cur: number | undefined = AppStorage.get<number>(STORAGE_DDL_EPOCH);
+    AppStorage.setOrCreate<number>(STORAGE_DDL_EPOCH, (cur === undefined ? 0 : cur) + 1);
+  }
+
+  /** 打开延河课堂登录页；回来时 onPageShow 自动复查会话。 */
+  private openEclassLogin(): void {
+    this.eclassReloginPending = true;
+    router.pushUrl({ url: 'pages/EclassLoginPage' }).catch((e: Error) => {
+      this.eclassReloginPending = false;
+      this.toast = '跳转失败：' + JSON.stringify(e);
+    });
   }
 
   /**
@@ -753,6 +863,69 @@ struct SettingsPage {
                 .fontSize(11).fontColor(this.p().onSurfaceVariant)
             }
             .width('100%').padding({ bottom: 4 })
+          }
+          .width('100%').padding(12)
+          .backgroundColor(this.p().surface)
+          .borderRadius(12)
+
+          // ── 延河课堂（上游 8ed3ecb）：会话状态 + 重新拉取作业 ──
+          // 与「作业来源」拆开：来源是展示层过滤，这里是「拉不拉得到数据 / 会话还在不在」。
+          this.groupTitle('延河课堂')
+          Column() {
+            Row() {
+              Column() {
+                Text('重新拉取作业')
+                  .fontSize(14).fontColor(this.p().onSurface)
+                Text(this.eclassSyncLine.length > 0 ? this.eclassSyncLine
+                  : '从课程中心同步；已勾选的「已完成」会保留')
+                  .fontSize(11).fontColor(this.p().onSurfaceVariant)
+                  .width('100%').padding({ top: 2 })
+              }
+              .layoutWeight(1)
+              .alignItems(HorizontalAlign.Start)
+
+              Button(this.eclassSyncBusy ? '拉取中…' : '拉取')
+                .height(28).fontSize(11)
+                .enabled(!this.eclassSyncBusy)
+                .margin({ left: 8 })
+                .onClick(() => {
+                  this.pullEclassDdl();
+                })
+            }
+            .width('100%').padding({ bottom: 10 })
+            .accessibilityText('重新拉取延河课堂作业，' +
+              (this.eclassSyncLine.length > 0 ? this.eclassSyncLine : '已完成状态会保留'))
+
+            Row() {
+              Column() {
+                Text('会话状态')
+                  .fontSize(14).fontColor(this.p().onSurface)
+                Text(this.eclassStateText())
+                  .fontSize(11).fontColor(this.p().onSurfaceVariant)
+                  .width('100%').padding({ top: 2 })
+              }
+              .layoutWeight(1)
+              .alignItems(HorizontalAlign.Start)
+
+              Button(this.eclassState === 0 ? '检查中…'
+                : (this.eclassState === 1 ? '重新检查' : '去登录'))
+                .height(28).fontSize(11)
+                .enabled(this.eclassState !== 0)
+                .margin({ left: 8 })
+                .onClick(() => {
+                  if (this.eclassState === 1) {
+                    this.checkEclassSession();
+                  } else {
+                    this.openEclassLogin();
+                  }
+                })
+            }
+            .width('100%')
+            .accessibilityText('延河课堂会话状态：' + this.eclassStateText())
+
+            Text('状态来自真实请求：先同步 Web 里的会话，失败自动重试一次')
+              .fontSize(10).fontColor(this.p().textPlaceholder)
+              .width('100%').padding({ top: 8 })
           }
           .width('100%').padding(12)
           .backgroundColor(this.p().surface)

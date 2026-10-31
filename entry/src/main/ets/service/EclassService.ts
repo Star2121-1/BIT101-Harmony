@@ -111,9 +111,39 @@ export class EclassService {
     return await RcpFactory.createSession(context, JAR_ECLASS, false);
   }
 
-  /** 有没有可用的 eclass 会话（判据 = 落盘快照非空）。 */
+  /** 本地有没有 eclass 凭据（判据 = 落盘快照非空；**不代表会话还能用**）。 */
   static async hasSession(): Promise<boolean> {
     return await EclassCookieStore.hasSession();
+  }
+
+  /**
+   * 会话是否可用（真实请求，上游 DefaultEclassRepo.isSessionAlive 同款）。
+   *
+   * ⚠️ 一次网络失败 ≠ 未登录：超时 / 5xx / 校园网抖动都会让检查失败，
+   * 只试一次会把瞬时故障报成「未登录」（调用方往往还会缓存结果）。
+   * 所以：① 先把 Web 组件里的 cookie 同步过来（刚在 Web 里登录完时，
+   * 本地快照可能还是旧会话）；② 失败再试一次，两次都失败才判「不可用」。
+   * 完全没有凭据时不打网络（省两次必然 302 的请求）。
+   */
+  static async isSessionAlive(context: Context): Promise<boolean> {
+    try {
+      await EclassService.syncFromWeb();
+    } catch (e) {
+      warn('eclass session syncFromWeb fail: ' + (e as Error).message);
+    }
+    if (!(await EclassCookieStore.hasSession())) {
+      return false;
+    }
+    for (let i = 0; i < 2; i++) {
+      try {
+        await EclassService.getVisitedCourses(context);
+        info('eclass session alive (attempt ' + (i + 1) + ')');
+        return true;
+      } catch (e) {
+        warn('eclass session probe fail (' + (i + 1) + '/2): ' + (e as Error).message);
+      }
+    }
+    return false;
   }
 
   /**
@@ -125,7 +155,7 @@ export class EclassService {
     const resp = await RcpFactory.getText(session, ECLASS_BASE + '/api/user/recently-visited-courses', apiHeaders());
     if (resp.status !== 200) {
       throw new EclassAuthError('eclass 课程接口 status=' + resp.status +
-        '（302 = 会话失效，需重新登录）');
+        '（401/302 = 会话失效，需重新登录）');
     }
     if (resp.body.indexOf('visited_courses') < 0) {
       // 200 但不是期望结构 ⇒ 多半是登录页 HTML，按会话失效处理

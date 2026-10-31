@@ -25,7 +25,7 @@ import { FabColumn, FabAction } from '../components/shell/FabColumn.ets';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
-import { DdlStore } from '../data/DdlStore.ts';
+import { DdlStore, STORAGE_DDL_EPOCH } from '../data/DdlStore.ts';
 import { DdlSourceStore } from '../data/DdlSourceStore.ts';
 import type { DdlSourcePrefs } from '../corelogic/DdlSourceLogic.ts';
 import { DEFAULT_DDL_SOURCE, noneEnabled, visibleEntries } from '../corelogic/DdlSourceLogic.ts';
@@ -75,6 +75,8 @@ export struct DdlPage {
   @State noSource: boolean = false;
   /** 排序模式（M12-5）：按截止 / 按课程；落 Prefs，下次进来还是上次那档。 */
   @State sortMode: DdlSortMode = DEFAULT_DDL_SORT;
+  /** 外部写库信号（设置页「重新拉取」同步完 +1）：嵌入壳里收不到 onPageShow，靠它重载。 */
+  @StorageLink(STORAGE_DDL_EPOCH) @Watch('onDdlEpoch') ddlEpoch: number = 0;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -168,6 +170,11 @@ export struct DdlPage {
   }
 
   aboutToAppear(): void {
+    this.reload();
+  }
+
+  /** 设置页写完库（重新拉取）后会 +1：重读列表，不必等用户下拉。 */
+  private onDdlEpoch(): void {
     this.reload();
   }
 

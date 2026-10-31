@@ -60,7 +60,14 @@
 > （分支 feat/ddl-eclass-source）新增 ①eclass 课程中心 DDL 数据源（乐学停用导致 DDL 为空）、②DDL 设置页「延河课堂」组
 > （会话状态 + 重新拉取）、③eclass 会话检查先同步 WebView cookie 并对瞬时失败重试。①我方**早已 1:1 移植**
 > （`EclassSyncService` 走 `/api/user/recently-visited-courses` + 逐课程 activities，单门失败不拖垮），无需重做；
-> ②③未做，列为可选小改。`BIT101-S-v1.12.0-arm64-release.apk` 是自家 Android 分支 `76dd44c`：
+> ②③已于 2026-11-01 落地：设置页新增「延河课堂」组（重新拉取作业 + 真实会话检查 / 去登录），
+> `EclassService.isSessionAlive()` 先同步 Web 会话、失败重试一次（无凭据时直接判否，不打两次必然 401 的请求）；
+> 拉取写库后经 `ddl_data_epoch` 广播让壳内 DDL 页重载（嵌入页收不到 onPageShow）。真机负路径已验：
+> 过期 cookie ⇒ hilog 两次 `session probe fail (1/2)(2/2)` ⇒ 显示「未确认（未登录或网络不可用）」；
+> 拉取如实显示「没有可用的延河课堂会话」；点「去登录」进 Web 登录页、返回自动复查。证据
+> `evidence/m4-settings-eclass-20261101.jpeg` / `evidence/m4-settings-eclass-fail-20261101.jpeg`。
+> **未验**：真实登录后的「已登录 + 拉取成功 + DDL 列表自动刷新」正路径（需用户在学校页面输密码，无法自动化）。
+> `BIT101-S-v1.12.0-arm64-release.apk` 是自家 Android 分支 `76dd44c`：
 > 「校园账号 / BIT101 社区」双连接状态卡 + 登录文案统一 + arm64 瘦身；鸿蒙侧无社区账号，双状态暂不适用。
 > **UI 迁移线（2026-10-23 起，用户确认顺序逐页对齐原版 BIT101）**：#81 GridTokens / #82 共享组件 / #83 首页 / #84 课表 / #85 空教室 / #86 班车 / #87 座位（含 M9-8 监控面板改 Material3 风 + 应用名/图标补齐）/ #88 作业·DDL（分区结构 + 紧急度混色卡）已完成（全量 34/34 套件 2029 断言绿）；剩 #90 框架 chrome。#89 落 **palette 轴**：GridTokens 三层化（共享段 + Classic/Warm/Brand 三表 1:1 Android palette/ 目录，缺档 fail-fast），ThemeStore 持久化 ui_palette，11 个页面/组件订阅，SettingsPage 外观组加「配色方案」三选一（Brand 标实验性），MePage 贴 ref-03（头像区 + 一卡通/校园网双卡 + 入口组）。另 `4585296` 修 AppScope 层图标占位（桌面灰块根因）、`055a66f` 升级 CI 图标守卫。**#90 外壳已落地**（`corelogic/shellNav.ts` + TopTabBar/BottomNavBar/FabColumn/ModulePlaceholder，Index.ets 改为底部 6 模块 + 卷内 5 页签容器，Stack 保活 + 访问白名单懒建；图标换 Material Rounded 矢量 rawfile/icons/ 16 张；自习卡从首页搬进「我」页；`tools/test-shell.mjs` 66 断言）。**FAB 组未接**（需页面内状态）。基准 `harmony/ui-ref/MIGRATION-BASELINE.md`（仓库外）；tag 仍 alpha.8（纯 UI 提交不 bump 版本）。⚠️ 各页真机渲染未验（鸿蒙手机 reboot 后 USB 未重连）。
 > **2026-10-27 UI 对齐增量**（用户「对照原版改改里面的东西」）：桌面图标鸽子定档画布 **62%**（`tools/make-icon.py` + fixture 入库，可复现：`--percent 66` 重跑与旧包逐像素一致）；DDL 去页头、同步改下拉刷新；课表第 4 颗 FAB 改「＋ 改课表」（接 OverlayPage）；教学楼行双层 padding 叠加修掉（pitch 85→70vp，原版 64dp）。**学期切换已迁到设置页**（`TermStore` 单一来源 + `getCurrentTerm` 收口 + 课表 `@Watch` 重载；课表页 chips 行删除，栅栏 `test-termstore`），真机验过切学期/冷启动/恢复跟随三条路径。**学期列表折叠**（用户「保留近几年的，剩下的收缩可展开」）：默认只显示近 3 学年 + 「跟随教务」，更早的收进「展开旧学期（更早的 N 个）」；拆分抽成无 @kit 依赖的 `data/termUtil.ts` 纯函数（`splitTermsByRecentYears`），`test-termstore` 直接 import 真实函数跑算法断言（近期/脏值归旧/空列表/不足阈值 4 例）；选中的学期若落在旧区间则单列出来，防「选了旧学期却看不见、切不回」。
@@ -256,7 +263,7 @@
 | M4-2 | 作业同步 → DDL 落库 | M4-1 | 有作业的账号能同步出至少 1 条截止时间 | ✅ 完成（`852d4ab` + 真机）：6 门课 / 2 条作业；「剩余 18天 2小时 24分钟」口径 1:1 Android 且**倒计时在走**（现算生效）；逐课程拉取单课失败不拖垮整次 |
 | M4-3 | DDL 页（未完成/已完成两栏） | M4-2 | 点条目在两侧切换；重新同步**保留**手动完成状态 | ✅ 完成（`1207a6d` + 真机）：点条目切换；**杀进程重启后 1/1 保留**；重新同步后仍 1/1（done 不被冲掉）；首页作业卡片 + 两种空态 |
 | M4-4 | 动态页（延河课堂活动流） | M4-1 | 能列出活动标题/类型/时间 | ✅ 完成（`e56b729` + 真机）：9 条动态（1 门课取数失败仍列出，失败数如实上屏）；类型保守分类；点条目 ⇒ Web 壳带会话打开课程页（参考资料/章节/课件） |
-| M4-5 | DDL 源设置（eclass/乐学） | M4-2 | 切源后列表内容随之变化 | ✅ 2026-10-28：设置页「作业来源」两个开关（延河课堂 / 本地新增），过滤在展示层做（库里两源都存，切回不需重同步），卡片同步遵守；**乐学显式标「本版不提供（接口未验证）」**，不假装支持。`DdlSourceLogic` 25 条断言 |
+| M4-5 | DDL 源设置（eclass/乐学） | M4-2 | 切源后列表内容随之变化 | ✅ 2026-10-28：设置页「作业来源」两个开关（延河课堂 / 本地新增），过滤在展示层做（库里两源都存，切回不需重同步），卡片同步遵守；**乐学显式标「本版不提供（接口未验证）」**，不假装支持。`DdlSourceLogic` 25 条断言。2026-11-01 增设「延河课堂」组：真实会话检查（先同步 Web cookie + 失败重试一次）+ 重新拉取作业（写库后广播 `ddl_data_epoch` 刷新 DDL 页）；真机负路径已验，正路径**未验**（需真实登录） |
 
 ### M5 校园服务
 

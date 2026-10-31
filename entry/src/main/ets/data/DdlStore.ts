@@ -25,6 +25,12 @@ import { info, warn } from '../core/log/BitLog.ts';
 
 const KEY: string = 'ddl_schedule_v1';
 
+/**
+ * 「外部写了 DDL 库」的广播键（AppStorage）：设置页「重新拉取」写库后 +1，
+ * DdlPage 订阅它重载列表——嵌入底部壳的页面收不到 onPageShow，没这个信号就显示旧数据。
+ */
+export const STORAGE_DDL_EPOCH: string = 'ddl_data_epoch';
+
 /** 读穿缓存（写入时同步更新；页面每次进 load 都命中）。 */
 let cached: DdlEntry[] | null = null;
 
