@@ -37,11 +37,21 @@ import type { CourseSchedule, DDLSchedule } from '../corelogic/WidgetLogic.ts';
 import type { RefreshState, RefreshDecision } from '../corelogic/WidgetRefreshLogic.ts';
 import { decide, decodeState, encodeState, emptyState, minutesUntil } from '../corelogic/WidgetRefreshLogic.ts';
 import { decodePrefs, visibleEntries } from '../corelogic/DdlSourceLogic.ts';
+import { TeachingAdjustmentService } from '../service/TeachingAdjustmentService.ts';
 
 const DOMAIN = 0x0003; // Form 专属域
 
 /** 刷新配额状态的偏好键（卡片进程独立读写，主进程不依赖它）。 */
 const KEY_REFRESH_STATE: string = 'widget_refresh_state';
+
+/**
+ * 已经成功推过数据的 formId 列表。
+ * ⚠️ 2026-10-31 真机实锤：卡片预览（画廊里那张）也会走 onAddForm，只是 formId 为空、
+ *    `updateForm` 报 401；那次预览**白占了 30 分钟配额**，于是紧接着用户把卡片加到桌面，
+ *    系统发来的首个 `onUpdateForm` 被 `too_soon` 拦下，卡片停在「请打开 App 查看完整功能」。
+ *    所以：预览不计数；第一次见到的 formId 一律按新卡片强制装配。
+ */
+const KEY_DELIVERED: string = 'widget_delivered_ids';
 
 /** 卡片主题快照（与主进程同一份偏好：palette 三选一 + 深浅色）。 */
 interface WidgetTheme {
@@ -81,6 +91,13 @@ export default class FormExtension extends FormExtensionAbility {
     //   「卡片」菜单进得去、预览也有，但加进桌面只显示「请打开 App 查看完整功能」）。
     //   不 await：init 幂等，后续每个读写都会 await 同一个 promise。
     Prefs.init(this.context);
+    if (formId.length === 0) {
+      // 预览实例（画廊里的那张）：没有真 formId，推不进去也不该占配额
+      hilog.info(DOMAIN, this.TAG, 'onAddForm preview (no formId), skip quota');
+      return formBindingData.createFormBindingData({
+        widgetPayload: '', widgetPalette: 'warm', widgetDark: false
+      });
+    }
     // 新卡片这一次必须给数据（force：不卡 30 分钟间隔），同时记一次计数并约下次刷新
     this.consumeQuota(true).then((gate: RefreshDecision) => {
       this.scheduleNext(formId, gate.nextAt);
@@ -93,20 +110,23 @@ export default class FormExtension extends FormExtensionAbility {
     });
   }
 
-  /** 装配 payload 并推送（onAddForm / onUpdateForm 共用）。 */
-  private async assembleAndPush(formId: string): Promise<void> {
+  /** 装配 payload 并推送（onAddForm / onUpdateForm 共用）。@return 是否推送成功 */
+  private async assembleAndPush(formId: string): Promise<boolean> {
     try {
       const theme: WidgetTheme = await this.readTheme();
       const payload = await this.assemblePayload();
       if (payload.length === 0) {
         hilog.warn(DOMAIN, this.TAG, 'assembleAndPush: payload empty, formId=%{public}s', formId);
-        return;
+        return false;
       }
       await this.setFormBindingData(formId, payload, theme);
       hilog.info(DOMAIN, this.TAG, 'assembleAndPush success: %{public}s, len=%{public}d',
         formId, payload.length);
+      await this.markDelivered(formId);
+      return true;
     } catch (e) {
       hilog.error(DOMAIN, this.TAG, 'assembleAndPush failed: %{public}s', JSON.stringify(e));
+      return false;
     }
   }
 
@@ -155,7 +175,12 @@ export default class FormExtension extends FormExtensionAbility {
     hilog.info(DOMAIN, this.TAG, 'onUpdateForm: %{public}s', formId);
     // 冷启动后系统直接触发更新时同样要补 init（进程可能刚起来）
     Prefs.init(this.context);
-    const gate: RefreshDecision = await this.consumeQuota(false);
+    // 从没见过这个 formId ⇒ 是刚加到桌面的新卡片（系统的首次更新），必须给数据
+    const firstSeen: boolean = !(await this.isDelivered(formId));
+    if (firstSeen) {
+      hilog.info(DOMAIN, this.TAG, 'onUpdateForm new form, force assemble: %{public}s', formId);
+    }
+    const gate: RefreshDecision = await this.consumeQuota(firstSeen);
     if (!gate.allowed) {
       hilog.info(DOMAIN, this.TAG, 'onUpdateForm skipped: %{public}s', gate.reason);
       await this.scheduleNext(formId, gate.nextAt);
@@ -163,6 +188,53 @@ export default class FormExtension extends FormExtensionAbility {
     }
     await this.assembleAndPush(formId);
     await this.scheduleNext(formId, gate.nextAt);
+  }
+
+  /** 这个 formId 以前是否成功推过数据。 */
+  private async isDelivered(formId: string): Promise<boolean> {
+    const ids: string[] = await this.readDelivered();
+    return ids.indexOf(formId) >= 0;
+  }
+
+  private async readDelivered(): Promise<string[]> {
+    try {
+      const raw: string = await Prefs.getString(KEY_DELIVERED, '');
+      if (raw.length === 0) {
+        return [];
+      }
+      const parsed: Object = JSON.parse(raw) as Object;
+      if (Array.isArray(parsed)) {
+        return parsed as string[];
+      }
+    } catch (e) {
+      hilog.warn(DOMAIN, this.TAG, 'delivered read fail: %{public}s', JSON.stringify(e));
+    }
+    return [];
+  }
+
+  private async markDelivered(formId: string): Promise<void> {
+    try {
+      const ids: string[] = await this.readDelivered();
+      if (ids.indexOf(formId) >= 0) {
+        return;
+      }
+      ids.push(formId);
+      await Prefs.putString(KEY_DELIVERED, JSON.stringify(ids));
+    } catch (e) {
+      hilog.warn(DOMAIN, this.TAG, 'delivered write fail: %{public}s', JSON.stringify(e));
+    }
+  }
+
+  private async forgetDelivered(formId: string): Promise<void> {
+    try {
+      const ids: string[] = await this.readDelivered();
+      const left: string[] = ids.filter((id: string) => id !== formId);
+      if (left.length !== ids.length) {
+        await Prefs.putString(KEY_DELIVERED, JSON.stringify(left));
+      }
+    } catch (e) {
+      hilog.warn(DOMAIN, this.TAG, 'delivered forget fail: %{public}s', JSON.stringify(e));
+    }
   }
 
   /**
@@ -197,6 +269,9 @@ export default class FormExtension extends FormExtensionAbility {
 
   /** 把下次自动刷新时间交给系统（分钟数有下限 5，太小会被静默忽略）。 */
   private async scheduleNext(formId: string, nextAt: number): Promise<void> {
+    if (formId.length === 0) {
+      return;
+    }
     const minutes: number = minutesUntil(nextAt, Date.now());
     try {
       await formProvider.setFormNextRefreshTime(formId, minutes);
@@ -212,7 +287,9 @@ export default class FormExtension extends FormExtensionAbility {
    */
   async onRemoveForm(formId: string): Promise<void> {
     hilog.info(DOMAIN, this.TAG, 'onRemoveForm: %{public}s', formId);
-    // 无需特殊清理
+    Prefs.init(this.context);
+    // 删掉记录：同一张卡片再加回来时，首个 onUpdateForm 必须重新当成新卡片
+    await this.forgetDelivered(formId);
   }
 
   /**
@@ -292,11 +369,20 @@ export default class FormExtension extends FormExtensionAbility {
       hilog.warn(DOMAIN, this.TAG, 'DDL 加载失败: %{public}s', JSON.stringify(e));
     }
 
-    // 3. 动态源和座位源为空（当前阶段未落地）
-    const activities: EclassActivity[] = [];
-    const adjustments: AdjustmentEntry[] = [];
+    // 3. 教学调整（只读本地缓存，不联网 —— 卡片进程不该替用户发请求）
+    //    以前这里写死空数组 ⇒ 卡片不知道哪天放假/补课，会把放假当上课日显示。
+    let adjustments: AdjustmentEntry[] = [];
+    try {
+      adjustments = await TeachingAdjustmentService.readCacheOnly();
+      hilog.info(DOMAIN, this.TAG, '教学调整缓存, count=%{public}d', adjustments.length);
+    } catch (e) {
+      hilog.warn(DOMAIN, this.TAG, '教学调整读取失败: %{public}s', JSON.stringify(e));
+    }
 
-    // 4. 装配卡片数据
+    // 4. 动态源为空（eclass 活动没有本地缓存，卡片不碰网络）
+    const activities: EclassActivity[] = [];
+
+    // 5. 装配卡片数据
     const pages = assembleWidgetPages({
       courses: courses,
       ddls: ddls,

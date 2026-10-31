@@ -295,11 +295,16 @@
 | ID | 任务 | 依赖 | 验收判据 | 状态 |
 |---|---|---|---|---|
 | M8-1 | Form 框架 + 课程卡 | M2-7 | 卡片加到桌面显示当天完整行程 | ✅ 真机已验（2026-10-27，`evidence/m8-card-on-desktop-20261027.jpeg`）：4×4 卡上桌面，`assembleAndPush success len=882`，标题栏/Tab/页脚全走 gridTokens（Warm 棕，写死深绿已废）。修三处：①独立进程补 `Prefs.init`（缺=永久占位态）；②palette+深色由 FormExtension 读偏好随 binding data 下发；③学期统一 TermStore。⚠️ 预览实例 updateForm 报 401 属预期（无真 formId）。**欠**：课程缓存为空时「空闲」行时间列换行（36vp 窄）待修；4×4 布局排版未细调 |
-| M8-2 | DDL 卡 | M4-2 | 显示未完成/已完成两栏 | 🔄 已集成进 WidgetPage（5页Tab中DDL页） |
-| M8-3 | 动态卡 | M4-4 | 显示最新活动 | 🔄 已集成（空态，M9接eclass后再填） |
-| M8-4 | 座位卡 | M9-5 | 显示我的下次预约 | 🔄 已集成（空态，M9完成后接入） |
-| M8-5 | 刷新与配额 | M8-1 | 30min 自动刷新一次；不超 50 次/天 | ✅ 2026-10-28 代码完成：`WidgetRefreshLogic`（30min 间隔 + 50 次/天 + 跨天重置 + 时钟回拨不锁死），FormExtension 在 `onUpdateForm` 判闸门、`setFormNextRefreshTime` 交给系统（分钟数夹到 ≥5，小于 5 会被系统静默忽略）；44 条断言。**真机刷新节奏未观察**（需长时间挂机） |
-| M8-6 | 卡片点击跳转 | M8-1 | 点课程条目直接进课表详情（不是只开 App） | ✅ 2026-10-28 代码完成：条目点击 → `postCardAction(router)` 带 `bit101Content` → `EntryAbility` 校验后写 AppStorage → `Index` 落到对应页签（脏值丢弃，不回落）；`sanitizeContentId` 有断言。**真机点击跳转未验** |
+| M8-2 | DDL 卡 | M4-2 | 显示未完成/已完成两栏 | 🔄 已集成进 WidgetPage（5页Tab中DDL页）。2026-10-31 真机：DDL 页正确显示「暂无待办」（App 内 DDL 两条均为已完成，卡片只列未完成 ⇒ 不造假数据），见 `evidence/m8-card-ddl-20261031.jpeg`。**未验**：有未完成 DDL 时的两栏渲染与条目点击（需 JWC 会话） |
+| M8-3 | 动态卡 | M4-4 | 显示最新活动 | 🔄 已集成（空态）：2026-10-31 真机显示「暂无动态」，见 `evidence/m8-card-feed-20261031.jpeg`。卡片进程不碰网络、eclass 无本地缓存 ⇒ 有数据渲染仍未验 |
+| M8-4 | 座位卡 | M9-5 | 显示我的下次预约 | 🔄 已集成（空态）：2026-10-31 真机显示「暂无预约」，见 `evidence/m8-card-seat-20261031.jpeg`。座位快照无本地来源（`seatLoggedIn=false`）⇒ 有预约渲染未验 |
+| M8-5 | 刷新与配额 | M8-1 | 30min 自动刷新一次；不超 50 次/天 | ✅ 2026-10-28 逻辑完成（`WidgetRefreshLogic`：30min + 50 次/天 + 跨天重置 + 时钟回拨不锁死；44 条断言）。2026-10-31 真机修掉**配额被预览偷吃**：画廊预览也会走 `onAddForm`（formId 空、updateForm 报 401），旧逻辑照样计数 ⇒ 用户随后加卡到桌面，首个 `onUpdateForm` 被 `too_soon` 拦下、卡片停占位 ~30min。修法：空 formId 直接跳过、未推过数据的 formId 强制装配、`widget_delivered_ids` 记账、移除时销账。真机 hilog 对照：修前 `onUpdateForm skipped: too_soon` → 修后 `onAddForm preview (no formId), skip quota` + `onUpdateForm new form, force assemble` + `assembleAndPush success` + `next refresh in 29 min`。**未验**：超过 30min 的真实自动刷新与跨天配额重置（需长时间挂机） |
+| M8-6 | 卡片点击跳转 | M8-1 | 点课程条目直接进课表详情（不是只开 App） | ✅ 2026-10-31 真机已验：①卡片课程页条目点击 → App 冷启动直接落在「课表」页签（`evidence/m8-card-deeplink-course-20261031.jpeg`）；②`aa start --ps bit101Content ddl` → 落「DDL」页签（`evidence/m8-deeplink-ddl-20261031.jpeg`）；③`classroom` → 落「空教室」（`evidence/m8-deeplink-classroom-20261031.jpeg`）。②③ 是 App 侧真实 want 链路（卡片侧 5 个 kind 映射由 `test-widgetrefresh.mjs` 断言锁死）。**未验**：DDL/动态/座位页签在**有数据行**时从卡片点行（今日设备无未完成 DDL/动态/预约） |
+
+**2026-10-31 卡片三处真机修复（M8-2/3/4/5 一并验）**：
+- **页签点了不切页**：`WidgetPage.currentPage()` 用 `shownPages().indexOf(page)` 求下标 —— `shownPages()` 每次现解析 JSON，元素是新对象，`indexOf` 恒 `-1` ⇒ 取到 `pages[-1]`（undefined）抛错，界面停在上一次内容。改法：用 `ForEach` 的 `index`，并给下标补「小于 0」守卫。
+- **2×2 卡片页签溢出**：五个两字页签按内容宽度排，超出 ~160vp ⇒ 「座位」被切一半、「自习」整块跑到卡片外点不到。改法：`fontSize 10` + `layoutWeight(1)` + 居中 + 单行省略。真机五页签实测全部落在卡片内且可点（课程/DDL/动态/座位/自习）。
+- **教学调整没喂给卡片**：`assemblePayload` 里 `adjustments` 写死空数组 ⇒ 放假/补课当正常上课日显示。改为 `TeachingAdjustmentService.readCacheOnly()`（只读本地缓存，卡片进程不联网）；本机缓存为空时日志 `教学调整缓存, count=0`。
 
 ### M9 座位
 

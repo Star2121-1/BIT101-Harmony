@@ -81,10 +81,13 @@ struct WidgetPage {
   /** 当前页（越界返回 null，由调用方兜底）。 */
   private currentPage(): WidgetPageData | null {
     const pages: WidgetPageData[] = this.shownPages();
-    if (this.currentTabIndex >= pages.length) {
+    const idx: number = this.currentTabIndex;
+    // ⚠️ 下标必须同时挡负数：2026-10-31 真机实锤，页签点击曾把下标写成 -1，
+    //    这里只挡了「大于等于长度」，于是返回 undefined ⇒ 内容区更新时抛错、停在上一次的页面。
+    if (idx < 0 || idx >= pages.length) {
       return null;
     }
-    return pages[this.currentTabIndex];
+    return pages[idx];
   }
 
   /** 当前页的列表行（空页/越界 ⇒ 空数组）。 */
@@ -159,15 +162,24 @@ struct WidgetPage {
         Column() {
           // Tab 切换栏（keyGenerator 单参：kind 每类一页，唯一）
           Row() {
-            ForEach(this.shownPages(), (page: WidgetPageData) => {
+            ForEach(this.shownPages(), (page: WidgetPageData, index: number) => {
               Text(page.title)
-                .fontSize(11)
-                .fontColor(this.shownPages().indexOf(page) === this.currentTabIndex
+                .fontSize(10)
+                .fontColor(index === this.currentTabIndex
                   ? this.tk().primary : this.tk().onSurfaceVariant)
-                .fontWeight(this.shownPages().indexOf(page) === this.currentTabIndex ? FontWeight.Bold : FontWeight.Normal)
-                .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                .fontWeight(index === this.currentTabIndex ? FontWeight.Bold : FontWeight.Normal)
+                .padding({ left: 2, right: 2, top: 4, bottom: 4 })
+                // ⚠️ 每个页签等分宽度：2×2 卡片只有 ~160vp 宽，五个两字页签按内容宽度排
+                //    会溢出（2026-10-31 真机：座位被切掉一半、自习整块跑到卡片外点不到）。
+                .layoutWeight(1)
+                .textAlign(TextAlign.Center)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                // ⚠️ 不能用 shownPages().indexOf(page)：shownPages 每次现解析 JSON，
+                //    数组元素是新对象，indexOf 恒为 -1（2026-10-31 真机实锤：点页签后
+                //    内容区不切页、五个页签全变粗）。用 ForEach 给的下标。
                 .onClick(() => {
-                  this.currentTabIndex = this.shownPages().indexOf(page);
+                  this.currentTabIndex = index;
                 })
             }, (page: WidgetPageData) => page.kind)
           }
