@@ -13,9 +13,8 @@
  */
 
 import { mixHex, withAlpha } from '../entry/src/main/ets/core/theme/colorUtil.ts';
-import { tintedCourseColors, HOLIDAY_TINT, MAKEUP_TINT } from '../entry/src/main/ets/corelogic/ScheduleTint.ts';
+import { tintedScheduleColors, HOLIDAY_TINT, MAKEUP_TINT } from '../entry/src/main/ets/corelogic/ScheduleTint.ts';
 import { gridTokens } from '../entry/src/main/ets/core/theme/GridTokens.ts';
-import { courseColors } from '../entry/src/main/ets/core/theme/CoursePalette.ts';
 
 let failed = 0;
 let passed = 0;
@@ -103,61 +102,61 @@ ok(clsDiff(light.secondaryContainer, mixHex(light.errorContainer, light.secondar
 ok(clsDiff(dark.secondaryContainer, mixHex(dark.errorContainer, dark.secondaryContainer, 0.5)) > 20,
   'dark 教室项空闲/占用底色差 > 20');
 
-console.log('\n=== tint 档位语义 ===');
+console.log('\n=== tint 档位语义（2026-10-31 改口：课块统一容器色）===');
 eq(HOLIDAY_TINT, 0.85, 'HOLIDAY_TINT=0.85（照搬源码）');
 eq(MAKEUP_TINT, 0.6, 'MAKEUP_TINT=0.6（照搬源码）');
 for (const dark of [false, true]) {
   const t = gridTokens(dark);
-  const base = courseColors(2, dark);
-  eq(tintedCourseColors(2, dark, 'normal').fill, base.fill, (dark ? 'dark' : 'light') + ' normal=恒等 fill');
-  eq(tintedCourseColors(2, dark, 'normal').ink, base.ink, (dark ? 'dark' : 'light') + ' normal=恒等 ink');
+  // 原版 scheduleItemColors normal 恒为 secondaryContainer/onSecondaryContainer，
+  // **不按课名换色**；这里盯的就是这条（旧实现按 12 色哈希取，真机被官方截图打脸）
+  const base = { fill: t.secondaryContainer, ink: t.onSecondaryContainer, mark: t.secondary };
+  eq(tintedScheduleColors(dark, 'normal').fill, base.fill, (dark ? 'dark' : 'light') + ' normal.fill = secondaryContainer');
+  eq(tintedScheduleColors(dark, 'normal').ink, base.ink, (dark ? 'dark' : 'light') + ' normal.ink = onSecondaryContainer');
   // holiday：fill 朝 surfaceVariant 靠 0.85；ink 朝 onSurfaceVariant 靠 0.85
-  eq(tintedCourseColors(2, dark, 'holiday').fill, refMix(t.surfaceVariant, base.fill, HOLIDAY_TINT),
+  eq(tintedScheduleColors(dark, 'holiday').fill, refMix(t.surfaceVariant, base.fill, HOLIDAY_TINT),
     (dark ? 'dark' : 'light') + ' holiday.fill');
-  eq(tintedCourseColors(2, dark, 'holiday').ink, refMix(t.onSurfaceVariant, base.ink, HOLIDAY_TINT),
+  eq(tintedScheduleColors(dark, 'holiday').ink, refMix(t.onSurfaceVariant, base.ink, HOLIDAY_TINT),
     (dark ? 'dark' : 'light') + ' holiday.ink');
   // makeup：fill 朝 tertiaryContainer 靠 0.6；ink 朝 onTertiaryContainer 靠 0.6
-  eq(tintedCourseColors(2, dark, 'makeup').fill, refMix(t.tertiaryContainer, base.fill, MAKEUP_TINT),
+  eq(tintedScheduleColors(dark, 'makeup').fill, refMix(t.tertiaryContainer, base.fill, MAKEUP_TINT),
     (dark ? 'dark' : 'light') + ' makeup.fill');
-  eq(tintedCourseColors(2, dark, 'makeup').ink, refMix(t.onTertiaryContainer, base.ink, MAKEUP_TINT),
+  eq(tintedScheduleColors(dark, 'makeup').ink, refMix(t.onTertiaryContainer, base.ink, MAKEUP_TINT),
     (dark ? 'dark' : 'light') + ' makeup.ink');
   // 放假灰调必须**看得出来**（与常态差异够大）——「看不出来就等于这个功能不存在」
   const diff = (a, b) => Math.abs(parseInt(a.slice(1, 3), 16) - parseInt(b.slice(1, 3), 16)) +
     Math.abs(parseInt(a.slice(3, 5), 16) - parseInt(b.slice(3, 5), 16)) +
     Math.abs(parseInt(a.slice(5, 7), 16) - parseInt(b.slice(5, 7), 16));
-  ok(diff(tintedCourseColors(2, dark, 'holiday').fill, base.fill) > 60,
-    (dark ? 'dark' : 'light') + ' holiday 与常态差 > 60（原版注释：淡了就等于没做）');
-  ok(diff(tintedCourseColors(2, dark, 'makeup').fill, base.fill) > 40,
-    (dark ? 'dark' : 'light') + ' makeup 与常态差 > 40');
+  // 阈值按 Android 侧同款测试（ScheduleItemColorTest）的口径：只要**看得出不同**即可。
+  // 旧实现 base 是饱和的 12 色，60/40 的硬阈值能过；统一容器色后 base 本身就接近
+  // surfaceVariant，硬阈值不再成立 —— 但"两档必须互不相同"仍然要盯住。
+  ok(diff(tintedScheduleColors(dark, 'holiday').fill, base.fill) > 8,
+    (dark ? 'dark' : 'light') + ' holiday 与常态看得出不同');
+  ok(diff(tintedScheduleColors(dark, 'makeup').fill, base.fill) > 8,
+    (dark ? 'dark' : 'light') + ' makeup 与常态看得出不同');
+  ok(diff(tintedScheduleColors(dark, 'makeup').fill, tintedScheduleColors(dark, 'holiday').fill) > 8,
+    (dark ? 'dark' : 'light') + ' 放假/补课两档互不相同');
 }
 
 console.log('\n=== palette 轴（#89：tint 容器色随 palette 变）===');
 // 同一 holiday tint，三套 palette 的容器色不同 ⇒ 混色结果必须不同
-// （证明第四参真的接到 palette 表上，不是摆设）
+// （证明第三参真的接到 palette 表上，不是摆设）
 for (const dark of [false, true]) {
-  const tc = tintedCourseColors(2, dark, 'holiday', 'classic');
-  const tb = tintedCourseColors(2, dark, 'holiday', 'brand');
-  const tw = tintedCourseColors(2, dark, 'holiday', 'warm');
+  const tc = tintedScheduleColors(dark, 'holiday', 'classic');
+  const tb = tintedScheduleColors(dark, 'holiday', 'brand');
+  const tw = tintedScheduleColors(dark, 'holiday', 'warm');
   const cDiff = (a, b) => Math.abs(parseInt(a.slice(1, 3), 16) - parseInt(b.slice(1, 3), 16)) +
     Math.abs(parseInt(a.slice(3, 5), 16) - parseInt(b.slice(3, 5), 16)) +
     Math.abs(parseInt(a.slice(5, 7), 16) - parseInt(b.slice(5, 7), 16));
   ok(cDiff(tw.fill, tc.fill) > 5,
-    (dark ? 'dark' : 'light') + ' holiday warm≠classic（palette 轴生效）');
+    (dark ? 'dark' : 'light') + ' holiday warm!=classic（palette 轴生效）');
   ok(cDiff(tw.fill, tb.fill) > 5,
-    (dark ? 'dark ' : 'light ') + ' holiday warm≠brand（palette 轴生效）');
-  // 不传第四参 = warm（默认），与显式 warm 一致
-  eq(tintedCourseColors(2, dark, 'holiday').fill, tw.fill,
+    (dark ? 'dark ' : 'light ') + ' holiday warm!=brand（palette 轴生效）');
+  // 不传第三参 = warm（默认），与显式 warm 一致
+  eq(tintedScheduleColors(dark, 'holiday').fill, tw.fill,
     (dark ? 'dark' : 'light') + ' holiday 不传 palette = warm');
   // 脏 palette 名收敛到 warm（与显式 warm 一致，不许崩）
-  eq(tintedCourseColors(2, dark, 'holiday', 'grid').fill, tw.fill,
+  eq(tintedScheduleColors(dark, 'holiday', 'grid').fill, tw.fill,
     (dark ? 'dark' : 'light') + ' holiday 脏 palette 收敛 = warm');
-}
-
-console.log('\n=== 全部 12 色号都能取到 tint 变体（不崩、不回退恒等）===');
-for (let i = 0; i < 12; i++) {
-  const base = courseColors(i, false);
-  const h = tintedCourseColors(i, false, 'holiday');
-  ok(h.fill !== base.fill || h.ink !== base.ink, '色号 ' + i + ' holiday 变体生效');
 }
 
 console.log('\n=== 非法输入必须抛错（不猜）===');

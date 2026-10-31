@@ -23,7 +23,7 @@ import { router } from '@kit.ArkUI';
 import { FabColumn, FabAction } from '../components/shell/FabColumn.ets';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import { mixHex, withAlpha } from '../core/theme/colorUtil.ts';
-import { tintedCourseColors } from '../corelogic/ScheduleTint.ts';
+import { tintedScheduleColors } from '../corelogic/ScheduleTint.ts';
 import type { ScheduleTint } from '../corelogic/ScheduleTint.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { STORAGE_TERM } from '../data/TermStore.ts';
@@ -40,7 +40,6 @@ import { weeksContains, weekOf } from '../corelogic/CourseWeekdayLogic.ts';
 import { FALLBACK_TIME_TABLE, courseTimeText, sectionStart } from '../corelogic/TimeTableLogic.ts';
 import { TimeTableStore } from '../data/TimeTableStore.ts';
 import type { TimeTable } from '../corelogic/timeutil.ts';
-import { of as colorOfCourse } from '../corelogic/CourseColorLogic.ts';
 import { parseISODate } from '../corelogic/timeutil.ts';
 import { TeachingAdjustmentService } from '../service/TeachingAdjustmentService.ts';
 import { DayPlan, DayPlanMakeUp, dayPlanOf } from '../corelogic/TeachingAdjustment.ts';
@@ -52,7 +51,7 @@ import { creditText, categoryText, summaryText } from '../corelogic/CourseDetail
 import { todayBadge } from '../corelogic/TeachingAdjustmentView.ts';
 import { STORAGE_FOCUS_COURSE, sanitizeCourseName } from '../corelogic/SearchNav.ts';
 
-const CELL_H: number = 46;
+const CELL_H: number = 43;
 const TOTAL_SECTIONS: number = 13;
 const DAY_LABELS: string[] = ['一', '二', '三', '四', '五', '六', '日'];
 /** 1..13（节次，1-based）。ArkTS 里 Array.from({length}) 不可靠，直接列常量。 */
@@ -62,7 +61,6 @@ const SECTIONS: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 interface Block {
   course: CourseRow | null;  // null = 空格子
   span: number;              // 占几节
-  colorIndex: number;
 }
 
 /**
@@ -495,15 +493,15 @@ export struct SchedulePage {
         continue;
       }
       while (cursor < start) {
-        blocks.push({ course: null, span: 1, colorIndex: 0 });
+        blocks.push({ course: null, span: 1 });
         cursor++;
       }
       const span: number = Math.max(1, end - start + 1);
-      blocks.push({ course: c, span: span, colorIndex: colorOfCourse(c.KCM) });
+      blocks.push({ course: c, span: span });
       cursor = end + 1;
     }
     while (cursor <= TOTAL_SECTIONS) {
-      blocks.push({ course: null, span: 1, colorIndex: 0 });
+      blocks.push({ course: null, span: 1 });
       cursor++;
     }
     return { blocks: blocks, conflicts: conflicts, planKind: planKind, planLabel: planLabel };
@@ -1091,50 +1089,49 @@ export struct SchedulePage {
   }
 
   /**
-   * 课程块（照搬原版：fill 底 + 左缘 4px ink 竖条 + 课名/教室）。
+   * 课程块（对齐原版 `CourseScheduleCalendar.kt`）：统一容器色 + 1vp 细边 + 12 圆角。
    * 调休列的块用 tint 变体：放假→灰调（照常显示，不藏）、补课→第三色。
    *
-   * ⚠️ @Builder 内禁局部变量（ArkTS 铁律）：配色行内取（tintedColors）。
+   * ⚠️ @Builder 内禁局部变量（ArkTS 铁律）：配色行内取（blockColors）。
    */
   @Builder
   courseBlock(b: Block, dayIndex: number) {
-    // 排版 1:1 原版 ref-01：课名**上下左右居中**，教室名单行**贴底居中**。
-    // （早先是左上对齐 + 教室紧跟其下，块内文字挤在上半截，和原版一眼就能看出不是一套。）
-    Stack({ alignContent: Alignment.Center }) {
-      // ⚠️ 字号/行数对齐官方 1.4.6 实测：官方同宽列 10fp × ≤3 行，课名全显示；
-      //    我方 12fp 时每行只容 2 字，「计算机系统导论」被截成「计算机系…」。
-      //    本机系统字体有缩放，10fp 每行 3 字 ⇒ 2 节块也必须给 3 行（2 节块内高够放
-      //    3 行课名 + 2 行教室，实测不重叠）；1 节块只给 1 行，否则会压住教室行。
+    // 版面：课名在上半区居中，教室名贴底 —— 用两条弹性 Blank 分隔，**不能让两者重叠**。
+    // ⚠️ 2026-10-31 真机栽过：先前用 Stack 居中放课名 + Column 贴底放教室，
+    //    2 节块（CELL_H 43）里「3 行课名」中心对齐后会压住「2 行教室」（重叠 13px）。
+    //    改成 Column + Blank 后，课名只在「教室以上的剩余空间」里居中，天然不重叠。
+    // ⚠️ 字号/行数对齐官方 1.4.6 实测：官方同宽列 10fp × ≤3 行，课名全显示；
+    //    我方 12fp 时每行只容 2 字，「计算机系统导论」被截成「计算机系…」。
+    //    本机系统字体有缩放 ⇒ 10fp 每行 3 字，2 节块给 3 行、1 节块只给 1 行。
+    Column() {
+      Blank()
       Text(b.course === null ? '' : b.course.KCM)
         .fontSize(10)
         .fontWeight(FontWeight.Medium)
-        .fontColor(this.tintedColors(b.colorIndex, dayIndex).ink)
+        .fontColor(this.blockColors(dayIndex).ink)
         .maxLines(b.span >= 2 ? 3 : 1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .textAlign(TextAlign.Center)
         .width('100%')
         .padding({ left: 2, right: 2 })
-      Column() {
-        Text(b.course === null ? '' : (b.course.JASMC.length > 0 ? b.course.JASMC : ''))
-          .fontSize(9)
-          .fontColor(this.tintedColors(b.colorIndex, dayIndex).ink)
-          .opacity(0.75)
-          // 官方教室名也是两行（「文萃楼」+「I404」）；1 节块只给 1 行
-          .maxLines(b.span >= 2 ? 2 : 1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .textAlign(TextAlign.Center)
-          .width('100%')
-      }
-      .width('100%').height('100%')
-      .justifyContent(FlexAlign.End)
-      .padding({ left: 3, right: 3, bottom: 3 })
+      Blank()
+      Text(b.course === null ? '' : (b.course.JASMC.length > 0 ? b.course.JASMC : ''))
+        .fontSize(9)
+        .fontColor(this.blockColors(dayIndex).ink)
+        .opacity(0.75)
+        // 官方教室名也是两行（「文萃楼」+「I404」）；1 节块只给 1 行
+        .maxLines(b.span >= 2 ? 2 : 1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .textAlign(TextAlign.Center)
+        .width('100%')
     }
     .width('100%')
     .height(CELL_H * b.span - 2)
     .padding(3)
-    .backgroundColor(this.tintedColors(b.colorIndex, dayIndex).fill)
-    .borderRadius(6)
-    .border({ width: { left: 4 }, color: this.tintedColors(b.colorIndex, dayIndex).ink })
+    .backgroundColor(this.blockColors(dayIndex).fill)
+    .borderRadius(12)
+    // 原版边框 = secondary@0.25 的细边（ScheduleItemColor.boarderColor），不是左缘粗竖条
+    .border({ width: 1, color: withAlpha(this.p().secondary, 0.25) })
     // 无障碍：读屏要念「课程名，第几节到第几节，教室」，只念课名等于没信息
     .accessibilityText(b.course === null ? '' : (b.course.KCM + '，周' + DAY_LABELS[dayIndex] +
       '第 ' + b.course.KSJC + '-' + b.course.JSJC + ' 节，' +
@@ -1149,9 +1146,9 @@ export struct SchedulePage {
     })
   }
 
-  /** 课程块配色：按列的调休档取 tint 变体（normal 时即 12 色板原色）。 */
-  private tintedColors(colorIndex: number, dayIndex: number) {
-    return tintedCourseColors(colorIndex, this.isDark, this.columnTint(dayIndex));
+  /** 课程块配色：所有课程同一个容器色，只按列的调休档取变体。 */
+  private blockColors(dayIndex: number) {
+    return tintedScheduleColors(this.isDark, this.columnTint(dayIndex), this.paletteName);
   }
 
   /**

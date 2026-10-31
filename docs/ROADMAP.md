@@ -37,6 +37,15 @@
 > 「周次未知 · 周五 · 2026-10-30」✅ 已验；③ 座位预约未选楼层不渲染「区域」、未选区域不渲染「座位状态」✅ 已验；
 > ④ 「我」页三图标补 `accessibilityText`（dumpLayout 不暴露该属性，读屏待实测）。单测 58/58 套件 3017 断言 exit 0，
 > debug HAP 构建成功。⚠️ dump 的 `text` 永远是全文，判省略号要看节点高度/行数。
+> **2026-10-31 第二轮（用户报「我页总是未登录」+ 同意收口课表观感）**：①「我」页恒未登录的根因是
+> 壳内子组件收不到 `onPageShow`（那是 @Entry 页级钩子）⇒ `MePage.refresh()` 从未执行，
+> 界面停在默认值；22:44 已登录、22:46 仍显示未登录即为此。改为 `aboutToAppear` + `@Prop @Watch active/epoch`
+> （`Index.onPageShow` 自增 epoch 传下来），22:50 真机显示学号 `1120241355` + 校园网 `336.6 GB / 300.0 GB`，
+> hilog `me refresh done loggedIn=true`。② 课表对齐官方 1.4.6：课块改**统一容器色**（原版只有
+> 课程/考试/自定义三档，normal 恒 `secondaryContainer`，不按课名换色）、细边 `secondary@0.25` + 12 圆角；
+> `CELL_H` 46→43 让 13 节一屏（修复前第 13 节被 Scroll 截断）；并修掉随之暴露的「2 节块 3 行课名压 2 行教室」
+> （Stack 居中 → Column+Blank）。单测 58/58、3007 断言、exit 0。证据 `harmony/evidence/device-2026-10-31/`。
+> **未验**：暗色/其它两套 palette 下的 13 节与块色、调休周 tint 视觉强度、我页 a11y 读屏。
 > **UI 迁移线（2026-10-23 起，用户确认顺序逐页对齐原版 BIT101）**：#81 GridTokens / #82 共享组件 / #83 首页 / #84 课表 / #85 空教室 / #86 班车 / #87 座位（含 M9-8 监控面板改 Material3 风 + 应用名/图标补齐）/ #88 作业·DDL（分区结构 + 紧急度混色卡）已完成（全量 34/34 套件 2029 断言绿）；剩 #90 框架 chrome。#89 落 **palette 轴**：GridTokens 三层化（共享段 + Classic/Warm/Brand 三表 1:1 Android palette/ 目录，缺档 fail-fast），ThemeStore 持久化 ui_palette，11 个页面/组件订阅，SettingsPage 外观组加「配色方案」三选一（Brand 标实验性），MePage 贴 ref-03（头像区 + 一卡通/校园网双卡 + 入口组）。另 `4585296` 修 AppScope 层图标占位（桌面灰块根因）、`055a66f` 升级 CI 图标守卫。**#90 外壳已落地**（`corelogic/shellNav.ts` + TopTabBar/BottomNavBar/FabColumn/ModulePlaceholder，Index.ets 改为底部 6 模块 + 卷内 5 页签容器，Stack 保活 + 访问白名单懒建；图标换 Material Rounded 矢量 rawfile/icons/ 16 张；自习卡从首页搬进「我」页；`tools/test-shell.mjs` 66 断言）。**FAB 组未接**（需页面内状态）。基准 `harmony/ui-ref/MIGRATION-BASELINE.md`（仓库外）；tag 仍 alpha.8（纯 UI 提交不 bump 版本）。⚠️ 各页真机渲染未验（鸿蒙手机 reboot 后 USB 未重连）。
 > **2026-10-27 UI 对齐增量**（用户「对照原版改改里面的东西」）：桌面图标鸽子定档画布 **62%**（`tools/make-icon.py` + fixture 入库，可复现：`--percent 66` 重跑与旧包逐像素一致）；DDL 去页头、同步改下拉刷新；课表第 4 颗 FAB 改「＋ 改课表」（接 OverlayPage）；教学楼行双层 padding 叠加修掉（pitch 85→70vp，原版 64dp）。**学期切换已迁到设置页**（`TermStore` 单一来源 + `getCurrentTerm` 收口 + 课表 `@Watch` 重载；课表页 chips 行删除，栅栏 `test-termstore`），真机验过切学期/冷启动/恢复跟随三条路径。**学期列表折叠**（用户「保留近几年的，剩下的收缩可展开」）：默认只显示近 3 学年 + 「跟随教务」，更早的收进「展开旧学期（更早的 N 个）」；拆分抽成无 @kit 依赖的 `data/termUtil.ts` 纯函数（`splitTermsByRecentYears`），`test-termstore` 直接 import 真实函数跑算法断言（近期/脏值归旧/空列表/不足阈值 4 例）；选中的学期若落在旧区间则单列出来，防「选了旧学期却看不见、切不回」。
 > **欠**：旧学期的周次语义未实证（无原版内部页可拍）；课表第 4 颗「＋」在原版里的语义未实证（当前接手动改课表）。

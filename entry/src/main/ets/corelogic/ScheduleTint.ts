@@ -19,7 +19,6 @@
  * 本端口径：fill → container；ink/mark → onContainer。
  */
 
-import { courseColors } from '../core/theme/CoursePalette.ts';
 import type { CourseColors } from '../core/theme/CoursePalette.ts';
 import { mixHex } from '../core/theme/colorUtil.ts';
 import { gridTokens, getPaletteName } from '../core/theme/GridTokens.ts';
@@ -32,17 +31,24 @@ export const MAKEUP_TINT: number = 0.6;
 export type ScheduleTint = 'normal' | 'holiday' | 'makeup';
 
 /**
- * 按色号 + 调休档取课程块配色。
+ * 课块配色 = **所有课程同一个容器色** + 调休变体。
  *
- * 容器色取 theme token（与源码一致：放假→surfaceVariant/onSurfaceVariant，
- * 补课→tertiaryContainer/onTertiaryContainer）。
+ * ⚠️ 2026-10-31 对齐原版改口：原版 `CourseScheduleCalendar.kt` 的
+ * `scheduleItemColors` 只有 3 档（normal/holiday/makeup），normal 恒为
+ * `secondaryContainer`/`onSecondaryContainer` —— **没有按课程换色**。
+ * 我方早先按课名哈希取 12 色（本文件旧版），真机对照官方课表一眼就看出不是一套。
+ * 12 色板（CoursePalette）保留给别处用，课表不再引用。
  */
-export function tintedCourseColors(index: number, isDark: boolean, tint: ScheduleTint, paletteName: string = 'warm'): CourseColors {
-  const base: CourseColors = courseColors(index, isDark);
+export function tintedScheduleColors(isDark: boolean, tint: ScheduleTint, paletteName: string = 'warm'): CourseColors {
+  const t = gridTokens(isDark, getPaletteName(paletteName));
+  const base: CourseColors = {
+    fill: t.secondaryContainer,
+    ink: t.onSecondaryContainer,
+    mark: t.secondary,
+  };
   if (tint === 'normal') {
     return base;
   }
-  const t = gridTokens(isDark, getPaletteName(paletteName));
   let ratio: number;
   let container: string;
   let onContainer: string;
