@@ -31,6 +31,7 @@ import {
 import { warn } from '../core/log/BitLog.ts';
 import { getTaskRepository } from '../data/SeatTaskStore.ts';
 import { isTerminalStatus } from '../model/SeatTask.ts';
+import { joinA11y } from '../corelogic/A11yText.ts';
 
 @Entry
 @Component
@@ -617,6 +618,11 @@ export struct SeatPage {
     .backgroundColor(this.tk().surface).borderRadius(12).margin({ top: 6 })
     .alignItems(VerticalAlign.Center)
     .opacity(isFree(s.status) ? 1 : 0.6)
+    // M11-6：状态色和「点我预约」都是小字，读屏要一句话说清「哪个座位 + 能不能约」
+    .accessibilityText(joinA11y([
+      s.no.length > 0 ? s.no : s.id,
+      isFree(s.status) ? '空闲，点我预约' : (s.statusName.length > 0 ? s.statusName : wireStatusText(s.status))
+    ]))
     .onClick(() => {
       if (isFree(s.status) && this.reserveTarget === null && !this.reserveBusy) {
         this.requestReserve(s.id);
@@ -711,6 +717,8 @@ export struct SeatPage {
     .position({ x: pm.leftPct, y: pm.topPct })
     .width(pm.widthPct).height(pm.heightPct)
     .clip(true)
+    // M11-6：点位上的座位号是 9sp 白字压底图，读屏只听得到号码听不到状态
+    .accessibilityText(joinA11y([pm.no, pm.reservable ? '空闲，可预约' : '不可预约']))
     .onClick(() => {
       if (pm.reservable && this.reserveTarget === null && !this.reserveBusy) {
         this.requestReserve(pm.seatId);
@@ -907,6 +915,8 @@ export struct SeatPage {
     .width('100%').padding(16).margin({ top: 10 })
     .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
     .alignItems(HorizontalAlign.Start)
+    // M11-6：整卡可点，读屏至少要说清点进去看什么
+    .accessibilityText('预约任务，点按打开座位监控面板')
     .onClick(() => {
       router.pushUrl({ url: 'pages/SeatMonitorPage' });
     })
@@ -952,6 +962,7 @@ struct SeatChip {
       .padding({ left: 16, right: 16, top: 6, bottom: 6 })
       .borderRadius(8)
       .backgroundColor(this.selected ? this.tk().primaryContainer : this.tk().surfaceVariant)
+      .accessibilityText(joinA11y([this.label, this.selected ? '已选中' : '未选中']))
       .onClick(() => {
         this.onTap();
       })

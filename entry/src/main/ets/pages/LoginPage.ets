@@ -168,6 +168,8 @@ struct LoginPage {
           .type(InputType.Normal)
           .height(44)
           .enabled(!this.loading)
+          // M11-6：placeholder 输入后就没了，读屏焦点回来时要还能听出是哪个框
+          .accessibilityText('学号输入框')
           .onChange((v: string) => {
             this.username = v;
           })
@@ -176,6 +178,7 @@ struct LoginPage {
           .type(InputType.Password)
           .height(44)
           .enabled(!this.loading)
+          .accessibilityText('密码输入框，输入内容不显示')
           .onChange((v: string) => {
             this.password = v;
           })
@@ -202,6 +205,7 @@ struct LoginPage {
               .maxLength(8)
               .height(44)
               .layoutWeight(1)
+              .accessibilityText('短信验证码输入框')
               .onChange((v: string) => {
                 this.smsCode = v;
               })
@@ -246,6 +250,7 @@ struct LoginPage {
       Row() {
         Text('返回')
           .fontSize(13).fontColor(this.tk().primary)
+          .accessibilityText('返回上一页')
           .onClick(() => {
             router.back();
           })

@@ -21,6 +21,7 @@ import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { withAlpha } from '../core/theme/colorUtil.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
+import { joinA11y } from '../corelogic/A11yText.ts';
 import type { HourGroup } from '../corelogic/ShuttleLogic.ts';
 import {
   Stop, DayType,
@@ -71,6 +72,8 @@ struct ShuttleChip {
       }
     })
     .animation({ duration: 80, curve: Curve.EaseOut })
+    // M11-6：chip 的选中态只说颜色读屏听不出来，必须念出来
+    .accessibilityText(joinA11y([this.label, this.selected ? '已选中' : '未选中']))
     .onClick(() => {
       this.onTap();
     })

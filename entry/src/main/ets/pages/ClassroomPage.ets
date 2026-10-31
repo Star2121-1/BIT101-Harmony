@@ -56,6 +56,7 @@ import { parseISODate } from '../corelogic/timeutil.ts';
 import { groupCampuses } from '../corelogic/CampusGrouping.ts';
 import type { CampusGroup } from '../corelogic/CampusGrouping.ts';
 import { isFreeNow } from '../corelogic/ClassroomFree.ts';
+import { joinA11y } from '../corelogic/A11yText.ts';
 import { FALLBACK_TIME_TABLE } from '../corelogic/TimeTableLogic.ts';
 import type { TimeTable } from '../corelogic/timeutil.ts';
 import { TimeTableStore } from '../data/TimeTableStore.ts';
@@ -508,6 +509,13 @@ export struct ClassroomPage {
                 }
                 .width('100%')
                 .padding({ left: 15, right: 15, top: 12, bottom: 12 })
+                // M11-6：箭头旋转读屏听不出来，展开/收起必须念出来
+                .accessibilityText(joinA11y([
+                  g.campusName,
+                  g.buildings.length + ' 栋教学楼',
+                  g.isCurrent ? '默认校区' : '',
+                  this.campusOpen(g.campusCode) ? '已展开' : '已收起'
+                ]))
                 .onClick(() => {
                   this.toggleCampus(g.campusCode);
                 })
@@ -535,6 +543,10 @@ export struct ClassroomPage {
                         // 54dp 高出一截（2026-10-27 真机 dumpLayout 实测 212px/3）。
                         // 行高**显式钉 24vp**：不钉的话会被 17sp 的 › 撑高，密度随字体浮动。
                         .height(24)
+                        .accessibilityText(joinA11y([
+                          b.buildingName.length > 0 ? b.buildingName : b.buildingIndex,
+                          this.openBuilding === b.buildingIndex ? '已展开' : '已收起'
+                        ]))
                         .onClick(() => {
                           this.toggleBuilding(b.buildingIndex);
                         })
