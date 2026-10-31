@@ -111,7 +111,21 @@ export struct ClassroomPage {
   private scroller: Scroller = new Scroller();
 
   aboutToAppear(): void {
+    this.initToday();
     this.load();
+  }
+
+  /**
+   * 先把「今天」填上。load() 在没会话时会提前 return，applyDate 一次都不跑；
+   * 若只靠默认值，标题会拿 week=1 / dayOfWeek=1 冒充「第 1 周 · 周一」（2026-10-30 真机栽过）。
+   */
+  private initToday(): void {
+    const d: Date = new Date();
+    const mm: string = String(d.getMonth() + 1).padStart(2, '0');
+    const dd: string = String(d.getDate()).padStart(2, '0');
+    this.dateStr = d.getFullYear() + '-' + mm + '-' + dd;
+    const todayEpoch: number = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+    this.dayOfWeek = ((todayEpoch + 3) % 7 + 7) % 7 + 1;
   }
 
   private async load(): Promise<void> {
@@ -342,7 +356,9 @@ export struct ClassroomPage {
 
   /** 「第 N 周 · 周二 · 2026-10-27 · 学期」——铁律 0.4：结果对应哪一天必须写在屏幕上。 */
   private dayLine(): string {
-    return '第 ' + this.week + ' 周 · 周' + DAY_LABELS[this.dayOfWeek - 1] +
+    // weekKnown=false 时写「周次未知」，绝不拿默认的 1 冒充
+    return (this.weekKnown ? '第 ' + this.week + ' 周' : '周次未知') +
+      ' · 周' + DAY_LABELS[this.dayOfWeek - 1] +
       (this.dateStr.length > 0 ? ' · ' + this.dateStr : '') +
       (this.term.length > 0 ? ' · ' + this.term : '');
   }

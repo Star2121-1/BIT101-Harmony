@@ -1101,21 +1101,26 @@ export struct SchedulePage {
     // 排版 1:1 原版 ref-01：课名**上下左右居中**，教室名单行**贴底居中**。
     // （早先是左上对齐 + 教室紧跟其下，块内文字挤在上半截，和原版一眼就能看出不是一套。）
     Stack({ alignContent: Alignment.Center }) {
+      // ⚠️ 字号/行数对齐官方 1.4.6 实测：官方同宽列 10fp × ≤3 行，课名全显示；
+      //    我方 12fp 时每行只容 2 字，「计算机系统导论」被截成「计算机系…」。
+      //    本机系统字体有缩放，10fp 每行 3 字 ⇒ 2 节块也必须给 3 行（2 节块内高够放
+      //    3 行课名 + 2 行教室，实测不重叠）；1 节块只给 1 行，否则会压住教室行。
       Text(b.course === null ? '' : b.course.KCM)
-        .fontSize(12)
+        .fontSize(10)
         .fontWeight(FontWeight.Medium)
         .fontColor(this.tintedColors(b.colorIndex, dayIndex).ink)
-        .maxLines(3)
+        .maxLines(b.span >= 2 ? 3 : 1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .textAlign(TextAlign.Center)
         .width('100%')
-        .padding({ left: 3, right: 3 })
+        .padding({ left: 2, right: 2 })
       Column() {
         Text(b.course === null ? '' : (b.course.JASMC.length > 0 ? b.course.JASMC : ''))
           .fontSize(9)
           .fontColor(this.tintedColors(b.colorIndex, dayIndex).ink)
           .opacity(0.75)
-          .maxLines(1)
+          // 官方教室名也是两行（「文萃楼」+「I404」）；1 节块只给 1 行
+          .maxLines(b.span >= 2 ? 2 : 1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .textAlign(TextAlign.Center)
           .width('100%')

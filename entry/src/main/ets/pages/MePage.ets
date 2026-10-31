@@ -215,6 +215,8 @@ export struct MePage {
           .width(19).height(19)
           .fillColor(this.p().onSurfaceVariant)
           .margin({ right: 16 })
+          // 纯 Image 无文字：不给可访问名，读屏只会念「图片」
+          .accessibilityText('刷新')
           .onClick(() => {
             this.refresh();
           })
@@ -222,6 +224,7 @@ export struct MePage {
           .width(19).height(19)
           .fillColor(this.p().onSurfaceVariant)
           .margin({ right: 16 })
+          .accessibilityText('消息通知')
           .onClick(() => {
             router.pushUrl({ url: 'pages/NotifyListPage' }).catch((e: Error) => {
               warn('me -> notify fail: ' + JSON.stringify(e));
@@ -230,6 +233,7 @@ export struct MePage {
         Image($rawfile('icons/ic_settings.svg'))
           .width(19).height(19)
           .fillColor(this.p().onSurfaceVariant)
+          .accessibilityText('设置')
           .onClick(() => {
             router.pushUrl({ url: 'pages/SettingsPage' }).catch((e: Error) => {
               warn('me -> settings fail: ' + JSON.stringify(e));

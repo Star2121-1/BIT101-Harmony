@@ -478,61 +478,73 @@ export struct SeatPage {
               }
               .width('100%')
 
-              // 区域
-              Text('区域').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 10 })
-              Flex({ wrap: FlexWrap.Wrap }) {
-                ForEach(this.areasOf(this.selFloor), (a: AreaGroup) => {
-                  SeatChip({
-                    label: a.name,
-                    selected: this.selArea === a.id,
-                    onTap: () => {
-                      this.selectArea(a.id);
-                    },
-                  })
-                }, (a: AreaGroup) => 'area' + a.id)
+              // 区域：没选楼层就不出现（2026-10-30 真机：未选楼层时留着光秃秃的「区域」一行）
+              if (this.selFloor.length > 0) {
+                Text('区域').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 10 })
+                if (this.areasOf(this.selFloor).length === 0) {
+                  Text('该楼层暂无区域')
+                    .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+                } else {
+                  Flex({ wrap: FlexWrap.Wrap }) {
+                    ForEach(this.areasOf(this.selFloor), (a: AreaGroup) => {
+                      SeatChip({
+                        label: a.name,
+                        selected: this.selArea === a.id,
+                        onTap: () => {
+                          this.selectArea(a.id);
+                        },
+                      })
+                    }, (a: AreaGroup) => 'area' + a.id)
+                  }
+                  .width('100%')
+                }
               }
-              .width('100%')
             }
 
-            // ── 座位状态（当前区域）──
-            Text('座位状态' + (this.selArea.length > 0 ? '（' + this.selArea + '）' : ''))
-              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 16 })
-            if (this.seatsLoading) {
-              Text('拉取座位状态…').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
-            } else if (this.seatsErr.length > 0) {
-              Text(this.seatsErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 6 })
-            } else if (this.selArea.length > 0 && this.seats.length === 0) {
-              Text('该区域暂未查到座位').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
-            } else if (this.selArea.length > 0) {
-              Text(this.freeText())
-                .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
-              // 视图切换（列表 / 点位）
-              Row() {
-                SeatChip({
-                  label: '列表',
-                  selected: this.viewMode === 'list',
-                  onTap: () => {
-                    this.viewMode = 'list';
-                  },
-                })
-                SeatChip({
-                  label: '点位',
-                  selected: this.viewMode === 'map',
-                  onTap: () => {
-                    this.viewMode = 'map';
-                    this.loadMapImages();
-                  },
-                })
-                  .margin({ left: 8 })
-              }
-              .width('100%').margin({ top: 6 })
-              if (this.viewMode === 'list') {
-                ForEach(this.seats, (s: WireSeat) => {
-                  this.seatRow(s)
-                }, (s: WireSeat) => 'seat' + s.id)
+            // ── 座位状态（当前区域）：只在选了区域后出现，未选时整段不渲染（免得空标题）──
+            if (this.selArea.length > 0) {
+              Text('座位状态（' + this.selArea + '）')
+                .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 16 })
+              if (this.seatsLoading) {
+                Text('拉取座位状态…').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+              } else if (this.seatsErr.length > 0) {
+                Text(this.seatsErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 6 })
+              } else if (this.seats.length === 0) {
+                Text('该区域暂未查到座位').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
               } else {
-                this.mapView()
+                Text(this.freeText())
+                  .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+                // 视图切换（列表 / 点位）
+                Row() {
+                  SeatChip({
+                    label: '列表',
+                    selected: this.viewMode === 'list',
+                    onTap: () => {
+                      this.viewMode = 'list';
+                    },
+                  })
+                  SeatChip({
+                    label: '点位',
+                    selected: this.viewMode === 'map',
+                    onTap: () => {
+                      this.viewMode = 'map';
+                      this.loadMapImages();
+                    },
+                  })
+                    .margin({ left: 8 })
+                }
+                .width('100%').margin({ top: 6 })
+                if (this.viewMode === 'list') {
+                  ForEach(this.seats, (s: WireSeat) => {
+                    this.seatRow(s)
+                  }, (s: WireSeat) => 'seat' + s.id)
+                } else {
+                  this.mapView()
+                }
               }
+            } else if (this.selFloor.length > 0) {
+              Text('选择区域后显示座位状态')
+                .fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 14 })
             }
 
             // ── 我的预约（权威列表 /api/index/subscribe）──
