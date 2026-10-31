@@ -6,7 +6,7 @@
  * 验收判据（可证伪）：
  *  1. 三张卡**常显摘要**（不是空白）：取不到/未登录/确实没有各有各的话；
  *  2. 未登录时给登录入口，而不是让人自己去找；
- *  3. 点卡片进对应详情页；进详情页回来后数字会刷新（onPageShow）。
+ *  3. 点卡片进对应详情页；进详情页回来后数字会刷新（壳内靠 active/epoch，独立页靠 onPageShow）。
  *  4. 功能入口组已按原版删除（2026-10-27）：作业/座位走底部 tab、
  *     通知/设置走顶栏图标、提醒设置迁到设置页「提醒」组（唯一入口先安置再拆）。
  *
@@ -48,6 +48,20 @@ import { StudySpotCard } from '../components/me/StudySpotCard.ets';
 export struct MePage {
   /** true = 被外壳（底部 tab）嵌入：不渲染返回键（原版这些是 pager 页签，没有页面级返回）。 */
   isEmbedded: boolean = false;
+
+  /**
+   * 是否处于可见状态（外壳 Stack 保活时由 Index 传；独立路由页默认 true）。
+   * ⚠️ 壳里的子组件**不会触发 onPageShow**（那是 @Entry 页面的钩子）——
+   *    之前只挂 onPageShow，导致「我」页 refresh 一次都没跑，永远停在默认值
+   *    「未登录 / 一卡通 —」（2026-10-31 真机实锤：登录成功后两分钟仍显示未登录）。
+   */
+  @Prop @Watch('onWake') active: boolean = true;
+
+  /**
+   * 外壳每次重新可见的序号（Index.onPageShow 自增）。
+   * 从登录页/详情页回来时 active 没变，只有这个序号会变。
+   */
+  @Prop @Watch('onWake') epoch: number = 0;
 
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
@@ -189,8 +203,22 @@ export struct MePage {
     info('me refresh done loggedIn=' + this.loggedIn);
   }
 
+  aboutToAppear(): void {
+    // 壳里首次可见时建出来 → 这一次必须拉；不可见时不拉，免得替没打开过的页发请求
+    if (this.active) {
+      this.refresh();
+    }
+  }
+
+  /** active / epoch 变化都走这里（切到「我」、从子页回来）。 */
+  private onWake(): void {
+    if (this.active) {
+      this.refresh();
+    }
+  }
+
   onPageShow(): void {
-    // 从详情页/登录页回来时要刷新（会话可能刚建立）
+    // 独立路由页（isEmbedded=false）走这里；壳里不会触发
     this.refresh();
   }
 

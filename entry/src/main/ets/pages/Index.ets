@@ -58,6 +58,11 @@ struct Index {
   @State private tabKey: string = DEFAULT_TAB;
   /** 已访问过的内容标识（懒建白名单，避免冷启动同时建 7 页）。 */
   @State private visited: string[] = [DEFAULT_TAB];
+  /**
+   * 外壳重新可见的序号：从登录页/详情页 back 回来时自增，
+   * 传给「我」页触发刷新 —— 壳里的页是保活的，收不到 onPageShow（2026-10-31）。
+   */
+  @State private epoch: number = 0;
 
   private tk() {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -138,6 +143,8 @@ struct Index {
   onPageShow(): void {
     // 通知点击进来时 App 可能已在运行 ⇒ 每次可见都消费一次（读完即清）
     this.consumeOpenPage();
+    // 从登录页/详情页回来：「我」页要重读会话（壳内子组件收不到 onPageShow）
+    this.epoch = this.epoch + 1;
   }
 
   build() {
@@ -197,7 +204,11 @@ struct Index {
 
         if (this.isVisited('mine')) {
           Column() {
-            MePage({ isEmbedded: true })
+            MePage({
+              isEmbedded: true,
+              active: this.currentId() === 'mine',
+              epoch: this.epoch,
+            })
           }
           .width('100%').height('100%')
           .visibility(this.visOf('mine'))
