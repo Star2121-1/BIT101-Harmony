@@ -75,6 +75,7 @@
 ### 任务
 
 - **#151 NFC MVP**：能力探测 + UID/tech 诊断页（先验证目标机型下发哪些 tech）。
+  - 进度：代码 + 40 条单测 + alpha.17 编译门已过；**真机未验**（设备掉线，未装机）。
 - **#152 APDU 快速读 + 学号**：移植 CardProbeLogic/StudentIdScan。
 - **#153 Classic 只读 + NDEF 贴纸**。
 

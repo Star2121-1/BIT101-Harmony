@@ -13,7 +13,8 @@
 > 本轮新增 4 个纯逻辑模块（`WeekNav` / `QuietHoursLogic` / `A11yText` / `DdlSortLogic`）+ 2 个数据层（`QuietHoursStore` 等），
 > **全部真机零验证**（用户明确要求先只改代码，后面统一 debug）。
 > **UI 迁移 #81~#91 ✅**；2026-10-28 补齐 **DDL 三颗 FAB**（＋ 新增 / 学士帽 / ⚙）与**空教室回到顶部 + 下拉刷新**，
-> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **63 套件 3182 断言绿**（2026-11-17，含 M14-A / M15-B3 / M16-1）；版本见下方版本行。
+> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **64 套件 3224 断言绿**（2026-11-17，含 M14-A / M15-B3 / M16）；版本见下方版本行。
+> **2026-11-17 版本 `1.0.0-alpha.17`**（versionCode 17，**编译通过，未装机**）：M16-2 NFC 只读诊断——设置页新增「NFC 校园卡」，读 UID / technology / NDEF；`@kit.ConnectivityKit` 三态检测与前台 readerMode；页面明确不写卡、不模拟刷卡、不接支付/闸机。全量 **64/64 套件 3224 断言**，`assembleHap` 成功（签名包 MD5 `3D7083DF4A31E808A76EBA7580843F8C`）。**真机未验**：设备仍未连接；需验目标机型下发哪些 technology、贴卡是否出 UID/NDEF。
 > **2026-11-17 版本 `1.0.0-alpha.16`**（versionCode 16，**编译通过，未装机**）：M16-1 统一登录——CAS 会话下沉到图书馆/一卡通罐；图书馆无会话时走 `LOGIN_URL` 静默 CAS 引导；短信登录改为先建教务会话再落盘。全量 **63/63 套件 3182 断言**，`assembleHap` 成功（签名包 MD5 `DD62D035EB66C6328AC9365131C8277E`）。**真机未验**：装机前设备掉线；待验“一次登录后进图书馆/一卡通不再要求单独登录”、短信登录重启课表不 302。
 > **2026-11-17 版本 `1.0.0-alpha.15`**（versionCode 15，**debug 已装机，深色通知页真机已验**）：修复 alpha.14 真机发现的 `ForEach` 撞键——通知页记录改为新→旧排序 + 按 key 去重 + 分组 key 带起始下标。全量 **62/62 套件 3157 断言**，`assembleHap` 成功（签名包 MD5 `AA44035CA6D0941F008E597BD6F5602E`）。真机深色模式确认：通知页正常渲染，分组「本周早些时候 → 昨天」、列表新→旧，日志无 `Duplicated index`；GitHub CI run `43916283109` success。**B3 已读标记路径未触发**：当前通知记录全是未发/无 `firedMillis`，`markKeys` 无键可标；未读清零/再进不复活仍只有单测覆盖。
 > **2026-11-17 版本 `1.0.0-alpha.14`**（versionCode 14，**debug 已装机，B3 通知页真机未验**）：M15-B3 通知已读快照（见 §4 M15）。全量 **62/62 套件 3151 断言**，`assembleHap` 成功（签名包 MD5 `C3D968D22A1BE8C278FAF9CBF80A5247`）；新增 `test-notifyread` 40 条，栅栏「只标记已发键」故意拆红验证（2 条红，恢复后绿）；GitHub CI run `43914671925` success。**未验**：通知页进入后未读清零/再进不复活、旧时间戳迁移在真机上的实际表现（装机后设备前台被切到其它应用，未继续抓屏）。
@@ -168,7 +169,7 @@
 - **35 个页面**（`main_pages.json` 注册数；`pages/` 下 36 个 `.ets`，余 1 个不是页面）、**72 个纯逻辑模块**（`corelogic/*.ts`，全部可离线单测）
 - 分层：`core/{crypto,net,model,theme,log}` + `data` + `service` + `corelogic` + `pages` + `components` + `extensionability`
 - 存储：`Preferences`（会话 / 缓存 / 偏好），**缓存键按学期分键**；无 RDB（数据量不需要）
-- 测试：`bash tools/run-tests.sh` → **63 套件 / 3182 断言**（2026-11-17 实测，exit 0）；CI 在所有分支 push 上跑
+- 测试：`bash tools/run-tests.sh` → **64 套件 / 3224 断言**（2026-11-17 实测，exit 0）；CI 在所有分支 push 上跑
 
 > 下面是 2026-10-28 记录的快照，保留作对照：
 - 145 个源文件 / 31,025 行、28 个页面、48 个纯逻辑模块、46 套件 / 2509 断言
@@ -419,7 +420,7 @@
 | ID | 任务 | 判据 | 状态 |
 |---|---|---|---|
 | M16-1 | 统一登录：CAS 会话下沉 + 短信顺序修复 | 只复制 `sso/login` 域 cookie 到图书馆/一卡通罐；lib 无会话时用 `LOGIN_URL` 静默走一次 CAS；短信登录先建 jxzx 再快照 | 🔄 代码 + `test-sso` 25 条 + 全量 63/63 套件 3182 断言 + `assembleHap` 成功（alpha.16，MD5 `DD62D035EB66C6328AC9365131C8277E`）。**真机未验**：安装前设备掉线；需验证“只登录一次后进图书馆/一卡通不再要求单独登录”、短信登录重启课表不 302 |
-| M16-2 | NFC MVP：能力探测 + UID/technology 诊断 | `@kit.ConnectivityKit` 三态检测；前台 readerMode 读 UID/tech/历史字节；无 NFC 有明确降级 | ⬜ 未开始 |
+| M16-2 | NFC MVP：能力探测 + UID/technology 诊断 | `@kit.ConnectivityKit` 三态检测；前台 readerMode 读 UID/tech/NDEF；无 NFC 有明确降级；只读不写 | 🔄 代码 + `test-nfc` 40 条 + 全量 64/64 套件 3224 断言 + `assembleHap` 成功（alpha.17，MD5 `3D7083DF4A31E808A76EBA7580843F8C`）；**真机未验**（设备掉线，未装 alpha.17） |
 | M16-3 | NFC 校园卡 APDU + 学号 | 移植 CardProbeLogic/StudentIdScan；只读 APDU；真卡出学号命中/未命中 | ⬜ 未开始 |
 | M16-4 | 话廊只读 | 四流/搜索/详情/评论/用户/关注/消息 | ⬜ 未开始 |
 | M16-5 | 话廊写操作 | 发帖/图片/点赞/评论/举报/关注 | ⬜ 未开始 |

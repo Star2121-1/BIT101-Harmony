@@ -241,7 +241,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version            # 需要 22.7+（--experimental-transform-types）
-bash tools/run-tests.sh   # 63 个套件，3182 条断言
+bash tools/run-tests.sh   # 64 个套件，3224 条断言
 ```
 
 设计原则是**断言对着语义写，不写"非空"**：比如登录页解析吃真机抓的原始 HTML fixture；

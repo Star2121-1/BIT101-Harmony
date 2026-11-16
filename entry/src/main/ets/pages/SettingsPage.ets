@@ -1062,6 +1062,20 @@ struct SettingsPage {
                 this.toast = '跳转失败：' + JSON.stringify(e);
               });
             })
+
+            Row() {
+              Text('NFC 校园卡')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('只读诊断').fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
+            }
+            .width('100%').padding({ top: 10 })
+            .accessibilityText('NFC 校园卡，只读诊断，点按打开')
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/NfcPage' }).catch((e: Error) => {
+                this.toast = '跳转失败：' + JSON.stringify(e);
+              });
+            })
           }
           .width('100%').padding(12)
           .backgroundColor(this.p().secondaryContainer)

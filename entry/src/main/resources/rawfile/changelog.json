@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.0.0-alpha.17",
+    "date": "2026-11-17",
+    "items": [
+      "新增 NFC 校园卡只读诊断：读 UID / technology / NDEF，设置页可进入",
+      "NFC 只读：不写卡、不模拟刷卡、不接支付/闸机；无 NFC 或未开启时有明确说明"
+    ]
+  },
+  {
     "version": "1.0.0-alpha.16",
     "date": "2026-11-17",
     "items": [

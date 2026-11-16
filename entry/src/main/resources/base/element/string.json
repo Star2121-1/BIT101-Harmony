@@ -15,6 +15,10 @@
     {
       "name": "permission_agent_reminder_reason",
       "value": "用于在指定时刻弹出上课 / 作业 / 考试等提醒（锁屏、App 退出后仍生效）"
+    },
+    {
+      "name": "nfc_reason",
+      "value": "用于读取校园卡 / NFC 标签的 UID 与公开信息；只读，不写卡、不模拟刷卡"
     }
   ]
 }
