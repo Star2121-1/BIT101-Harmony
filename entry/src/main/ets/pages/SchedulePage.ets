@@ -128,8 +128,14 @@ export struct SchedulePage {
   @State selectedPlanNote: string = '';
   /** 今天的教学调整角标（「今天放假（不上课）」这类；非调整日为空）。 */
   @State adjustBadge: string = '';
-  /** 搜索页要定位的课程名（读后即清，避免下次进页又弹同一个）。 */
-  @StorageLink(STORAGE_FOCUS_COURSE) @Watch('onFocusCourseChanged') focusCourse: string = '';
+  /**
+   * 搜索页要定位的课程名（读后即清，避免下次进页又弹同一个）。
+   * ⚠️ 故意**不挂 @Watch**：真机 2026-11-16 三次实测发现，搜索结果点回 Index 时
+   * router.replaceUrl 会销毁旧 SchedulePage、新建实例；@Watch 在旧实例上先触发并
+   * 清空 token，新实例 load 出来时 token 已空 ⇒ 定位永远丢失。改为只在新实例
+   * load() 末尾 / 壳内保活 onWake 两处消费（见 onFocusCourseChanged 注释）。
+   */
+  @StorageLink(STORAGE_FOCUS_COURSE) focusCourse: string = '';
   /** 教学安排调整（放假/补课）。取不到就是空数组，课表照常显示。 */
   @State adjustments: TeachingEntry[] = [];
   /** 本周（显示周）里的调整计数，仅用于状态条说清范围。 */
@@ -283,6 +289,12 @@ export struct SchedulePage {
       warn('SchedulePage load fail: ' + JSON.stringify(e));
     }
     this.loading = false;
+    // ⚠️ 搜索定位兜底放在 load() 最末尾：
+    // 1) @Watch 在 StorageLink 初始化绑定时通常不触发，需要主动消费一次 token；
+    // 2) 必须等缓存上屏 + 联网刷新**都结束**后再定位 —— 放 applySchedule 里会被
+    //    后面那次 applySchedule 的「今天所在周」覆盖（真机 2026-11-16 抓到
+    //    week=4 被覆盖回 week=12）。token 只在定位成功后清空，此处调用幂等。
+    this.onFocusCourseChanged();
   }
 
   private applySchedule(schedule: TermSchedule): void {
@@ -337,10 +349,9 @@ export struct SchedulePage {
       }
     }
     this.maxWeek = maxW > 0 ? maxW : 20;
-    // ⚠️ 搜索定位兜底：@Watch 在 StorageLink 初始化绑定时通常不触发，
-    // 所以课程上屏后主动消费一次 token（token 空是空操作，幂等）。
-    // 必须放在 courses 赋值之后 —— 放前面会因找不到课而白跑。
-    this.onFocusCourseChanged();
+    // ⚠️ 不要在这里消费 focus token！applySchedule 里 applyMerged() 之后还会
+    // 重设 this.week 为「今天所在周」（真机 2026-11-16 抓到：搜索定位设 week=4，
+    // 紧接着被覆盖回 week=12）。消费必须移到 applySchedule 的 week 设置之后。
   }
 
   /** 从「手动改课表」页回来时重读覆盖层并重算（M2-8）。 */
@@ -353,6 +364,12 @@ export struct SchedulePage {
   private onWake(): void {
     if (this.active) {
       this.reloadOverlaysAndRemerge();
+      // 搜索页点课程结果 → replaceUrl(Index) → epoch 自增 → 这里触发。
+      // 壳内保活时 load() 不会重跑，这里是唯一的定位消费点。
+      // 课程已上屏才消费（否则 onFocusCourseChanged 找不到课，会保留 token 等 load 末尾）。
+      if (this.courses.length > 0 && !this.loading) {
+        this.onFocusCourseChanged();
+      }
     }
   }
 
@@ -379,6 +396,13 @@ export struct SchedulePage {
    * 读完立刻清空 `AppStorage` 键 —— 否则用户下次进课表又被弹一次。
    */
   private onFocusCourseChanged(): void {
+    // ⚠️ @Watch 在 StorageLink 初始化绑定时、aboutToAppear/load 之前就会触发。
+    // 那时若直接定位并清 token，紧随其后的 load()（cache hit → applySchedule 设
+    // 「今天所在周」）会把 week 覆盖回去，token 又已清空 ⇒ 定位丢失（真机 2026-11-16）。
+    // load 进行中时只保留 token，交给 load() 末尾（课表最终上屏后）统一消费。
+    if (this.loading) {
+      return;
+    }
     const name: string = sanitizeCourseName(this.focusCourse);
     if (name.length === 0) {
       return;

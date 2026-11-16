@@ -13,7 +13,8 @@
 > 本轮新增 4 个纯逻辑模块（`WeekNav` / `QuietHoursLogic` / `A11yText` / `DdlSortLogic`）+ 2 个数据层（`QuietHoursStore` 等），
 > **全部真机零验证**（用户明确要求先只改代码，后面统一 debug）。
 > **UI 迁移 #81~#91 ✅**；2026-10-28 补齐 **DDL 三颗 FAB**（＋ 新增 / 学士帽 / ⚙）与**空教室回到顶部 + 下拉刷新**，
-> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **60 套件 3048 断言绿**；版本见下方 2026-11-01 alpha.11 行。
+> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **60 套件 3053 断言绿**；版本见下方 2026-11-01 alpha.11 行。
+> **2026-11-16 版本 `1.0.0-alpha.12`**（versionCode 12，debug 已装机真机点验）：M13 安全/时序审查修复（见 §4 M13）。真机确认：搜索定位课程（周12→周4，四次迭代才修对）、我页登录态、探针 URL 去 query（`onPageEnd url=.../cas/login` 不再带 `service=`）。未验：未读徽标（本机无未读数据）、cookie 值分支（设备 R1 不通过触发不到，纯函数 23 断言已覆盖）、座位监控订阅泄漏。
 > **2026-11-01 起版本 `1.0.0-alpha.11`**（versionCode 11）：卡片页签/配额/教学调整三修 + 课表刷新 + 我页登录态 +
 > 无障碍扫尾；release 包 MD5 `C93BBF4BC34E8C689D50CAD8B3310B6C`，tag `h-v1.0.0-alpha.11`。
 > **2026-10-30 复核**：main `ae2ee06` 与 tag `h-v1.0.0-alpha.10` 均已推远端，工作区干净。本机 Node 24 下
@@ -161,7 +162,7 @@
 - **35 个页面**（`main_pages.json` 注册数；`pages/` 下 36 个 `.ets`，余 1 个不是页面）、**72 个纯逻辑模块**（`corelogic/*.ts`，全部可离线单测）
 - 分层：`core/{crypto,net,model,theme,log}` + `data` + `service` + `corelogic` + `pages` + `components` + `extensionability`
 - 存储：`Preferences`（会话 / 缓存 / 偏好），**缓存键按学期分键**；无 RDB（数据量不需要）
-- 测试：`bash tools/run-tests.sh` → **60 套件 / 3048 断言**（2026-11-16 实测，exit 0）；CI 在所有分支 push 上跑
+- 测试：`bash tools/run-tests.sh` → **60 套件 / 3053 断言**（2026-11-16 实测，exit 0）；CI 在所有分支 push 上跑
 
 > 下面是 2026-10-28 记录的快照，保留作对照：
 - 145 个源文件 / 31,025 行、28 个页面、48 个纯逻辑模块、46 套件 / 2509 断言
@@ -377,7 +378,7 @@
 | M13-3 | Android 借阅异常日志注释写「脱敏后再打」实际只 `take(80)` 截断，学号原样进 logcat（release 也执行）；诊断日志一键导出无脱敏 | 中 | ✅ 已修：data 层 `PiiRedact` + setting 层 `LogRedact`（JWT/Bearer/Cookie/ticket/学号/手机号），`LogExporter` 导出前统一过闸。Kotlin 各 4 断言 |
 | M13-4 | `SeatMonitorPage` 的 `repo.init()` 异步回调晚于组件销毁时仍写 @State + 注册永不释放的订阅 | 中 | ✅ 已修：`destroyed` 标志拦迟到回调，`aboutToDisappear` 置位；**源码栅栏** `test-lifecycle` 钉住，故意拆红 1 条红 |
 | M13-5 | `NotifyListPage` 的 `aboutToAppear` 与 `onPageShow` 双 reload 并发，未读徽标可被算成 0 | 中 | ✅ 已修：`reload(markSeenAfter)` 把「算 unread → markSeen」收进同一次调用（顺序不再跨调用）+ `reloadSeq` 丢弃过期结果；栅栏同上 |
-| M13-6 | 搜索定位课程失败：`focusCourse` token 在找到课**之前**就被清空，若 `@Watch` 在 `load()` 填充 courses 前触发则永久失效；`@Watch` 初始化绑定通常不触发 | 中 | ✅ 已修：token 只在定位成功后清空；`applyMerged()`（课表上屏统一出口）末尾主动消费一次 token 兜底，幂等。栅栏同上 |
+| M13-6 | 搜索定位课程失败：`focusCourse` token 在找到课**之前**就被清空，若 `@Watch` 在 `load()` 填充 courses 前触发则永久失效；`@Watch` 初始化绑定通常不触发 | 中 | ✅ **2026-11-16 真机四次迭代才修对**：初版把兜底放 `applyMerged` → 被 `applySchedule` 的「今天所在周」覆盖（week=4→12）；改放 load 末尾 → 日志仍显示旧实例 @Watch 抢先消费 token、新实例 token 已空；加 loading 守卫仍不行（旧实例 loading=false）。**根因**：点结果 `router.replaceUrl(Index)` 会销毁旧 SchedulePage、新建实例，@Watch 在旧实例上先触发并清空 token。终修：**去掉 @Watch**，改由新实例 `load()` 末尾 + 壳内保活 `onWake` 两处消费。真机确认「周12 → 周4」+ 课程卡计算机视觉 + 详情周三3-5节。栅栏 18 断言（含「不许挂 @Watch」「onWake 有消费」「applyMerged/applySchedule 不许消费」），拆红验证过 |
 | M13-7 | `ScoreCheckLogic.parse` 的 `1e20` 等有限但超 Date 范围时刻导致「NaN-NaN」；负数门数显示「已同步 -3 门课」 | 中 | ✅ 已修：`parse` 加 `new Date(at).getTime()` 有效性校验 + count 钳非负；`fmtCheckTime` 入口挡无效 Date 说「时间未知」。+5 断言 |
 | M13-8 | **`NetAlertLogic` 整模块零引用**（网费<10元/流量270·300GB 提醒完全不生效）、**研讨间预约全链路死代码**（无法查看/取消）——与已修的 `ensureNotificationEnabled` 同型断链 | 高（功能） | 🔴 **未接**：二者都涉及对外副作用（发通知 / 预约变更），按铁律不擅自上自动路径。已在审查中确认，待用户拍板是否接线 |
 | M13-9 | 数值层其余防御缺口（CampusNetTraffic `append(NaN)`、SeatLogic 预约时段 NaN、DdlFormat NaN、CampusNetLogic 格式化 NaN） | 低 | ⚠️ 未修：上游 `numOrNull`/`decode` 正则已挡 NaN，现实可达性低；留档备查 |

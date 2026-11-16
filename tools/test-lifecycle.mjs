@@ -55,19 +55,41 @@ ok(idxUnread >= 0 && idxMark > idxUnread, '先算 unread 再 markSeen',
 
 // ── 3. SchedulePage：focus token 只在找到课后清空 + load 后兜底 ───────────
 const sched = code('entry/src/main/ets/pages/SchedulePage.ets');
+const decl = sched.substring(sched.indexOf('focusCourse: string'), -400);
+// 直接看声明行（剔注释后）
+const declLine = sched.split('\n').find((ln) => ln.indexOf('focusCourse: string') >= 0) || '';
+ok(declLine.indexOf('@Watch') < 0,
+  'focusCourse 不挂 @Watch（防旧实例 replaceUrl 时抢先消费 token）', declLine.trim());
+const wakeFn = sched.substring(sched.indexOf('private onWake()'),
+  sched.indexOf('private onWake()') + 500);
+ok(wakeFn.indexOf('this.onFocusCourseChanged()') >= 0,
+  'onWake 壳内保活场景消费 token');
 const focusFn = sched.substring(sched.indexOf('private onFocusCourseChanged()'),
-  sched.indexOf('private onFocusCourseChanged()') + 1200);
+  sched.indexOf('private onFocusCourseChanged()') + 1400);
+ok(/if \(this\.loading\) \{[\s\S]{0,120}return;/.test(focusFn),
+  '@Watch 在 load 进行中不消费 token（防被随后 cache hit 覆盖 week）');
 const idxClear = focusFn.indexOf('this.focusCourse = \'\'');
 const idxFound = focusFn.indexOf('this.selected = this.courses[i]');
 ok(idxClear >= 0 && idxFound >= 0 && idxClear > idxFound,
   'token 清空在找到课之后（不再是函数开头）', 'found@' + idxFound + ' clear@' + idxClear);
 ok(focusFn.indexOf('not found') < 0 || focusFn.indexOf('pending') >= 0,
   '找不到课程时保留 token（pending 语义）');
-// applyMerged 里要有兜底调用
-const mergeFn = sched.substring(sched.indexOf('private applyMerged()'),
-  sched.indexOf('private applyMerged()') + 900);
-ok(mergeFn.indexOf('this.onFocusCourseChanged()') >= 0,
-  'applyMerged 课表上屏后主动消费 token（兜 @Watch 不触发）');
+// 兜底调用必须在 load() 最末尾，且 applySchedule/applyMerged 里不能有
+// （真机 2026-11-16 抓到：放 applyMerged 会被 applySchedule 的「今天所在周」覆盖 week）
+const loadStart = sched.indexOf('private async load()');
+const loadEnd = sched.indexOf('private applySchedule(');
+const loadFn = sched.substring(loadStart, loadEnd);
+ok(loadFn.indexOf('this.onFocusCourseChanged()') >= 0,
+  'load() 末尾主动消费 token（兜 @Watch 不触发）');
+// 切片必须止于下一个方法定义，否则会跨到 onWake 里的调用造成假红
+const mergeStart = sched.indexOf('private applyMerged()');
+const mergeFn = sched.substring(mergeStart, sched.indexOf('onPageShow(): void', mergeStart));
+ok(mergeFn.indexOf('this.onFocusCourseChanged()') < 0,
+  'applyMerged 不许消费 token（会被后续 week 覆盖）');
+const applyStart = sched.indexOf('private applySchedule(');
+const applyFn = sched.substring(applyStart, sched.indexOf('private applyMerged()', applyStart));
+ok(applyFn.indexOf('this.onFocusCourseChanged()') < 0,
+  'applySchedule 不许消费 token（week 设置之前/之后都不行，统一到 load 末尾）');
 
 console.log('\n' + (fail === 0 ? 'ALL PASS' : 'FAILED') + '  pass=' + pass + ' fail=' + fail);
 process.exit(fail === 0 ? 0 : 1);
