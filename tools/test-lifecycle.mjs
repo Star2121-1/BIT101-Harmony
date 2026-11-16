@@ -36,21 +36,20 @@ const thenBlock = seat.substring(seatInit, seatInit + 400);
 ok(/if\s*\(this\.destroyed\)/.test(thenBlock), 'init().then 回调开头检查 destroyed',
   thenBlock.substring(0, 120).replace(/\n/g, ' '));
 
-// ── 2. NotifyListPage：markSeen 必须与 unread 在同一次 reload 内 ──────────
+// ── 2. NotifyListPage：已读快照必须与 unread 在同一次 reload 内 ──────────
 const notify = code('entry/src/main/ets/pages/NotifyListPage.ets');
 ok(/private async reload\(markSeenAfter: boolean = false\)/.test(notify), 'reload 带 markSeenAfter 参数');
-ok(notify.indexOf('this.reload(false);') >= 0, 'aboutToAppear 传 false（不带 markSeen）');
-ok(notify.indexOf('this.reload(true);') >= 0, 'onPageShow 传 true（带 markSeen）');
-ok(notify.indexOf('NotifySeenStore.markSeen(Date.now())') < 0 ||
-   notify.indexOf('onPageShow(): void') > notify.indexOf('private async reload') - 2000,
-  'onPageShow 不再自己调 markSeen（已收进 reload）');
+ok(notify.indexOf('this.reload(false);') >= 0, 'aboutToAppear 传 false（不带标记）');
+ok(notify.indexOf('this.reload(true);') >= 0, 'onPageShow 传 true（带标记）');
+ok(notify.indexOf('NotifySeenStore.markSeen(') < 0, '不再写旧时间戳');
+ok(notify.indexOf('NotifySeenStore.loadSnapshot()') >= 0, '未读依据改为已读键快照');
 // seq 栅栏：reload 内必须有 ++ 和比较
 ok(/const seq: number = \+\+this\.reloadSeq/.test(notify), 'reload 递增 seq');
 ok(/seq !== this\.reloadSeq/.test(notify), '过期结果被丢弃');
-// 关键顺序：先算 unread，再 markSeen（同一函数内）
-const idxUnread = notify.indexOf('const unread: number = unreadCount(');
-const idxMark = notify.indexOf('NotifySeenStore.markSeen(');
-ok(idxUnread >= 0 && idxMark > idxUnread, '先算 unread 再 markSeen',
+// 关键顺序：先算 unread，再标记已读（同一函数内）
+const idxUnread = notify.indexOf('const unread: number = unreadFromSnapshot(');
+const idxMark = notify.indexOf('NotifySeenStore.markKeys(firedKeys(all))');
+ok(idxUnread >= 0 && idxMark > idxUnread, '先算 unread 再 markKeys',
   'unread@' + idxUnread + ' mark@' + idxMark);
 
 // ── 3. SchedulePage：focus token 只在找到课后清空 + load 后兜底 ───────────

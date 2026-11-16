@@ -15,7 +15,13 @@ import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts
 import { NotifyRecord, kindLabel } from '../corelogic/NotifyRecordLogic.ts';
 import { NotifyRecordStore } from '../data/NotifyRecordStore.ts';
 import { NotifySeenStore } from '../data/NotifySeenStore.ts';
-import { NotifyTimedItem, GroupSpan, groupSpans, unreadCount, badgeText, clearConfirmText } from '../corelogic/NotifyGroupLogic.ts';
+import { GroupSpan, groupSpans, badgeText, clearConfirmText } from '../corelogic/NotifyGroupLogic.ts';
+import {
+  NotifyReadSnapshot,
+  firedKeys,
+  seedSnapshotFromLegacy,
+  unreadFromSnapshot
+} from '../corelogic/NotifyReadLogic.ts';
 import { ReminderKind } from '../corelogic/NotifyLogic.ts';
 import { warn } from '../core/log/BitLog.ts';
 
@@ -111,14 +117,21 @@ struct NotifyListPage {
       const tab: TabItem | null = this.tabs.length > this.activeTab ? this.tabs[this.activeTab] : null;
       const kind: ReminderKind | null = tab !== null ? tab.kind : null;
       // 未读与分组：全量算一次（不按 tab 算 —— 徽标要反映「所有没看的」，不是当前 tab 的）
-      const seen: number = await NotifySeenStore.load();
-      const unread: number = unreadCount(all, seen);
-      // ⚠️ markSeen 与 unread 必须同一次 reload 内、先算后标：
-      // 顺序反了 / 跨调用标了 ⇒ 自己把未读清掉，徽标永远 0（2026-10-28 注释的警告）。
+      // M15-B3：优先用已读键快照；没有快照时把旧时间戳语义迁一次，迁完不再依赖时钟。
+      const snapshot: NotifyReadSnapshot | null = await NotifySeenStore.loadSnapshot();
+      const legacySeen: number = snapshot === null ? await NotifySeenStore.loadLegacySeen() : 0;
+      const effective: NotifyReadSnapshot = snapshot !== null
+        ? snapshot
+        : seedSnapshotFromLegacy(all, legacySeen);
+      const unread: number = unreadFromSnapshot(all, effective);
+      // ⚠️ 先算 unread、再标记已读：顺序反了就会把本次该显示的徽标自己清成 0。
+      // 只标记「已发出」的键；排期中/永远不会发的不是未读。
       if (markSeenAfter) {
-        NotifySeenStore.markSeen(Date.now()).catch((e: Error) => {
-          warn('NotifyListPage markSeen fail: ' + JSON.stringify(e));
-        });
+        try {
+          await NotifySeenStore.markKeys(firedKeys(all));
+        } catch (e) {
+          warn('NotifyListPage markKeys fail: ' + JSON.stringify(e));
+        }
       }
       // 过期结果（有更新的 reload 已发起）直接丢弃，不写 @State
       if (seq !== this.reloadSeq) {
