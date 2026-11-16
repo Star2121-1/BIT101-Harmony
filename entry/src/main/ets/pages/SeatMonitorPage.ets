@@ -232,13 +232,28 @@ struct SeatMonitorPage {
   private unsubRepo: (() => void) | null = null;
   private unsubFg: (() => void) | null = null;
   private timer: number = 0;
+  /**
+   * ⚠️ repo.init() 内部有磁盘读取（异步）。若用户在它 resolve 前就返回，
+   * aboutToDisappear 时 unsubRepo 还是 null ⇒ 清理跳过，随后 .then 仍写已销毁组件的
+   * @State 并注册一个永不释放的订阅（重复进出累积泄漏）。用标志拦住迟到的回调。
+   */
+  private destroyed: boolean = false;
 
   aboutToAppear(): void {
+    this.destroyed = false;
     this.svc = new SeatServiceMonitorAdapter(getContext(this) as Context);
     const repo = getTaskRepository();
     repo.init().then(() => {
+      if (this.destroyed) {
+        return;
+      }
       this.refresh();
       this.unsubRepo = repo.onChange(() => this.refresh());
+      // 极小窗口：注销恰好发生在 .then 执行 middle（同步代码不会并发，但保险）
+      if (this.destroyed && this.unsubRepo !== null) {
+        this.unsubRepo();
+        this.unsubRepo = null;
+      }
     });
     this.foreground = isForegroundNow();
     this.unsubFg = AppForegroundState.get().onChange(() => {
@@ -250,6 +265,7 @@ struct SeatMonitorPage {
   }
 
   aboutToDisappear(): void {
+    this.destroyed = true;
     if (this.unsubRepo !== null) this.unsubRepo();
     if (this.unsubFg !== null) this.unsubFg();
     if (this.timer !== 0) clearInterval(this.timer);

@@ -202,7 +202,7 @@ entry/src/main/ets/
 ├── components/    共享组件（shell 骨架、FAB 列、卡片）
 └── extensionability/  FormExtension（桌面卡片独立进程）
 
-tools/            离线单测（58 套件）+ 真机取证脚本 + fixtures（真机抓的原始页面）
+tools/            离线单测（60 套件）+ 真机取证脚本 + fixtures（真机抓的原始页面）
 docs/             ROADMAP 台账、截图、文档索引
 ```
 
@@ -241,7 +241,7 @@ DEVECO_SDK_HOME=/path/to/commandline-tools/sdk \
 
 ```bash
 node --version            # 需要 22.7+（--experimental-transform-types）
-bash tools/run-tests.sh   # 58 个套件，3017 条断言
+bash tools/run-tests.sh   # 60 个套件，3048 条断言
 ```
 
 设计原则是**断言对着语义写，不写"非空"**：比如登录页解析吃真机抓的原始 HTML fixture；

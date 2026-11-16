@@ -249,6 +249,14 @@ function entry(course, term, score) {
   eq(parseCheck("300|BOGUS|0"), null, "未知码 → null（不猜）");
   eq(parseCheck("300"), null, "缺码段 → null");
 }
+{
+  // 2026-11-16 审查：超 Date 范围的有限数 + 负数门数，都会让用户看到假信息
+  eq(parseCheck("1e20|OK|5"), null, "超 Date 范围的 finite 时刻 → null（否则 NaN-NaN）");
+  eq(parseCheck("1e16|OK|5"), null, "1e16 超 Date 上限 8.64e15 → null");
+  eq(parseCheck("300|OK|-3").count, 0, "负数门数钳到 0，不说「已同步 -3 门课」");
+  eq(fmtCheckTime(1e20), "时间未知", "无效 Date 说「时间未知」不说 NaN");
+  eq(fmtCheckTime(300), fmtCheckTime(300), "合法时刻不受影响");
+}
 
 // ── 人话文案（humanReason + statusText，1:1 Android）──
 {

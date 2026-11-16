@@ -75,7 +75,9 @@ export function parse(raw: string | null): ScoreCheckStatus | null {
     return null;
   }
   const at: number = Number(parts[0]);
-  if (!Number.isFinite(at)) {
+  // ⚠️ isFinite 只挡 NaN/Infinity：1e20 是有限数但超 Date 合法范围（±8.64e15），
+  // new Date(1e20) 是 Invalid Date ⇒ 显示「NaN-NaN NaN:NaN」。存储串损坏可达，先挡。
+  if (!Number.isFinite(at) || Number.isNaN(new Date(at).getTime())) {
     return null;
   }
   // 码必须是已知值之一（未知码不猜，整条丢弃）
@@ -90,7 +92,8 @@ export function parse(raw: string | null): ScoreCheckStatus | null {
     return null;
   }
   const countRaw: number = Number(parts[2]);
-  const count: number = Number.isFinite(countRaw) ? countRaw : 0;
+  // 门数是「个数」，负值没有意义；脏值/损坏串里出现负数时钳到 0，不说「已同步 -3 门课」
+  const count: number = Number.isFinite(countRaw) && countRaw > 0 ? Math.floor(countRaw) : 0;
   // 第 4 段之后重新拼起来：万一原因里混进了 `|` 也不至于丢内容
   const detail: string = parts.slice(3).join('|');
   return { atMillis: at, code: code, count: count, detail: detail.length > 0 ? detail : null };
@@ -152,6 +155,10 @@ function whatText(s: ScoreCheckStatus): string {
 /** atMillis → 本地 `MM-dd HH:mm`（与 Android TIME_FORMAT 同口径）。 */
 export function fmtCheckTime(atMillis: number): string {
   const d: Date = new Date(atMillis);
+  // 防御所有调用方：无效 Date 宁可说「时间未知」，也不显示 NaN-NaN
+  if (Number.isNaN(d.getTime())) {
+    return '时间未知';
+  }
   const mm: string = String(d.getMonth() + 1).padStart(2, '0');
   const dd: string = String(d.getDate()).padStart(2, '0');
   const hh: string = String(d.getHours()).padStart(2, '0');

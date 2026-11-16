@@ -24,6 +24,7 @@
  */
 import { webview } from '@kit.ArkWeb';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { cookieNames, stripQuery } from '../corelogic/Redact.ts';
 
 const DOMAIN: number = 0x00BB;
 const TAG: string = 'BIT101Cas';
@@ -312,9 +313,13 @@ struct CasLoginProbe {
   private dumpCookie(): void {
     try {
       const c: string = webview.WebCookieManager.fetchCookieSync(CAS_LOGIN_URL);
-      hilog.info(DOMAIN, TAG, 'cookie len=%{public}d head=%{public}s', c.length, c.substring(0, 60));
-      this.detail += '\ncookie(len=' + c.length + '): ' + c.substring(0, 80);
-      this.status += '\n✅ cookie 已抽取（len=' + c.length + '）';
+      // ⚠️ 安全：这里抽到的是**活的 SSO 会话 cookie**，前 60 字符进 hilog / 前 80 渲染到屏幕
+      // 等于把凭据外泄（cookie 短时就是完整 SESSION）。只报「长度 + cookie 名」，绝不打值。
+      // 名字清单可直接看 CasLoginService 的 name@domain 口径，这里用纯函数抽 key。
+      const names: string = cookieNames(c);
+      hilog.info(DOMAIN, TAG, 'cookie len=%{public}d names=%{public}s', c.length, names);
+      this.detail += '\ncookie(len=' + c.length + ') names=' + names;
+      this.status += '\n✅ cookie 已抽取（len=' + c.length + '，仅显示名称）';
     } catch (e) {
       hilog.warn(DOMAIN, TAG, 'fetchCookie none: %{public}s', JSON.stringify(e));
     }
@@ -350,18 +355,19 @@ struct CasLoginProbe {
       })
         .javaScriptAccess(true)
         .onPageEnd((e: OnPageEndEvent): void => {
-          hilog.info(DOMAIN, TAG, 'onPageEnd url=%{public}s', e.url);
+          hilog.info(DOMAIN, TAG, 'onPageEnd url=%{public}s', stripQuery(e.url));
           this.status = '加载完成，探测表单…';
           this.probeDom();
         })
         .onPageBegin((e: OnPageBeginEvent): void => {
-          hilog.info(DOMAIN, TAG, 'onPageBegin url=%{public}s', e.url);
+          hilog.info(DOMAIN, TAG, 'onPageBegin url=%{public}s', stripQuery(e.url));
         })
         .onErrorReceive((e: OnErrorReceiveEvent): void => {
           const u: string = e.request ? e.request.getRequestUrl() : '';
-          hilog.error(DOMAIN, TAG, 'onErrorReceive uri=%{public}s', u);
+          const safe: string = stripQuery(u);
+          hilog.error(DOMAIN, TAG, 'onErrorReceive uri=%{public}s', safe);
           if (this.status !== '加载完成，探测表单…') {
-            this.status = '⚠️ 资源加载出错：' + u;
+            this.status = '⚠️ 资源加载出错：' + safe;
           }
         })
         .onHttpErrorReceive((_e: OnHttpErrorReceiveEvent): void => {

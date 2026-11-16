@@ -22,7 +22,7 @@
 import { asset } from '@kit.AssetStoreKit';
 import util from '@ohos.util';
 import { Prefs } from './Prefs.ts';
-import { info, warn } from '../core/log/BitLog.ts';
+import { info, warn, mask } from '../core/log/BitLog.ts';
 
 /** 密码在密钥库里的别名（同一应用内唯一）。 */
 const ALIAS_PWD: string = 'bit101_score_pwd';
@@ -78,7 +78,9 @@ export class ScoreCredentialStore {
     attrs.set(asset.Tag.ACCESSIBILITY, asset.Accessibility.DEVICE_FIRST_UNLOCKED);
     try {
       await asset.add(attrs);
-      info('ScoreCredentialStore saved user=' + u);
+      // ⚠️ 学号是 PII，不许明文进 hilog（诊断页自己的口径是 maskStudent：前3后2）。
+      // 复用 BitLog.mask：≤10 位全遮、>10 位前4后4，比拼字符串安全。
+      info('ScoreCredentialStore saved user=' + mask(u));
     } catch (e) {
       // 学号已经写进去了但密码没写成功 → 回滚学号，避免「以为保存了其实没有」
       await Prefs.remove(KEY_USER);

@@ -13,7 +13,7 @@
 > 本轮新增 4 个纯逻辑模块（`WeekNav` / `QuietHoursLogic` / `A11yText` / `DdlSortLogic`）+ 2 个数据层（`QuietHoursStore` 等），
 > **全部真机零验证**（用户明确要求先只改代码，后面统一 debug）。
 > **UI 迁移 #81~#91 ✅**；2026-10-28 补齐 **DDL 三颗 FAB**（＋ 新增 / 学士帽 / ⚙）与**空教室回到顶部 + 下拉刷新**，
-> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **58 套件 3017 断言绿**；版本 `1.0.0-alpha.10`。
+> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **60 套件 3048 断言绿**；版本见下方 2026-11-01 alpha.11 行。
 > **2026-11-01 起版本 `1.0.0-alpha.11`**（versionCode 11）：卡片页签/配额/教学调整三修 + 课表刷新 + 我页登录态 +
 > 无障碍扫尾；release 包 MD5 `C93BBF4BC34E8C689D50CAD8B3310B6C`，tag `h-v1.0.0-alpha.11`。
 > **2026-10-30 复核**：main `ae2ee06` 与 tag `h-v1.0.0-alpha.10` 均已推远端，工作区干净。本机 Node 24 下
@@ -161,7 +161,7 @@
 - **35 个页面**（`main_pages.json` 注册数；`pages/` 下 36 个 `.ets`，余 1 个不是页面）、**72 个纯逻辑模块**（`corelogic/*.ts`，全部可离线单测）
 - 分层：`core/{crypto,net,model,theme,log}` + `data` + `service` + `corelogic` + `pages` + `components` + `extensionability`
 - 存储：`Preferences`（会话 / 缓存 / 偏好），**缓存键按学期分键**；无 RDB（数据量不需要）
-- 测试：`bash tools/run-tests.sh` → **58 套件 / 3017 断言**（2026-10-30 实测，exit 0）；CI 在所有分支 push 上跑
+- 测试：`bash tools/run-tests.sh` → **60 套件 / 3048 断言**（2026-11-16 实测，exit 0）；CI 在所有分支 push 上跑
 
 > 下面是 2026-10-28 记录的快照，保留作对照：
 - 145 个源文件 / 31,025 行、28 个页面、48 个纯逻辑模块、46 套件 / 2509 断言
@@ -367,6 +367,20 @@
 | M12-7 | 台账纠偏：卡片时间列换行 | M8-1 | 4×4 卡上时间列不折成两行 | ✅ 已修（36vp → **54vp** + `maxLines(1)`，注释里留了真机实拍证据）。台账原挂「待修」系过期 |
 | M12-8 | 通知权限入口 + 排期文案统一 | M7-2 | 「没授权」不能被显示成「已重排 0 条」 | ✅ **2026-10-28 真机发现并修复**：①`ensureNotificationEnabled()` 写了但**全仓零引用** ⇒ 用户只看到一行「系统通知未开」的小字，没有任何入口去开；已接成页面上一颗「开启通知」按钮（点后弹系统授权框，允许后自动重排）。②两个入口（提醒设置 / 免打扰）各写一份 if-else，免打扰那边漏了 `user_disabled`/`notification_disabled` ⇒ **「系统没授权」被显示成「已重排 0 条」**。已抽成纯函数 `NotifyStatusText.scheduleStatusText()` 共用，单测钉「每个 reason 都有专属文案且不许出现『已重排』」。③按错误码 1700002 单独计数，全被系统拒时说「本机可能不支持代理提醒」而不是「N 条发布失败」。36 条断言。**真机已验**三条分支（关总开关 / 未授权 / 系统全拒） |
 | M12-9 | 楼栋索引课表为空（时序竞态） | M10-1 | 每栋楼显示「本机课表 N 门」 | ✅ **2026-10-28 真机发现**：见 M10-1 行。修复后真机确认「文萃楼I → 本机课表 2 门」「综合教学大楼 → 5 门」。**源码栅栏**防回归（`test-campusdir` 28 断言，故意拆红 3 条全红） |
+
+### M13 安全与时序审查（2026-11-16，三条并行审查线）
+
+| ID | 发现 | 严重度 | 状态 |
+|---|---|---|---|
+| M13-1 | CAS 探针把**活 SSO cookie 前 60/80 字符**打进 hilog + 屏幕；302 跳转 URL 带 `ticket=ST-...` 原样进日志 | 高 | ✅ 已修：新增纯函数 `corelogic/Redact.ts`（`cookieNames` 只给名字、`stripQuery` 去 query），探针页只报「长度+名称」；日志 URL 全过 `stripQuery`。**23 断言，故意拆红 6 条全红** |
+| M13-2 | 成绩凭据保存时完整学号明文进 hilog；教务非 JSON 响应（登录页/WAF 页）整段原文落沙箱（会回显 PII） | 中 | ✅ 已修：`ScoreCredentialStore` 学号过 `BitLog.mask`；`SchoolService.parseJson` 落盘前 + 日志头都过 `redactPii`（抹 10 位学号/11 位手机号/敏感 query 值，保正文骨架供排查 403） |
+| M13-3 | Android 借阅异常日志注释写「脱敏后再打」实际只 `take(80)` 截断，学号原样进 logcat（release 也执行）；诊断日志一键导出无脱敏 | 中 | ✅ 已修：data 层 `PiiRedact` + setting 层 `LogRedact`（JWT/Bearer/Cookie/ticket/学号/手机号），`LogExporter` 导出前统一过闸。Kotlin 各 4 断言 |
+| M13-4 | `SeatMonitorPage` 的 `repo.init()` 异步回调晚于组件销毁时仍写 @State + 注册永不释放的订阅 | 中 | ✅ 已修：`destroyed` 标志拦迟到回调，`aboutToDisappear` 置位；**源码栅栏** `test-lifecycle` 钉住，故意拆红 1 条红 |
+| M13-5 | `NotifyListPage` 的 `aboutToAppear` 与 `onPageShow` 双 reload 并发，未读徽标可被算成 0 | 中 | ✅ 已修：`reload(markSeenAfter)` 把「算 unread → markSeen」收进同一次调用（顺序不再跨调用）+ `reloadSeq` 丢弃过期结果；栅栏同上 |
+| M13-6 | 搜索定位课程失败：`focusCourse` token 在找到课**之前**就被清空，若 `@Watch` 在 `load()` 填充 courses 前触发则永久失效；`@Watch` 初始化绑定通常不触发 | 中 | ✅ 已修：token 只在定位成功后清空；`applyMerged()`（课表上屏统一出口）末尾主动消费一次 token 兜底，幂等。栅栏同上 |
+| M13-7 | `ScoreCheckLogic.parse` 的 `1e20` 等有限但超 Date 范围时刻导致「NaN-NaN」；负数门数显示「已同步 -3 门课」 | 中 | ✅ 已修：`parse` 加 `new Date(at).getTime()` 有效性校验 + count 钳非负；`fmtCheckTime` 入口挡无效 Date 说「时间未知」。+5 断言 |
+| M13-8 | **`NetAlertLogic` 整模块零引用**（网费<10元/流量270·300GB 提醒完全不生效）、**研讨间预约全链路死代码**（无法查看/取消）——与已修的 `ensureNotificationEnabled` 同型断链 | 高（功能） | 🔴 **未接**：二者都涉及对外副作用（发通知 / 预约变更），按铁律不擅自上自动路径。已在审查中确认，待用户拍板是否接线 |
+| M13-9 | 数值层其余防御缺口（CampusNetTraffic `append(NaN)`、SeatLogic 预约时段 NaN、DdlFormat NaN、CampusNetLogic 格式化 NaN） | 低 | ⚠️ 未修：上游 `numOrNull`/`decode` 正则已挡 NaN，现实可达性低；留档备查 |
 
 ### M1 遗留（挂在最后，不影响主线）
 

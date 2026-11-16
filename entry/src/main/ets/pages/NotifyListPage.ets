@@ -37,6 +37,8 @@ struct NotifyListPage {
   @State unread: number = 0;
   @State spans: GroupSpan[] = [];
   @State clearing: boolean = false;
+  /** reload 代次：并发时只让最后一次的结果落状态，防旧结果覆盖新结果。 */
+  private reloadSeq: number = 0;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -44,17 +46,15 @@ struct NotifyListPage {
 
   aboutToAppear(): void {
     this.tabs = NotifyRecordStore.filterTabs();
-    this.reload();
+    // ⚠️ 这里原来也调 this.reload()，与 onPageShow 的那次并发：两次各自读 seen 算 unread，
+    // 只有 onPageShow 那次会 markSeen。竞态下若这次的 load() 在 markSeen 之后完成，
+    // 就用「新的 seen」把未读算成 0 ⇒ 徽标消失。改为只让 onPageShow 那次带 markSeen，
+    // 且把 markSeen 收进同一次 reload 内（算完 unread 立刻标记），顺序不再跨调用。
+    this.reload(false);
   }
 
   onPageShow(): void {
-    this.reload().then(() => {
-      // 先算出未读（reload 内），再记「已看到此刻」——
-      // 顺序反了会让徽标永远为 0（自己把未读清掉了）。
-      NotifySeenStore.markSeen(Date.now()).catch((e: Error) => {
-        warn('NotifyListPage markSeen fail: ' + JSON.stringify(e));
-      });
-    });
+    this.reload(true);
   }
 
   /** 清空要二次确认，且说清「不影响提醒设置」。 */
@@ -103,17 +103,29 @@ struct NotifyListPage {
     return '已过 ' + (-diffMin) + ' 分钟';
   }
 
-  private async reload(): Promise<void> {
+  private async reload(markSeenAfter: boolean = false): Promise<void> {
+    const seq: number = ++this.reloadSeq;
     this.busy = true;
     try {
       const all: NotifyRecord[] = await NotifyRecordStore.load();
       const tab: TabItem | null = this.tabs.length > this.activeTab ? this.tabs[this.activeTab] : null;
       const kind: ReminderKind | null = tab !== null ? tab.kind : null;
-      this.records = NotifyRecordStore.byKind(all, kind);
       // 未读与分组：全量算一次（不按 tab 算 —— 徽标要反映「所有没看的」，不是当前 tab 的）
       const seen: number = await NotifySeenStore.load();
-      const timed: NotifyTimedItem[] = all;
-      this.unread = unreadCount(timed, seen);
+      const unread: number = unreadCount(all, seen);
+      // ⚠️ markSeen 与 unread 必须同一次 reload 内、先算后标：
+      // 顺序反了 / 跨调用标了 ⇒ 自己把未读清掉，徽标永远 0（2026-10-28 注释的警告）。
+      if (markSeenAfter) {
+        NotifySeenStore.markSeen(Date.now()).catch((e: Error) => {
+          warn('NotifyListPage markSeen fail: ' + JSON.stringify(e));
+        });
+      }
+      // 过期结果（有更新的 reload 已发起）直接丢弃，不写 @State
+      if (seq !== this.reloadSeq) {
+        return;
+      }
+      this.records = NotifyRecordStore.byKind(all, kind);
+      this.unread = unread;
       this.spans = groupSpans(this.records, Date.now(), -new Date().getTimezoneOffset() * 60000);
       if (this.records.length === 0) {
         this.emptyMsg = kind === null
@@ -122,9 +134,13 @@ struct NotifyListPage {
       }
     } catch (e) {
       warn('NotifyListPage reload fail: ' + JSON.stringify(e));
-      this.emptyMsg = '读取记录失败。';
+      if (seq === this.reloadSeq) {
+        this.emptyMsg = '读取记录失败。';
+      }
     }
-    this.busy = false;
+    if (seq === this.reloadSeq) {
+      this.busy = false;
+    }
   }
 
   build() {

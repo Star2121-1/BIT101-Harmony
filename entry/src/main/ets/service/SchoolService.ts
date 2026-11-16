@@ -23,6 +23,7 @@ import {
 } from '../core/model/SchoolModels.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 import { dumpText } from '../core/log/DebugDump.ts';
+import { redactPii } from '../corelogic/Redact.ts';
 
 const APP: string = 'https://jxzxehallapp.bit.edu.cn';
 /**
@@ -149,10 +150,11 @@ export class SchoolService {
   static parseJson(body: string, tag: string, status: number): Record<string, JsonValue> | null {
     const t: string = body.trim();
     if (t.length === 0 || (t.charAt(0) !== '{' && t.charAt(0) !== '[')) {
-      const head: string = t.substring(0, 300).replace(/\s+/g, ' ');
+      const head: string = redactPii(t.substring(0, 300).replace(/\s+/g, ' '));
       warn(tag + ' non-json status=' + status + ' len=' + t.length + ' head=' + head);
-      // 完整正文写到沙箱文件（hilog 单行会被截断，看不到 403 的真正原因）
-      dumpText('last_api_error.txt', tag + ' status=' + status + ' len=' + t.length + '\n\n' + t);
+      // 完整正文写到沙箱文件（hilog 单行会被截断，看不到 403 的真正原因）。
+      // ⚠️ 被踢回的登录页 / WAF 页会回显学号等 PII ⇒ 落盘前过 redactPii，别裸写原文。
+      dumpText('last_api_error.txt', tag + ' status=' + status + ' len=' + t.length + '\n\n' + redactPii(t));
       return null;
     }
     try {

@@ -337,6 +337,10 @@ export struct SchedulePage {
       }
     }
     this.maxWeek = maxW > 0 ? maxW : 20;
+    // ⚠️ 搜索定位兜底：@Watch 在 StorageLink 初始化绑定时通常不触发，
+    // 所以课程上屏后主动消费一次 token（token 空是空操作，幂等）。
+    // 必须放在 courses 赋值之后 —— 放前面会因找不到课而白跑。
+    this.onFocusCourseChanged();
   }
 
   /** 从「手动改课表」页回来时重读覆盖层并重算（M2-8）。 */
@@ -379,7 +383,9 @@ export struct SchedulePage {
     if (name.length === 0) {
       return;
     }
-    this.focusCourse = '';
+    // ⚠️ 原来在找到课之前就清空 token：搜索页写键 → SchedulePage 新建时 @Watch
+    // 若在 load() 填充 courses 之前触发，遍历找不到课但 token 已丢 ⇒ 永久失效。
+    // 现在只在**真的找到并定位后**才清空；找不到时保留 token，等 load() 完成后主动重试。
     for (let i = 0; i < this.courses.length; i++) {
       if (this.courses[i].KCM !== name) {
         continue;
@@ -392,10 +398,12 @@ export struct SchedulePage {
         this.week = w;
         this.recountWeek();
       }
+      this.focusCourse = '';
       info('SchedulePage focus course=' + name + ' week=' + this.week);
       return;
     }
-    warn('SchedulePage focus course not found: ' + name);
+    // 课程还没上屏（load 未完成）—— 保留 token，load() 末尾会再调一次
+    warn('SchedulePage focus course pending (courses not loaded yet): ' + name);
   }
 
   /** 周次串里第一个上课周；没有返回 0。 */
