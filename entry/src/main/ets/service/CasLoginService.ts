@@ -371,15 +371,32 @@ export class CasLoginService {
       outcome.jwt = jwt;
       outcome.status = LoginStatus.OK;
       outcome.message = '登录成功';
-      await SchoolCookieStore.snapshotAndSave(p.repoLogin);
-      await SessionStore.saveToken(jwt, p.username, '');
-      pending = null;
+      // ⚠️ 与密码路径同纪律：先建立教务会话，**再**快照落盘。
+      // 反序会把 jxzxehall 的 Set-Cookie 丢在快照外，重启后“已登录但课表 302”
+      //（2026-11-17 审查发现；密码路径 L261-263 早已修正，短信路径漏了）。
+      let jxDetail: string = '';
       try {
         const jx = await CasLoginService.ensureJxzxSession(context, p.repoLogin);
+        jxDetail = jx.detail;
         steps.push('c4 jxzx ' + jx.detail);
+        if (!jx.ok) {
+          outcome.message = '登录成功，但教务会话未建立（' + jx.detail + '）';
+        }
       } catch (e) {
+        jxDetail = 'exception ' + JSON.stringify(e);
         steps.push('c4 jxzx_fail ' + JSON.stringify(e));
+        outcome.message = '登录成功，但教务会话建立异常';
       }
+      try {
+        await SchoolCookieStore.snapshotAndSave(p.repoLogin);
+        await SessionStore.saveToken(jwt, p.username, '');
+        const n: number = (await SchoolCookieStore.load()).length;
+        steps.push('c5 persisted cookies=' + n + ' jxzx=' + jxDetail);
+      } catch (e) {
+        steps.push('c5 persist_fail ' + JSON.stringify(e));
+        outcome.message = '登录成功，但本地会话保存失败';
+      }
+      pending = null;
       return outcome;
     } catch (e) {
       outcome.message = '换取 JWT 失败（网络）';

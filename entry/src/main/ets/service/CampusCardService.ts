@@ -27,6 +27,7 @@ import { Context } from '@kit.AbilityKit';
 import { RcpFactory, PersistedCookie } from '../core/net/RcpFactory.ts';
 import { webview } from '@kit.ArkWeb';
 import { CardCookieStore } from '../data/CardCookieStore.ts';
+import { SsoCookieBroker } from './SsoCookieBroker.ts';
 import { CardSnapshot, HOME_URL, parse } from '../corelogic/CampusCardLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
@@ -117,6 +118,10 @@ export class CampusCardService {
   /** 建一卡通 session（先恢复落盘 cookie，再建 rcp 会话；跟完重定向链）。 */
   static async session(context: Context): Promise<rcp.Session> {
     const repo: rcp.CookieRepository = RcpFactory.cookieRepo(JAR_CARD);
+    // M16-1：把 CAS 总钥匙补进一卡通罐。HOME_URL 是 CAS service，
+    // 未登录会 302 到 sso；带上 CAS cookie 后 sso 直接发 ticket 回跳，
+    // 一卡通域自己 Set-Cookie ⇒ 不再要求用户单独“登录一卡通”。
+    await SsoCookieBroker.seed(JAR_CARD);
     await CardCookieStore.restoreInto(repo);
     // autoRedirect=true：CAS 链必须跟完，最终 URL 落哪决定登录态
     //（与教务 jxzxehall 同款；eclass/lib 的 false 是另一类接口，别照搬）。

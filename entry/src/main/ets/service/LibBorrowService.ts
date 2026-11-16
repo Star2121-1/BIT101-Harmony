@@ -27,6 +27,7 @@ import { Context } from '@kit.AbilityKit';
 import { RcpFactory, PersistedCookie } from '../core/net/RcpFactory.ts';
 import { webview } from '@kit.ArkWeb';
 import { LibCookieStore } from '../data/LibCookieStore.ts';
+import { SsoCookieBroker } from './SsoCookieBroker.ts';
 import {
   BorrowRecord,
   HOST,
@@ -147,13 +148,42 @@ export class LibBorrowService {
     return cookies.length;
   }
 
-  /** 建图书馆 session（先恢复落盘 cookie，再建 rcp 会话）。 */
+  /** 建图书馆 session（先补 CAS 总钥匙 + 恢复落盘 cookie，再建 rcp 会话）。 */
   static async session(context: Context): Promise<rcp.Session> {
     const repo: rcp.CookieRepository = RcpFactory.cookieRepo(JAR_LIB);
+    // 先把登录页的 CAS 会话复制进来：lib 门户 302 到 sso 时才会被认出来。
+    await SsoCookieBroker.seed(JAR_LIB);
     await LibCookieStore.restoreInto(repo);
     // autoRedirect=false：user-info 未登录也返 200（uid 为空），本就不会跳；
     // 真出现 302（会话失效回登录页）时看得见，才判得出「失效」而不是「0 本」。
     return await RcpFactory.createSession(context, JAR_LIB, false);
+  }
+
+  /**
+   * 用 CAS 总钥匙静默建立图书馆会话。
+   *
+   * 只走 `LOGIN_URL` 一次：它 302 → login.bit.edu.cn → sso.bit.edu.cn，
+   * CAS cookie 已在罐里 ⇒ 不再要求用户输密码 ⇒ 回跳 lib 域并 Set-Cookie。
+   * 之后快照回 `LibCookieStore`，再交给调用方重试 user-info。
+   *
+   * 返回 true 只表示「走完了链」，**不表示已登录**；调用方必须用 user-info 再判一次。
+   */
+  static async bootstrapFromSso(context: Context): Promise<boolean> {
+    try {
+      const seeded: number = await SsoCookieBroker.seed(JAR_LIB);
+      if (seeded === 0) {
+        return false;
+      }
+      const s: rcp.Session = await RcpFactory.createSession(context, JAR_LIB, true);
+      const res = await RcpFactory.getText(s, LOGIN_URL, apiHeaders());
+      const repo: rcp.CookieRepository = RcpFactory.cookieRepo(JAR_LIB);
+      await LibCookieStore.snapshotAndSave(repo);
+      info('lib bootstrap sso final=' + res.finalUrl + ' status=' + res.status + ' seeded=' + seeded);
+      return true;
+    } catch (e) {
+      warn('lib bootstrap sso fail: ' + JSON.stringify(e));
+      return false;
+    }
   }
 
   /** 有没有可用的图书馆会话（判据 = 落盘快照非空）。 */
@@ -164,11 +194,22 @@ export class LibBorrowService {
 
 async function fetch(context: Context, appId: string): Promise<LibBorrowResult> {
   try {
-    const s: rcp.Session = await LibBorrowService.session(context);
+    let s: rcp.Session = await LibBorrowService.session(context);
 
     // ② 登录态检查（uid 为空 = 未登录；响应不认识 = 失败，都不许当成「0 本」）
-    const who = await RcpFactory.getText(s, USER_INFO_URL, apiHeaders());
-    const loginState = isLoggedIn(who.body);
+    let who = await RcpFactory.getText(s, USER_INFO_URL, apiHeaders());
+    let loginState: boolean | null = isLoggedIn(who.body);
+    if (loginState === false) {
+      // M16-1：图书馆没有独立会话时，用登录页拿到的 CAS 总钥匙静默走一次
+      // LOGIN_URL → sso → lib/sso/login/3rd → 回跳，再重判 user-info。
+      // 失败/仍 uid 空才如实返回 loggedOut，不把“没登成”说成“0 本”。
+      const booted: boolean = await LibBorrowService.bootstrapFromSso(context);
+      if (booted) {
+        s = await LibBorrowService.session(context);
+        who = await RcpFactory.getText(s, USER_INFO_URL, apiHeaders());
+        loginState = isLoggedIn(who.body);
+      }
+    }
     if (loginState === false) {
       info('lib loggedOut (uid empty) appId=' + appId);
       return { kind: 'loggedOut' };
