@@ -1,18 +1,20 @@
 /**
  * 提醒设置的**纯逻辑**（M7-5，不碰 Prefs，单测直接打）。
  *
- * 对照 Android `NotifySettings` 的 13 项 + `NotifySettingViewModel` 的提前量选项。
+ * 对照 Android `NotifySettings` 的 13 项 + `NotifySettingViewModel` 的提前量选项；
+ * M14-A 新增 2 项鸿蒙即时提醒开关（网费/流量、图书馆到期），Android 无对应字段。
  * 存储（Prefs 读写）在 data/NotifySettingsStore，这里只放：类型、默认值、
  * 提前量选项、`toPolicy`（挑 plan 消费的 10 项）、`clampLead`（越界钳回最近档）、
  * `normalizeSettings`（JSON 解析后逐项回落，损坏不整块回退）。
  *
- * 与 13 项设置对齐 Android「逐屏对得上」；`plan()` 只消费 `NotifyPolicy` 的 10 项，
- * 多出的 3 项各有去处（见 data/NotifySettingsStore 头注释）。
+ * 13 项日程提醒与 Android「逐屏对得上」；`plan()` 只消费 `NotifyPolicy` 的 10 项，
+ * 多出的 3 项各有去处（见 data/NotifySettingsStore 头注释）。新增 2 项只被
+ * `ServiceAlertRunner` 在「取到数据那一刻」读取，不进 plan、不参与重排。
  */
 
 import { DEFAULT_NOTIFY_POLICY, type NotifyPolicy } from './NotifyLogic.ts';
 
-/** 13 项（字段与 Android `NotifySettings` 一一对应）。 */
+/** 13 项日程设置（对齐 Android）+ 2 项即时提醒开关（鸿蒙新增）。 */
 export interface NotifySettings {
   /** 总开关：关掉后不再排任何提醒（reschedule 据此 cancelAll）。 */
   enabled: boolean;
@@ -29,6 +31,10 @@ export interface NotifySettings {
   examDayEnabled: boolean;
   examLeadMinutes: number;
   adjustmentEnabled: boolean;
+  /** 网费 <10 元 / 流量 270·300 GB：取数成功那一刻判定，默认跟随 Android 行为开启。 */
+  netAlertEnabled: boolean;
+  /** 图书馆借阅到/逾期：取数成功那一刻判定，正文不含书名。 */
+  libAlertEnabled: boolean;
 }
 
 /** 默认值：对齐 `DEFAULT_NOTIFY_POLICY` + 总开关开 + 出分关（未做）。 */
@@ -45,7 +51,9 @@ export const DEFAULT_NOTIFY_SETTINGS: NotifySettings = {
   examEnabled: DEFAULT_NOTIFY_POLICY.examEnabled,
   examDayEnabled: DEFAULT_NOTIFY_POLICY.examDayEnabled,
   examLeadMinutes: DEFAULT_NOTIFY_POLICY.examLeadMinutes,
-  adjustmentEnabled: DEFAULT_NOTIFY_POLICY.adjustmentEnabled
+  adjustmentEnabled: DEFAULT_NOTIFY_POLICY.adjustmentEnabled,
+  netAlertEnabled: true,
+  libAlertEnabled: true
 };
 
 /** 提前量可选项（分钟，与 Android leadOptions 完全一致；不给自由输入）。 */
@@ -106,7 +114,9 @@ export function clampAll(s: NotifySettings): NotifySettings {
     examEnabled: s.examEnabled,
     examDayEnabled: s.examDayEnabled,
     examLeadMinutes: clampLead(s.examLeadMinutes, EXAM_LEAD_OPTIONS),
-    adjustmentEnabled: s.adjustmentEnabled
+    adjustmentEnabled: s.adjustmentEnabled,
+    netAlertEnabled: s.netAlertEnabled,
+    libAlertEnabled: s.libAlertEnabled
   };
 }
 
@@ -132,6 +142,8 @@ export function normalizeSettings(rec: Record<string, Object> | null): NotifySet
   out.examDayEnabled = boolOf(rec['examDayEnabled'], out.examDayEnabled);
   out.examLeadMinutes = numOf(rec['examLeadMinutes'], out.examLeadMinutes);
   out.adjustmentEnabled = boolOf(rec['adjustmentEnabled'], out.adjustmentEnabled);
+  out.netAlertEnabled = boolOf(rec['netAlertEnabled'], out.netAlertEnabled);
+  out.libAlertEnabled = boolOf(rec['libAlertEnabled'], out.libAlertEnabled);
   return out;
 }
 

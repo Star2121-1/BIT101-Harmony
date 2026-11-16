@@ -2,9 +2,11 @@
  * 即时通知（`notificationManager.publish`）—— 与 `ReminderScheduler` 的**日程提醒**不同：
  * 后者是 `reminderAgent` 的「到点弹」，这里是「事件已经发生了，现在就告诉用户」。
  *
- * ## 现在的唯一用途
- * 出分提醒（M7-3）：成绩是「某天服务端突然多了几行」的事件，没有确定的未来时刻，
- * 排不进日历提醒。Android 侧同样用即时通知（`NotifyCenter.notifyScores`）。
+ * ## 用途
+ * - 出分提醒（M7-3）：成绩是「某天服务端突然多了几行」的事件，没有确定的未来时刻；
+ * - 校园网费/流量阈值、图书馆借阅到期（M14-A）：在「刚成功取到数据那一刻」发。
+ *
+ * 三者共用本模块的系统开关检查 + 深链 wantAgent，避免每处各写一份。
  *
  * ## 纪律
  * - **系统通知开关没开就静默失败**（`isNotificationEnabled` 为 false 时 publish 会报 1700001）；
@@ -22,6 +24,22 @@ import { info, warn } from '../core/log/BitLog.ts';
  * 通知 id（同 id 会覆盖前一条；出分提醒固定用一个，避免刷屏堆叠）。
  */
 export const NOTIFY_ID_SCORES: number = 1001;
+/** 网费不足（同 id 覆盖前一条，不刷屏堆叠）。 */
+export const NOTIFY_ID_NET_FEE: number = 1002;
+/** 流量到 270 / 300 GB。 */
+export const NOTIFY_ID_NET_FLOW: number = 1003;
+/** 图书馆借阅临期 / 逾期。 */
+export const NOTIFY_ID_LIB_DUE: number = 1004;
+
+/** 系统通知开关（供编排层在写去重标记前 fail-closed 用）。 */
+export async function isEnabled(): Promise<boolean> {
+  try {
+    return await notificationManager.isNotificationEnabled();
+  } catch (e) {
+    warn('InstantNotify isNotificationEnabled fail: ' + JSON.stringify(e));
+    return false;
+  }
+}
 
 /**
  * 发一条纯文本通知。
@@ -31,14 +49,7 @@ export async function publishText(id: number, title: string, text: string, page:
   if (title.length === 0 || text.length === 0) {
     return false;
   }
-  let enabled: boolean = false;
-  try {
-    enabled = await notificationManager.isNotificationEnabled();
-  } catch (e) {
-    warn('InstantNotify isNotificationEnabled fail: ' + JSON.stringify(e));
-    return false;
-  }
-  if (!enabled) {
+  if (!(await isEnabled())) {
     info('InstantNotify skipped: notification disabled');
     return false;
   }

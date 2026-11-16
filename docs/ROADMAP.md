@@ -13,7 +13,8 @@
 > 本轮新增 4 个纯逻辑模块（`WeekNav` / `QuietHoursLogic` / `A11yText` / `DdlSortLogic`）+ 2 个数据层（`QuietHoursStore` 等），
 > **全部真机零验证**（用户明确要求先只改代码，后面统一 debug）。
 > **UI 迁移 #81~#91 ✅**；2026-10-28 补齐 **DDL 三颗 FAB**（＋ 新增 / 学士帽 / ⚙）与**空教室回到顶部 + 下拉刷新**，
-> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **60 套件 3053 断言绿**；版本见下方 2026-11-01 alpha.11 行。
+> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **61 套件 3110 断言绿**（2026-11-16，含 M14-A）；版本见下方版本行。
+> **2026-11-16 版本 `1.0.0-alpha.13`**（versionCode 13，**代码 + 单测 + 编译门完成，未装机**）：M14-A 接通校园网费/流量与图书馆借阅到期即时通知（见 §4 M14）。全量 **61/61 套件 3110 断言**，`assembleHap` 成功；证据 `harmony/evidence/m14-alerts-20261116/`。新增栅栏经「故意传 null 拆红」验证（3 条红，恢复后绿）。**真机未验**：通知是否真的弹出、开关与点击落点、去重跨周期复位（需校园网 + 图书馆会话）。
 > **2026-11-16 版本 `1.0.0-alpha.12`**（versionCode 12，debug 已装机真机点验）：M13 安全/时序审查修复（见 §4 M13）。真机确认：搜索定位课程（周12→周4，四次迭代才修对）、我页登录态、探针 URL 去 query（`onPageEnd url=.../cas/login` 不再带 `service=`）。未验：未读徽标（本机无未读数据）、cookie 值分支（设备 R1 不通过触发不到，纯函数 23 断言已覆盖）、座位监控订阅泄漏。
 > **2026-11-01 起版本 `1.0.0-alpha.11`**（versionCode 11）：卡片页签/配额/教学调整三修 + 课表刷新 + 我页登录态 +
 > 无障碍扫尾；release 包 MD5 `C93BBF4BC34E8C689D50CAD8B3310B6C`，tag `h-v1.0.0-alpha.11`。
@@ -162,7 +163,7 @@
 - **35 个页面**（`main_pages.json` 注册数；`pages/` 下 36 个 `.ets`，余 1 个不是页面）、**72 个纯逻辑模块**（`corelogic/*.ts`，全部可离线单测）
 - 分层：`core/{crypto,net,model,theme,log}` + `data` + `service` + `corelogic` + `pages` + `components` + `extensionability`
 - 存储：`Preferences`（会话 / 缓存 / 偏好），**缓存键按学期分键**；无 RDB（数据量不需要）
-- 测试：`bash tools/run-tests.sh` → **60 套件 / 3053 断言**（2026-11-16 实测，exit 0）；CI 在所有分支 push 上跑
+- 测试：`bash tools/run-tests.sh` → **61 套件 / 3110 断言**（2026-11-16 实测，exit 0）；CI 在所有分支 push 上跑
 
 > 下面是 2026-10-28 记录的快照，保留作对照：
 - 145 个源文件 / 31,025 行、28 个页面、48 个纯逻辑模块、46 套件 / 2509 断言
@@ -295,8 +296,8 @@
 | M7-1 | 通知落库 + 列表（含已发记录） | — | 列表能显示历史通知，分类型筛选 | 🔄 代码完成（`NotifyRecordLogic`/`NotifyRecordStore`/`NotifyListPage` + 32 条单测，assembleHap 过）：排期时写记录（title/text/at 快照 + firedMillis 回填）；**已发不回滚**（重排只改显示字段）；旧表独有 key 保留（删课不蒸发记录）；14 天双锚点清理（已发看 fired、未发看 at）。入口在「我」页。写入挂在 M7-2 排期器 |
 | M7-2 | **代理提醒排期（7 类）** | M2-7 · M5-2 · M7-1 | 设一个 2 分钟后的上课提醒，锁屏也弹；提前量改动生效 | 🔄 代码完成（`ReminderScheduler` + `NotifyAdapter` + `NotifyScheduleLogic` + 37 条单测，assembleHap 过）：本地离线取数（课表/DdlStore/ExamCache/教学调整缓存）→ `plan()` → 配额裁剪（≤30，R10）→ `reminderAgentManager` 日历提醒全量重建 → 落 M7-1 历史库。冷启动自动重排（对照 Android「每次开 App 重排」）。`PUBLISH_AGENT_REMINDER`（NORMAL+system_grant，三方可声明）+ 通知开关前置。⚠️ 三处 fail-closed 未验真机：通知开关没开整批不排 / 考试时刻解析不出跳过 / 教学调整拿不到按无调整排 |
 | M7-3 | 出分提醒（异步挑战三步） | M7-2 | 有出分时通知弹出，**且不含分数**（隐私边界） | 🔄 **纯逻辑层完成**（`ScoreLogic` 解析+差分+隐私文案 / `ScoreQueryLogic` 轮询终止+12h限频 / `ScoreCheckLogic` 状态码+人话文案，82 条单测，经 compile-probe 过 assembleHap）：二维表按表头定位列（课程编号≠课程名）、首次只建基线不轰炸、**改分不重报**、文案**绝不含分数**（单测锁死）、AUTH_FAILED 不写「稍后重试」。**取数管道已于 2026-10-28 接上**（`ScoreService` 三步 + `ScoreCheckRunner` 12h 闸门/差分/通知，`ScoreFlowLogic`+`ScoreStoreLogic` 共 83 条断言）；真实会话下的取数未验 |
-| M7-4 | 网费/流量提醒（270/300GB） | M5-2 | 造超限数据触发一次，文案与阈值对得上 | 🔄 判定逻辑与文案完成（`NetAlertLogic` 29 条单测 + `NotifySentStore` 已发记录去重，assembleHap 过）：流量 270/300 每周期各一次、越限不补发接近档；网费 <10 元按天去重；「请求失败≠没超」——判定时机挂在取数成功那一刻。发送/UI 在 M7-2 代理提醒 + M7-1 列表 |
-| M7-5 | 提醒设置页（开关 + 提前量） | M7-2 | 关掉某类后不再排期；改提前量后排期时间变 | 🔄 代码完成（`NotifySettingsLogic` 纯逻辑 + `NotifySettingsStore` Prefs 薄壳 + `NotifySettingsPage` 内联开关/chip + 50 条单测，assembleHap 过）：13 项 1:1 Android（总开关/5 类/3 组提前量）；**每次改动即 save+reschedule**（对照 Android write 块，改了提前量立即生效）；总开关关 → cancelAll；提前量固定选项不给自由输入；教学调整只有开关无提前量。入口「我」页「提醒设置」行 |
+| M7-4 | 网费/流量提醒（270/300GB） | M5-2 | 造超限数据触发一次，文案与阈值对得上 | 🔄 **发送链路已接（M14-A）**：`ServiceAlertRunner.checkNet` 挂在 `NetPage` 取到 `online` 那一刻，`InstantNotify` 即时通知 + 点击进校园网页；网费用 `NotifySentStore` 按本地自然日去重，流量用 `InstantAlertStore` 按计费周期去重（累计值回落复位、两档只发一次）。`test-instantalerts` 48 条 + 源码栅栏，assembleHap 过。**真机未验**：需校园网内造阈值数据 |
+| M7-5 | 提醒设置页（开关 + 提前量） | M7-2 | 关掉某类后不再排期；改提前量后排期时间变 | 🔄 代码完成（`NotifySettingsLogic` 纯逻辑 + `NotifySettingsStore` Prefs 薄壳 + `NotifySettingsPage` 内联开关/chip + 59 条单测，assembleHap 过）：13 项日程设置 1:1 Android（总开关/5 类/3 组提前量）；**每次改动即 save+reschedule**（对照 Android write 块，改了提前量立即生效）；总开关关 → cancelAll；提前量固定选项不给自由输入；教学调整只有开关无提前量。M14-A 另加 2 项即时提醒开关（`netAlertEnabled`/`libAlertEnabled`），**只落库不重排**，避免状态行谎报「已重排 N 条」。入口「我」页「提醒设置」行 |
 
 **关键设计约束**：排期必须**看教学调整**——放假不排、补课按被指定那天排（错提醒比不发更糟）。`NotifyLogic` 已移植这条规则。
 
@@ -380,8 +381,22 @@
 | M13-5 | `NotifyListPage` 的 `aboutToAppear` 与 `onPageShow` 双 reload 并发，未读徽标可被算成 0 | 中 | ✅ 已修：`reload(markSeenAfter)` 把「算 unread → markSeen」收进同一次调用（顺序不再跨调用）+ `reloadSeq` 丢弃过期结果；栅栏同上 |
 | M13-6 | 搜索定位课程失败：`focusCourse` token 在找到课**之前**就被清空，若 `@Watch` 在 `load()` 填充 courses 前触发则永久失效；`@Watch` 初始化绑定通常不触发 | 中 | ✅ **2026-11-16 真机四次迭代才修对**：初版把兜底放 `applyMerged` → 被 `applySchedule` 的「今天所在周」覆盖（week=4→12）；改放 load 末尾 → 日志仍显示旧实例 @Watch 抢先消费 token、新实例 token 已空；加 loading 守卫仍不行（旧实例 loading=false）。**根因**：点结果 `router.replaceUrl(Index)` 会销毁旧 SchedulePage、新建实例，@Watch 在旧实例上先触发并清空 token。终修：**去掉 @Watch**，改由新实例 `load()` 末尾 + 壳内保活 `onWake` 两处消费。真机确认「周12 → 周4」+ 课程卡计算机视觉 + 详情周三3-5节。栅栏 18 断言（含「不许挂 @Watch」「onWake 有消费」「applyMerged/applySchedule 不许消费」），拆红验证过 |
 | M13-7 | `ScoreCheckLogic.parse` 的 `1e20` 等有限但超 Date 范围时刻导致「NaN-NaN」；负数门数显示「已同步 -3 门课」 | 中 | ✅ 已修：`parse` 加 `new Date(at).getTime()` 有效性校验 + count 钳非负；`fmtCheckTime` 入口挡无效 Date 说「时间未知」。+5 断言 |
-| M13-8 | **`NetAlertLogic` 整模块零引用**（网费<10元/流量270·300GB 提醒完全不生效）、**研讨间预约全链路死代码**（无法查看/取消）——与已修的 `ensureNotificationEnabled` 同型断链 | 高（功能） | 🔴 **未接**：二者都涉及对外副作用（发通知 / 预约变更），按铁律不擅自上自动路径。已在审查中确认，待用户拍板是否接线 |
+| M13-8 | **`NetAlertLogic` 整模块零引用**（网费<10元/流量270·300GB 提醒完全不生效）、**研讨间预约全链路死代码**（无法查看/取消）——与已修的 `ensureNotificationEnabled` 同型断链 | 高（功能） | ✅ 前半已修（M14-A）：校园网/借阅通知接线 + 用户开关 + 去重 + 直达页，证据 `harmony/evidence/m14-alerts-20261116/`；**后半研讨间仍暂缓**：wire 字段未真机核对，取消属对外副作用，必须用户在场确认 |
 | M13-9 | 数值层其余防御缺口（CampusNetTraffic `append(NaN)`、SeatLogic 预约时段 NaN、DdlFormat NaN、CampusNetLogic 格式化 NaN） | 低 | ⚠️ 未修：上游 `numOrNull`/`decode` 正则已挡 NaN，现实可达性低；留档备查 |
+
+### M14 功能迁移（2026-11-16，从 MIGRATION-CANDIDATES 的 A 档挑第一批）
+
+| ID | 任务 | 判据 | 状态 |
+|---|---|---|---|
+| M14-A1 | 网费 / 流量即时提醒 | 仅在 `NetPage` 取到 `online` 时判定；余额 <10 元按本地自然日一次，流量 270/300 GB 每计费周期各一次；换周期（累计值回落）复位且当轮不补发；通知点击进校园网 | 🔄 代码 + 48 条单测 + 编译门过；**真机未验**（需校园网内造阈值数据）。证据 `harmony/evidence/m14-alerts-20261116/` |
+| M14-A2 | 图书馆借阅到期即时提醒 | 仅在 `current=ok` 时判定；loggedOut/failed/历史栏一律不判；正文不含书名；同书键只提醒一次；通知点击进图书馆 | 🔄 代码 + 单测 + 编译门过；**真机未验**（需图书馆会话）。证据同上 |
+| M14-A3 | 两项用户开关 | 提醒设置页可单独关闭；关闭后连去重标记都不写；即时开关不触发日程重排、不显示「已重排 N 条」 | 🔄 代码 + `test-settings` 59 条 + 编译门过；真机点按未验 |
+| M14-A+ | 座位违约通知（A3） | 活 JWT 下核对 wire 字段；首次建基线、新增才通知 | ⬜ 暂缓：后端不可验，不靠推理接线 |
+| M14-B | 研讨间查看 / 取消（A4） | wire 字段真机核对；取消必须用户二次确认 | ⬜ 暂缓：同上 + 对外副作用 |
+
+**M14-A 的关键取舍**：流量与借阅的去重状态**不复用** `NotifySentStore` —— 那个表 14 天 prune，
+复用会把「每计费周期一次」悄悄改成「每 14 天一次」，也会让同一本未还的书重复提醒。
+新增 `InstantAlertStore` 两枚键，语义对齐 Android `netflow_alert` / `lib_due_alert`，不设过期。
 
 ### M1 遗留（挂在最后，不影响主线）
 
@@ -675,6 +690,8 @@ GitHub clone 另验了行尾：`.sh`/`.ts` 均为 `w/lf`、0 个 CR（`.gitattri
 | **合计** | **80** | **58** | **20** | **1** | **1** | **≈73%** |
 
 > 统计时点 **2026-10-30**。数字由 §4 行首标记**直接计数**（脚本可复核），2026-10-30 起同时计入 M11/M12 新增行。
+> ⚠️ **M14-A 三条（2026-11-16）尚未并入下表**：它们只有代码 + 单测 + 编译门，真机未验，按 §0 图例不能记 ✅；
+> 待真机点验后再重算，别把「编译过了」当「完成」。全量套件数已更新为 **61/61 / 3110 断言**（见文首 alpha.13 行）。
 > ⚠️ **口径警告**：本表 ✅ 只代表「代码 + 单测 + 编译完成」，**不代表真机已验**。§4 里至少 10 行 ✅ 的正文明确写着「真机未验」：
 > M2-7b / M10-2 / M11-2 / M11-3 / M11-4 / M11-5 / M12-3 / M12-5 / UI-90（子页）；另有 M11-6（读屏朗读未验）、
 > M10-3/M10-4（无真机记录）、M8-5（自动刷新节奏未观察）。真机欠账以行内文字为准，**不要拿本表的 ✅ 对外报喜**。

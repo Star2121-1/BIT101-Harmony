@@ -47,6 +47,8 @@ function ok(cond, name) {
   eq(d.examDayEnabled, DEFAULT_NOTIFY_POLICY.examDayEnabled, "考试前一天对齐");
   eq(d.examLeadMinutes, DEFAULT_NOTIFY_POLICY.examLeadMinutes, "考试提前量对齐");
   eq(d.adjustmentEnabled, DEFAULT_NOTIFY_POLICY.adjustmentEnabled, "教学调整对齐");
+  eq(d.netAlertEnabled, true, "校园网即时提醒默认开（对齐 Android 行为）");
+  eq(d.libAlertEnabled, true, "借阅到期即时提醒默认开（对齐 Android 行为）");
 }
 
 // ── toPolicy：挑 10 项，不串不漏 ──
@@ -59,6 +61,8 @@ function ok(cond, name) {
   eq(p.horizonDays, 7, "horizonDays 恒 7（不开放给用户）");
   // 13 项里 scoreEnabled 是 M7-3 预留，policy 不含它（plan 暂不消费）
   ok(!("scoreEnabled" in p), "toPolicy 不含 scoreEnabled（未做）");
+  ok(!("netAlertEnabled" in p), "toPolicy 不含 netAlertEnabled（即时提醒不占日程配额）");
+  ok(!("libAlertEnabled" in p), "toPolicy 不含 libAlertEnabled（即时提醒不占日程配额）");
   // 逐字段全在
   const keys = ["classEnabled","classLeadMinutes","ddlEnabled","ddlDayEnabled","ddlHourEnabled",
     "seatEnabled","seatSignInLeadMinutes","examEnabled","examDayEnabled","examLeadMinutes","adjustmentEnabled","horizonDays"];
@@ -97,6 +101,11 @@ function ok(cond, name) {
   eq(s2.enabled, true, "脏类型回落默认");
   const s3 = normalizeSettings({ classLeadMinutes: "x" });
   eq(s3.classLeadMinutes, DEFAULT_NOTIFY_POLICY.classLeadMinutes, "脏提前量回落默认");
+  const s4 = normalizeSettings({ netAlertEnabled: false, libAlertEnabled: false });
+  eq(s4.netAlertEnabled, false, "关掉校园网即时提醒能读回来");
+  eq(s4.libAlertEnabled, false, "关掉借阅即时提醒能读回来");
+  const s5 = normalizeSettings({ netAlertEnabled: "no" });
+  eq(s5.netAlertEnabled, true, "即时提醒脏值回落默认开");
 }
 
 // ── clampAll：落库/读取后越界值自纠 ──
@@ -107,6 +116,10 @@ function ok(cond, name) {
   eq(clamped.seatSignInLeadMinutes, 5, "0 钳到下限 5");
   eq(clamped.examLeadMinutes, 90, "80 → 最近档 90（|80-90|=10 < |80-60|=20）");
   eq(clamped.enabled, true, "非提前量字段不动");
+  const off = { ...DEFAULT_NOTIFY_SETTINGS, netAlertEnabled: false, libAlertEnabled: false };
+  const offClamped = clampAll(off);
+  eq(offClamped.netAlertEnabled, false, "clampAll 不把关掉的校园网提醒改回开");
+  eq(offClamped.libAlertEnabled, false, "clampAll 不把关掉的借阅提醒改回开");
 }
 
 console.log("pass=" + passed + " fail=" + failed);

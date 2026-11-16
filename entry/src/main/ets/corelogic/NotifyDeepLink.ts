@@ -34,6 +34,9 @@ const PAGE_WHITELIST: string[] = [
   'pages/SeatPage',
   'pages/NotifyListPage',
   'pages/SettingsPage',
+  // M14-A 即时提醒：点网费/流量通知进校园网页，点借阅通知进图书馆页
+  'pages/NetPage',
+  'pages/LibBorrowPage',
 ];
 
 /** 通知种类 → 内容 id / 页面。 */

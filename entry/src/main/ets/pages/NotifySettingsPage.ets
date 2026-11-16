@@ -1,5 +1,5 @@
 /**
- * 提醒设置页（M7-5：总开关 + 五类开关 + 三组提前量）。
+ * 提醒设置页（M7-5：总开关 + 五类日程开关 + 三组提前量；M14-A 再加两项即时提醒开关）。
  *
  * 对照 Android NotifySettingViewModel 的 `write` 块：**每次改动都重排**——
  * 已排的 reminderAgent 是按旧设置定的时刻，不重排就「改了提前量却不生效」。
@@ -58,6 +58,9 @@ struct NotifySettingsPage {
   @State examDayEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.examDayEnabled;
   @State examLead: number = DEFAULT_NOTIFY_SETTINGS.examLeadMinutes;
   @State adjustmentEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.adjustmentEnabled;
+  /** M14-A 即时提醒：只在业务取数成功那一刻判，不参与日程重排。 */
+  @State netAlertEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.netAlertEnabled;
+  @State libAlertEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.libAlertEnabled;
   /** 免打扰（M12-2）：与提醒设置分开存，关掉提醒总开关也留着。 */
   @State quietOn: boolean = DEFAULT_QUIET_HOURS.enabled;
   @State quietStart: number = DEFAULT_QUIET_HOURS.startMinute;
@@ -90,6 +93,8 @@ struct NotifySettingsPage {
     this.examDayEnabled = s.examDayEnabled;
     this.examLead = s.examLeadMinutes;
     this.adjustmentEnabled = s.adjustmentEnabled;
+    this.netAlertEnabled = s.netAlertEnabled;
+    this.libAlertEnabled = s.libAlertEnabled;
     // 免打扰单独读（它不在 notify_settings_v1 里）
     try {
       const q: QuietHours = await QuietHoursStore.load();
@@ -101,8 +106,12 @@ struct NotifySettingsPage {
     }
   }
 
-  /** 提交当前 13 项：落库 → 重排 → 回显结果（改动即生效，对照 Android write 块）。 */
-  private async commit(): Promise<void> {
+  /**
+   * 提交设置。
+   * @param reschedule 日程类开关改了要重排（Android write 块）；M14-A 两项即时提醒
+   *   不进 reminderAgent，传 false，免得状态行显示「已重排 N 条」误导用户。
+   */
+  private async commit(reschedule: boolean = true): Promise<void> {
     if (this.busy) {
       return;
     }
@@ -122,14 +131,20 @@ struct NotifySettingsPage {
         examEnabled: this.examEnabled,
         examDayEnabled: this.examDayEnabled,
         examLeadMinutes: this.examLead,
-        adjustmentEnabled: this.adjustmentEnabled
+        adjustmentEnabled: this.adjustmentEnabled,
+        netAlertEnabled: this.netAlertEnabled,
+        libAlertEnabled: this.libAlertEnabled
       };
       await NotifySettingsStore.save(s);
-      const r = await ReminderScheduler.reschedule(ctx);
-      // 文案走纯函数（两个入口共用一份；单测钉住「每个 reason 都有自己的话」）
-      this.status = scheduleStatusText(r);
-      // 系统没授权时给一颗真的能点的按钮（此前只有一行小字，用户无从下手）
-      this.needPerm = needsNotificationPermission(r.reason);
+      if (reschedule) {
+        const r = await ReminderScheduler.reschedule(ctx);
+        // 文案走纯函数（两个入口共用一份；单测钉住「每个 reason 都有自己的话」）
+        this.status = scheduleStatusText(r);
+        // 系统没授权时给一颗真的能点的按钮（此前只有一行小字，用户无从下手）
+        this.needPerm = needsNotificationPermission(r.reason);
+      } else {
+        this.status = '即时提醒设置已保存（不影响已经排好的上课 / 考试提醒）。';
+      }
       info('notify settings commit status=' + this.status);
     } catch (e) {
       warn('notify settings commit fail: ' + JSON.stringify(e));
@@ -412,6 +427,41 @@ struct NotifySettingsPage {
             this.adjustmentEnabled = !this.adjustmentEnabled;
             this.commit();
           })
+
+          // ── 校园服务即时提醒（M14-A）──
+          Text('校园服务（取到数据时提醒）')
+            .fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 18, bottom: 4 })
+          Row() {
+            Text('网费 / 流量提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
+            Text(this.netAlertEnabled ? '开' : '关')
+              .fontSize(13)
+              .fontColor(this.netAlertEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.netAlertEnabled ? this.tk().primary : this.tk().surface2)
+              .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
+          }
+          .width('100%').padding({ top: 8, bottom: 4 })
+          .accessibilityText('网费流量提醒，当前' + (this.netAlertEnabled ? '已开启' : '已关闭'))
+          .onClick(() => {
+            this.netAlertEnabled = !this.netAlertEnabled;
+            this.commit(false);
+          })
+          Row() {
+            Text('图书馆借阅到期提醒').fontSize(14).fontColor(this.tk().onSurface).layoutWeight(1)
+            Text(this.libAlertEnabled ? '开' : '关')
+              .fontSize(13)
+              .fontColor(this.libAlertEnabled ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.libAlertEnabled ? this.tk().primary : this.tk().surface2)
+              .borderRadius(10).padding({ left: 12, right: 12, top: 4, bottom: 4 })
+          }
+          .width('100%').padding({ top: 8, bottom: 4 })
+          .accessibilityText('图书馆借阅到期提醒，当前' + (this.libAlertEnabled ? '已开启' : '已关闭'))
+          .onClick(() => {
+            this.libAlertEnabled = !this.libAlertEnabled;
+            this.commit(false);
+          })
+          Text('只在成功取到校园网 / 借阅数据时判断；关掉后不再发，通知里不写书名。')
+            .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+            .width('100%').padding({ bottom: 4 })
 
           // ── 免打扰时段（M12-2）──
           Text('免打扰').fontSize(13).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 18, bottom: 4 })

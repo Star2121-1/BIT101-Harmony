@@ -1,5 +1,6 @@
 /**
- * 提醒设置存储（M7-5，落 Prefs；13 项 1:1 对照 Android `NotifySettings`）。
+ * 提醒设置存储（M7-5，落 Prefs；13 项日程设置对齐 Android `NotifySettings`，
+ * M14-A 另加 2 项鸿蒙即时提醒开关）。
  *
  * 纯逻辑（类型 / 默认值 / 提前量选项 / toPolicy / clampLead / normalizeSettings）
  * 在 **corelogic/NotifySettingsLogic**（不碰 Prefs，单测直接打）。本类只做

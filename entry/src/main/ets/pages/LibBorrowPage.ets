@@ -17,6 +17,7 @@ import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { LibBorrowService, LibBorrowResult } from '../service/LibBorrowService.ts';
 import { BorrowRecord, cardSummary, statusText, dueText } from '../corelogic/LibBorrowLogic.ts';
+import { ServiceAlertRunner } from '../service/ServiceAlertRunner.ts';
 import type { DateTime } from '../corelogic/timeutil.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
@@ -103,6 +104,15 @@ struct LibBorrowPage {
       this.history = await his;
       this.loaded = true;
       info('lib page refresh cur=' + this.current.kind + ' his=' + this.history.kind);
+      // ⚠️ 只有「当前在借且确实取到」才判；loggedOut/failed/历史栏一律不判，
+      // 否则网络抖一下就会把该发的到期提醒静默吃掉（Android LibBorrowChecker 纪律）。
+      if (this.current.kind === 'ok') {
+        ServiceAlertRunner.checkLib(this.current.records).then((out) => {
+          info('lib alert ran=' + out.ran + ' published=' + out.published + ' reason=' + out.reason);
+        }).catch((e: Error) => {
+          warn('lib alert fail: ' + JSON.stringify(e));
+        });
+      }
     } catch (e) {
       warn('lib page refresh fail: ' + (e as Error).message);
       this.current = { kind: 'failed', reason: (e as Error).message };

@@ -18,6 +18,7 @@ import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { CampusNetService, NET_AUTH_URL } from '../service/CampusNetService.ts';
 import { CampusNetTrafficStore } from '../data/CampusNetTrafficStore.ts';
+import { ServiceAlertRunner } from '../service/ServiceAlertRunner.ts';
 import {
   CampusNetInfo,
   CampusNetResult,
@@ -125,6 +126,15 @@ struct NetPage {
       this.trend = await CampusNetTrafficStore.record(bytes);
       this.loaded = true;
       info('net page refresh kind=' + r.kind);
+      // ⚠️ 只有 online 才判提醒：notOnline/failed 没有真实数值，判了就会把
+      // 「取不到」当成「没超标」。发通知是后台动作，不阻塞页面刷新。
+      if (r.kind === 'online') {
+        ServiceAlertRunner.checkNet(r.info).then((out) => {
+          info('net alert ran=' + out.ran + ' published=' + out.published + ' reason=' + out.reason);
+        }).catch((e: Error) => {
+          warn('net alert fail: ' + JSON.stringify(e));
+        });
+      }
     } catch (e) {
       warn('net page refresh fail: ' + (e as Error).message);
       this.result = { kind: 'failed', reason: (e as Error).message };
