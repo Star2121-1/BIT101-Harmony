@@ -12,10 +12,10 @@ import { router } from '@kit.ArkUI';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
-import { NotifyRecord, kindLabel } from '../corelogic/NotifyRecordLogic.ts';
+import { NotifyRecord, kindLabel, dedupeByKey } from '../corelogic/NotifyRecordLogic.ts';
 import { NotifyRecordStore } from '../data/NotifyRecordStore.ts';
 import { NotifySeenStore } from '../data/NotifySeenStore.ts';
-import { GroupSpan, groupSpans, badgeText, clearConfirmText } from '../corelogic/NotifyGroupLogic.ts';
+import { GroupSpan, groupSpans, badgeText, clearConfirmText, compareNewestFirst } from '../corelogic/NotifyGroupLogic.ts';
 import {
   NotifyReadSnapshot,
   firedKeys,
@@ -137,7 +137,11 @@ struct NotifyListPage {
       if (seq !== this.reloadSeq) {
         return;
       }
-      this.records = NotifyRecordStore.byKind(all, kind);
+      // 分组函数要求新→旧；`byKind` 返回旧→新，必须显式转序（否则同标签区间重复，
+      // ForEach 的 label key 会撞键）。再按 key 去重兜住老数据里的重复行。
+      const filtered: NotifyRecord[] = NotifyRecordStore.byKind(all, kind);
+      filtered.sort(compareNewestFirst);
+      this.records = dedupeByKey(filtered);
       this.unread = unread;
       this.spans = groupSpans(this.records, Date.now(), -new Date().getTimezoneOffset() * 60000);
       if (this.records.length === 0) {
@@ -262,7 +266,7 @@ struct NotifyListPage {
               .accessibilityText(kindLabel(rec.kind) + '，' + rec.title + '，' + rec.text +
                 (rec.firedMillis > 0 ? '，已发出' : '，' + this.remainText(rec, Date.now())))
               }, (rec: NotifyRecord) => rec.key)
-            }, (span: GroupSpan) => span.label)
+            }, (span: GroupSpan) => span.label + '#' + span.start)
           }
           .width('100%')
         }

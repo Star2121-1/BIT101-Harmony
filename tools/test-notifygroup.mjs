@@ -6,8 +6,9 @@
 //   node --experimental-transform-types tools/test-notifygroup.mjs
 
 import {
-  dayIndex, labelOfDay, groupSpans, unreadCount, badgeText, clearConfirmText, DAY_MS,
+  dayIndex, labelOfDay, groupSpans, unreadCount, badgeText, clearConfirmText, compareNewestFirst, DAY_MS,
 } from '../entry/src/main/ets/corelogic/NotifyGroupLogic.ts';
+import { dedupeByKey } from '../entry/src/main/ets/corelogic/NotifyRecordLogic.ts';
 import {
   routeOfKind, sanitizeContent, sanitizePage, KEY_NOTIFY_CONTENT, KEY_NOTIFY_PAGE,
 } from '../entry/src/main/ets/corelogic/NotifyDeepLink.ts';
@@ -67,6 +68,24 @@ ok(groupSpans([], NOW, 0).length === 0, '空数组 → 无分组');
 const pending = [{ atMillis: day(TODAY), firedMillis: 0 }];
 const ps = groupSpans(pending, NOW, 0);
 ok(ps.length === 1 && ps[0].label === '今天', '未发出但排期今天 → 今天');
+
+// 新→旧排序：分组函数的前置条件（真机 ForEach 撞键根因）
+const asc = [item(day(TODAY - 2)), item(day(TODAY)), item(day(TODAY - 1))];
+const desc = asc.slice().sort(compareNewestFirst);
+ok(desc.map((x) => x.firedMillis).join(',') === [day(TODAY), day(TODAY - 1), day(TODAY - 2)].join(','),
+  'compareNewestFirst 把旧→新转成新→旧');
+const pendingSort = [{ atMillis: day(TODAY + 1), firedMillis: 0 }, { atMillis: day(TODAY), firedMillis: 0 }];
+ok(pendingSort.slice().sort(compareNewestFirst)[0].atMillis === day(TODAY + 1),
+  '未发条目按排定时刻排');
+
+// 老数据可能残留重复 key；页面必须先转序再去重（保留新的那条）
+const dup = [
+  { key: 'a', kind: 'CLASS', title: '新', text: '', atMillis: day(TODAY), firedMillis: day(TODAY) },
+  { key: 'a', kind: 'CLASS', title: '旧', text: '', atMillis: day(TODAY - 1), firedMillis: day(TODAY - 1) },
+  { key: 'b', kind: 'CLASS', title: 'B', text: '', atMillis: day(TODAY - 2), firedMillis: day(TODAY - 2) },
+];
+const deduped = dedupeByKey(dup);
+ok(deduped.length === 2 && deduped[0].title === '新', 'dedupeByKey 去重并保留第一条');
 
 // ── 3. 未读数 ─────────────────────────────────────────────────────────────
 const mixed = [

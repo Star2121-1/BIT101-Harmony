@@ -123,6 +123,9 @@ console.log('\n=== 5. 源码栅栏：页面与存储接线 ===');
   const unreadAt = idx(page, 'const unread: number');
   const markAt = idx(page, 'NotifySeenStore.markKeys(firedKeys(all))');
   ok(unreadAt >= 0 && markAt > unreadAt, '先算未读再标记（防徽标自清 0）');
+  ok(has(page, 'filtered.sort(compareNewestFirst)'), '记录先按新→旧排序（分组前置条件）');
+  ok(has(page, 'dedupeByKey(filtered)'), '记录按 key 去重，防 ForEach 撞键');
+  ok(has(page, "span.label + '#' + span.start"), '分组 key 带起始下标，标题重复也不撞键');
 }
 {
   const store = text('../entry/src/main/ets/data/NotifySeenStore.ts');
