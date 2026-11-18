@@ -12,6 +12,7 @@ import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts
 import { NfcService, NfcScanResult } from '../service/NfcService.ts';
 import type { NfcCapability } from '../corelogic/NfcLogic.ts';
 import type { ProbeLine } from '../corelogic/CardProbeRunner.ts';
+import type { GateReport } from '../corelogic/AuthGateLogic.ts';
 import {
   summarize as summarizeIdentity, hasPerson, cardNoCandidates
 } from '../corelogic/CardIdentityLogic.ts';
@@ -40,6 +41,12 @@ struct NfcPage {
   @State probeError: string = '';
   /** 同一张卡贴着会连续触发 readerMode，按 UID 去重，不重复跑几十条 APDU。 */
   private lastProbedUid: string = '';
+  // 认证门研究（#168）
+  @State authMode: boolean = false;
+  @State authBusy: boolean = false;
+  @State authLines: string[] = [];
+  @State authReport: GateReport | null = null;
+  @State authError: string = '';
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -93,6 +100,9 @@ struct NfcPage {
     this.probeLines = [];
     this.identity = null;
     this.probeError = '';
+    this.authLines = [];
+    this.authReport = null;
+    this.authError = '';
     this.lastProbedUid = '';
     const ok: boolean = NfcService.start((r: NfcScanResult) => {
       this.gotCard = true;
@@ -109,7 +119,11 @@ struct NfcPage {
         return;
       }
       this.lastProbedUid = r.uid;
-      this.runProbe(tagInfo);
+      if (this.authMode) {
+        this.runAuthGate(tagInfo);
+      } else {
+        this.runProbe(tagInfo);
+      }
     });
     if (!ok) {
       this.error = '读卡启动失败：请确认 NFC 已打开，且本机支持 NFC。';
@@ -150,6 +164,29 @@ struct NfcPage {
       warn('NFC page probe fail: ' + JSON.stringify(e));
     }).finally(() => {
       this.probing = false;
+    });
+  }
+
+  /**
+   * 认证门研究（#168）：跑 7 步只读探测，判定 6982 是哪种锁。
+   * 全程不含 EXTERNAL AUTHENTICATE，不破密钥、不猜门后内容。
+   */
+  private runAuthGate(tagInfo: import('@kit.ConnectivityKit').tag.TagInfo): void {
+    this.authBusy = true;
+    this.authError = '';
+    this.authLines = [];
+    this.authReport = null;
+    NfcService.probeAuthGate(tagInfo).then((result) => {
+      this.authLines = result.lines;
+      this.authReport = result.report;
+      this.authError = result.error;
+      info('NFC page authgate done report=' + (result.report !== null ? result.report.kind : 'none') +
+        ' lines=' + result.lines.length);
+    }).catch((e: Error) => {
+      this.authError = '认证门研究失败：' + e.message;
+      warn('NFC page authgate fail: ' + JSON.stringify(e));
+    }).finally(() => {
+      this.authBusy = false;
     });
   }
 
@@ -203,6 +240,24 @@ struct NfcPage {
               .onChange((v: string) => {
                 this.studentIdInput = v;
               })
+
+            Row() {
+              Button('快速读名片')
+                .fontSize(12).layoutWeight(1).height(36)
+                .backgroundColor(!this.authMode ? this.tk().primary : this.tk().surface2)
+                .fontColor(!this.authMode ? this.tk().onPrimary : this.tk().onSurface)
+                .onClick(() => { this.authMode = false; })
+              Button('研究 6982 认证门')
+                .fontSize(12).layoutWeight(1).height(36).margin({ left: 8 })
+                .backgroundColor(this.authMode ? this.tk().primary : this.tk().surface2)
+                .fontColor(this.authMode ? this.tk().onPrimary : this.tk().onSurface)
+                .onClick(() => { this.authMode = true; })
+            }.width('100%').margin({ top: 12 })
+            if (this.authMode) {
+              Text('只读探测：看 0004 的 6982 是质询-应答门还是权限位门。不认证、不破密钥、不猜门后内容。')
+                .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').padding({ top: 8 })
+            }
 
             Button(this.scanning ? '停止读卡' : '开始读卡')
               .fontSize(14).width('100%').height(42).margin({ top: 14 })
@@ -315,6 +370,41 @@ struct NfcPage {
               Text('命中 ' + this.probeLines.length + ' 条 APDU 流水（只读，不写卡）')
                 .fontSize(11).fontColor(this.tk().onSurfaceVariant)
                 .width('100%').padding({ top: 8 })
+            }
+
+            if (this.authMode && (this.authBusy || this.authLines.length > 0 || this.authError.length > 0)) {
+              Text('认证门研究（6982）')
+                .fontSize(13).fontWeight(FontWeight.Medium).fontColor(this.tk().onSurface)
+                .width('100%').padding({ top: 20 })
+              if (this.authBusy) {
+                Text('正在只读探测 0004 / 目录 0010 …')
+                  .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').padding({ top: 6 })
+              }
+              if (this.authError.length > 0) {
+                Text('⚠️ ' + this.authError)
+                  .fontSize(11).fontColor(this.tk().error)
+                  .width('100%').padding({ top: 6 })
+              }
+              if (this.authReport !== null) {
+                Text(this.authReport!.conclusion)
+                  .fontSize(13).fontColor(this.tk().primary)
+                  .width('100%').padding({ top: 8 })
+                Text('已知：' + this.authReport!.known.join('；'))
+                  .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').padding({ top: 6 })
+                Text('未知：' + this.authReport!.unknown.join('；'))
+                  .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').padding({ top: 6 })
+              }
+              ForEach(this.authLines, (line: string, idx: number) => {
+                Text(line)
+                  .fontSize(10).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').padding({ top: 4 })
+              }, (line: string, idx: number) => 'auth-' + idx)
+              Text('全程只发只读命令；不含 EXTERNAL AUTHENTICATE，不破密钥。')
+                .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').padding({ top: 10 })
             }
           }
 

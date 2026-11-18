@@ -23,6 +23,10 @@ import { quickScan } from '../corelogic/CardProbeLogic.ts';
 import { runQuickProbe } from '../corelogic/CardProbeRunner.ts';
 import type { ProbeLine } from '../corelogic/CardProbeRunner.ts';
 import {
+  gateProbeSteps, analyzeGate, formatObservation, probeIsReadOnly
+} from '../corelogic/AuthGateLogic.ts';
+import type { GateObservation, GateReport } from '../corelogic/AuthGateLogic.ts';
+import {
   capabilityFrom,
   hasTech,
   ndefRecordText,
@@ -49,6 +53,15 @@ export interface NfcProbeResult {
   uid: string;
   lines: ProbeLine[];
   /** 探测过程的可读错误（掉卡/无 IsoDep 等）；正常为空串。 */
+  error: string;
+}
+
+/** 认证门研究的一次结果（#168）。 */
+export interface AuthGateResult {
+  uid: string;
+  report: GateReport | null;
+  /** 归档文本（逐行观察）。 */
+  lines: string[];
   error: string;
 }
 
@@ -190,6 +203,138 @@ export class NfcService {
       }
     }
     return { uid: uid, lines: lines, error: err };
+  }
+
+  /**
+   * 认证门（SW=6982）的只读研究（#168）。
+   *
+   * ⚠️ 红线：只发只读白名单命令（SELECT/READ/GET CHALLENGE）。
+   * 绝不发 EXTERNAL AUTHENTICATE(82)，不破密钥，不猜门后内容。
+   * 目的是判定「这是哪种锁」，把已知/未知写清楚。
+   */
+  static async probeAuthGate(tagInfo: tag.TagInfo): Promise<AuthGateResult> {
+    const uid: string = NfcService.uidHex(tagInfo.uid);
+    const steps = gateProbeSteps();
+    if (!probeIsReadOnly(steps)) {
+      return { uid: uid, report: null, lines: [], error: '探测序列含非只读命令（被拒绝执行）' };
+    }
+    if (!hasTech(tagInfo.technology, tag.ISO_DEP)) {
+      return { uid: uid, report: null, lines: [], error: '这张卡不支持 APDU' };
+    }
+    let iso: tag.IsoDepTag;
+    try {
+      iso = tag.getIsoDep(tagInfo);
+      iso.connect();
+    } catch (e) {
+      return { uid: uid, report: null, lines: [], error: '连接卡片失败：' + (e as Error).message };
+    }
+    const observations: GateObservation[] = [];
+    const lines: string[] = [];
+    let err: string = '';
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const apdu: number[] = step.apdu;
+        if (!NfcService.isReadOnlyLocal(apdu)) {
+          lines.push(step.label + ' | 被只读闸门拦下，未发出');
+          continue;
+        }
+        let raw: number[];
+        try {
+          raw = await iso.transmit(apdu);
+        } catch (e) {
+          err = '第 ' + (i + 1) + ' 步 transmit 失败（可能掉卡）：' + (e as Error).message;
+          break;
+        }
+        const r = NfcService.parseLocal(raw);
+        const meaning: string = NfcService.meaningOf(step.label, r);
+        const o: GateObservation = {
+          label: step.label,
+          apdu: NfcService.hexLocal(apdu),
+          sw: r.sw,
+          swText: r.swText,
+          data: NfcService.hexLocal(r.data),
+          meaning: meaning
+        };
+        observations.push(o);
+        lines.push(formatObservation(o));
+        info('AUTHGATE ' + formatObservation(o));
+      }
+    } finally {
+      try {
+        iso.resetConnection();
+      } catch (e) {
+        warn('NfcService authgate resetConnection fail: ' + JSON.stringify(e));
+      }
+    }
+    const report: GateReport | null = observations.length > 0 ? analyzeGate(observations) : null;
+    if (report !== null) {
+      lines.push('=== 判定：' + report.conclusion + ' ===');
+      lines.push('已知：' + report.known.join('；'));
+      lines.push('未知：' + report.unknown.join('；'));
+    }
+    return { uid: uid, report: report, lines: lines, error: err };
+  }
+
+  /** 本地只读判断（与 CardProbeLogic.isReadOnly 同语义，避免 service 再 import 一堆）。 */
+  private static isReadOnlyLocal(apdu: number[]): boolean {
+    if (apdu.length < 4) {
+      return false;
+    }
+    const cla: number = apdu[0] & 0xff;
+    if (cla > 3) {
+      return false;
+    }
+    const ins: number = apdu[1] & 0xff;
+    return ins === 0xA4 || ins === 0xB0 || ins === 0xB2 || ins === 0xC0 || ins === 0xCA || ins === 0x84;
+  }
+
+  /** 本地状态字解析（简化：只取 SW1SW2 与数据）。 */
+  private static parseLocal(raw: number[]): { sw: string; swText: string | null; data: number[] } {
+    if (raw.length < 2) {
+      return { sw: '', swText: null, data: raw.slice() };
+    }
+    const sw: string = NfcService.hexLocal([raw[raw.length - 2], raw[raw.length - 1]]).replace(/ /g, '');
+    const texts: Record<string, string> = {
+      '9000': '成功', '6982': '不满足安全条件（要认证）', '6A82': '找不到文件',
+      '6D00': 'INS 不支持', '6A88': '找不到引用数据', '6985': '使用条件不满足',
+      '6A81': '不支持该功能', '61': '还有数据', '6C': 'Le 不对'
+    };
+    let swText: string | null = texts[sw] || null;
+    if (swText === null && sw.length >= 2) {
+      swText = texts[sw.substring(0, 2)] || null;
+    }
+    return { sw: sw, swText: swText, data: raw.slice(0, raw.length - 2) };
+  }
+
+  /** 每步观察的机制说明（只描述，不猜门后内容）。 */
+  private static meaningOf(label: string, r: { sw: string; data: number[] }): string {
+    if (label.indexOf('GET CHALLENGE') >= 0) {
+      if (r.sw === '9000' && r.data.length > 0) {
+        return '返回 ' + r.data.length + ' 字节随机数 + 9000：卡支持质询-应答';
+      }
+      if (r.sw === '6D00' || r.sw === '6A88' || r.sw === '6985' || r.sw === '6A81') {
+        return '回 ' + r.sw + '：该上下文不支持质询';
+      }
+      return '回 ' + r.sw + '：保持未知';
+    }
+    if (r.sw === '6982') {
+      return '读权限被锁（认证门），非文件不存在';
+    }
+    if (r.sw === '9000') {
+      return '命令成功';
+    }
+    return '状态 ' + r.sw;
+  }
+
+  /** 字节 → 大写 hex（空格分隔）。 */
+  private static hexLocal(bytes: number[]): string {
+    const out: string[] = [];
+    for (let i = 0; i < bytes.length; i++) {
+      const n: number = bytes[i] & 0xff;
+      out.push((n < 16 ? '0' : '') + n.toString(16).toUpperCase());
+    }
+    return out.join(' ');
   }
 
   /** UID 字节 → 大写 hex（空格分隔）。 */

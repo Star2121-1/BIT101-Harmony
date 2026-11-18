@@ -164,6 +164,24 @@ export function selectByFileId(fid: number): number[] {
   return [0x00, 0xA4, 0x02, 0x00, 0x02, (fid >>> 8) & 0xff, fid & 0xff];
 }
 
+/**
+ * GET CHALLENGE：`00 84 00 00 length`（ISO 7816-4）。取卡生成的随机数。
+ *
+ * ⚠️ 这是**只读**的：不发送任何密钥、不改变卡状态（只消耗一个随机数）。
+ * 用途（#168 认证门研究）：SELECT 一个回 6982 的文件后发这条，
+ * - 若回若干随机字节 + 9000 ⇒ 卡支持质询-应答认证，门是「要密钥鉴权」；
+ * - 若回 6D00/6A88/6985 ⇒ 该文件/当前状态不支持质询，更像纯权限位锁定。
+ * 无论哪种都**不继续发 EXTERNAL AUTHENTICATE（0x82 不在只读白名单）**——
+ * 那是带密钥写出方向的命令，本模块永远不构造。
+ */
+export function getChallenge(length: number = 8): number[] {
+  if (length < 1 || length > 256) {
+    return [];
+  }
+  const le: number = length === 256 ? 0 : length;
+  return [0x00, 0x84, 0x00, 0x00, le];
+}
+
 /** GET RESPONSE：00 C0 00 00 length。 */
 export function getResponse(length: number): number[] {
   if (length < 1 || length > 256) {

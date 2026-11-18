@@ -79,6 +79,7 @@
 - **#152 APDU 快速读 + 学号**（= task #152/#163/#164）：移植 CardProbeLogic/StudentIdScan/BcdScan/CardIdentityLogic，注入式 runner 跑 quickScan。
   - 进度：✅ 2026-11-18 真机已验：贴卡从 0016 读出姓名「高天翔」+学号 1120241355（疑似/已核对两路径）、BCD 日期、卡号候选，50 条 APDU 流水全只读（alpha.19）。
 - **#153 Classic 只读 + NDEF 贴纸**：未开始。
+- **6982 认证门研究（#168，只读）**：真机判定为**质询-应答型门**（SELECT 0004=9000、READ=6982、GET CHALLENGE=9000+8 字节随机数）。只研究锁的类型，**不认证、不破密钥、不猜门后内容**；报告见 `harmony/evidence/m14-alerts-20261116/AUTH-GATE-REPORT.md`。「迁移到手机当卡用」仍不可行（缺密钥+后台钱包逻辑，鸿蒙 HCE 无 Crypto1 模拟）。
 
 ### 验收
 

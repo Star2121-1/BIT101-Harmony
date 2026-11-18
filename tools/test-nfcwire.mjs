@@ -25,9 +25,11 @@ const svc = code('../entry/src/main/ets/service/NfcService.ts');
   ok(has(svc, 'tag.ISO_DEP'), '只在 CPU 卡（ISO_DEP）上跑 APDU');
   ok(has(svc, 'runQuickProbe(quickScan()'), '接线调用快速读状态机');
   ok(has(svc, 'onCard !== undefined') && has(svc, 'onCard(info, r)'), 'readerMode 回调整条卡给页面');
-  // 唯一 transmit 入口：service 里只有一处 iso.transmit，且 runner 内有闸门
+  // 每处 transmit 都必须有闸门：快速读走 runner（isReadOnly），认证门走 isReadOnlyLocal
   const transmitCount = svc.split('iso.transmit(').length - 1;
-  ok(transmitCount === 1, 'NfcService 里只有一个 transmit 入口（不能绕过闸门）');
+  ok(transmitCount === 2, '两个 transmit 入口（快速读 + 认证门研究）');
+  ok(has(svc, 'isReadOnlyLocal(apdu)') && has(svc, '被只读闸门拦下，未发出'),
+    '认证门的 transmit 前有本地只读闸门');
 }
 {
   const runner = code('../entry/src/main/ets/corelogic/CardProbeRunner.ts');
@@ -45,5 +47,18 @@ const svc = code('../entry/src/main/ets/service/NfcService.ts');
   ok(has(page, '疑似学号') && has(page, '已核对'), '疑似/核对分开标注');
   ok(has(page, 'hasPerson(this.identity)'), '无人时提示开深度扫描');
   ok(has(page, 'gridTokens') && has(page, 'this.tk()'), 'UI 走统一 token（深色/三皮肤）');
+}
+
+{
+  const svc2 = code('../entry/src/main/ets/service/NfcService.ts');
+  const page2 = code('../entry/src/main/ets/pages/NfcPage.ets');
+  ok(has(svc2, 'probeAuthGate') && has(page2, 'runAuthGate'), '认证门研究已接线');
+  ok(has(svc2, 'gateProbeSteps') && has(svc2, 'analyzeGate'), '研究走纯逻辑探测与判定');
+  // 红线：全链路不出现 EXTERNAL AUTHENTICATE / 破密钥 / MFOC
+  for (const [name, src] of [['service', svc2], ['page', page2]]) {
+    ok(!has(src, '0x82') && !has(src, '0082'), name + ' 无 EXTERNAL AUTHENTICATE(82)');
+    ok(!/MFOC|nested authentication|暴力|破密钥/.test(src.replace(/不破密钥|破密钥的|不去破密钥/g, '')),
+      name + ' 无破密钥实现（仅红线注释允许提）');
+  }
 }
 console.log('\nALL PASS pass=' + pass + ' fail=0');
