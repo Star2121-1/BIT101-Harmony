@@ -118,6 +118,12 @@ console.log('=== 5. 权限与只读栅栏 ===');
   ok(has(page, '不写卡'), '页面明确写「不写卡」');
   ok(has(page, '不模拟刷卡'), '页面明确不做卡模拟');
   ok(has(page, '只读'), '页面标明只读');
+  ok(has(page, 'gotCard') && has(page, "this.gotCard ? '已读到卡"), '扫到卡后状态文案绑定 gotCard（不再停在「正在等卡」）');
+  const clearLine = page.findIndex((l) => l.indexOf('清掉上次结果，避免') >= 0);
+  const uidLine = page.findIndex((l) => l.indexOf("this.uid = '';") >= 0);
+  const startLine = page.findIndex((l) => l.indexOf('NfcService.start') >= 0);
+  ok(clearLine >= 0 && uidLine > clearLine && uidLine < startLine,
+    '重新读卡时先清掉旧 UID 再启动（避免正在等卡却显示旧值）');
 }
 
 console.log('\nALL PASS pass=' + passed + ' fail=' + failed);

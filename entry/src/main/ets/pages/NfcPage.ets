@@ -21,6 +21,7 @@ struct NfcPage {
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
   @State cap: NfcCapability = 'unsupported';
   @State scanning: boolean = false;
+  @State gotCard: boolean = false;
   @State uid: string = '';
   @State techs: string = '';
   @State apdu: boolean = false;
@@ -70,7 +71,15 @@ struct NfcPage {
       return;
     }
     this.error = '';
+    this.gotCard = false;
+    // 重新读卡时清掉上次结果，避免「正在等卡」却显示旧 UID 误导（真机 2026-11-18 发现）
+    this.uid = '';
+    this.techs = '';
+    this.apdu = false;
+    this.classic = false;
+    this.ndef = [];
     const ok: boolean = NfcService.start((r: NfcScanResult) => {
+      this.gotCard = true;
       this.uid = r.uid;
       this.techs = r.techs;
       this.apdu = r.apdu;
@@ -136,7 +145,9 @@ struct NfcPage {
               .onClick(() => {
                 this.toggleScan();
               })
-            Text(this.scanning ? '正在等卡：请把卡贴到手机背面（亮屏解锁状态）' : '点「开始读卡」后贴卡')
+            Text(this.scanning
+              ? (this.gotCard ? '已读到卡：可继续贴其它卡，或点「停止读卡」' : '正在等卡：请把卡贴到手机背面（亮屏解锁状态）')
+              : '点「开始读卡」后贴卡')
               .fontSize(12).fontColor(this.tk().onSurfaceVariant)
               .width('100%').padding({ top: 8 })
           }
