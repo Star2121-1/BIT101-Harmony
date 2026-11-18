@@ -8,7 +8,7 @@
 
 | 标记 | 含义 |
 |---|---|
-| 【鸿蒙真机】 | alpha.19/20/21 在本机实测，证据 `evidence/m14-alerts-20261116/device-*.json/png`、`device-a19-probe-hilog.txt`、`device-authgate-hilog.txt`、`device-a21-full-dump.txt`（365 条深度 dump） |
+| 【鸿蒙真机】 | alpha.19/20/21/22 在本机实测，证据 `evidence/m14-alerts-20261116/device-*.json/png`、`device-a19-probe-hilog.txt`、`device-authgate-hilog.txt`、`device-a21-full-dump.txt`（365 条深度 dump）、`device-a22-classic-result.json`（Classic 逐块 readout） |
 | 【Android 真机】 | BIT101-seat 历史实测，证据 `BIT101-seat/docs/nfc-card-probe.md`（含真卡 dump） |
 | 【推论】 | 有事实支撑、自洽，但没有直接证据证实 |
 | 【未知】 | 没有数据，**不猜、不填** |
@@ -44,16 +44,30 @@ IsoDep / NfcA / NfcA / MifareClassic / NdefFormatable
 其余所有块：全 00
 ```
 
+【鸿蒙真机 · alpha.22 复验】新增「Classic dump」模式，用 `MifareClassicTag.authenticateSector`
++ `readSingleBlock` 逐扇区逐块只读复验：16 扇区 × (1 次 KeyA 认证 + 4 块) = **80 条流水**，
+日志 `NfcService classic scan done uid=77 75 F0 7B lines=80 defaultBlocks=4`，
+页面逐块 readout（证据 `device-a22-classic-result.json`）：
+
+- 扇区0 认证 `AUTH KeyA → ok`（出厂默认密钥通过）；
+- 块0 = `77 75 F0 7B 89 28 04 00 90 10 15 01 00 00 00 00`，标注「制造商块（UID/BCC/SAK/ATQA）」；
+- 块1 = `00 00 … 00`（全零），标注「全零」；
+- 与 Android 基线 §2 **逐字节一致**，坐实 Classic 层是跨设备、跨平台的出厂空壳。
+
+红线：只用唯一默认密钥 `FFFFFFFFFFFF` KeyA，认证失败即跳过、**不试第二个密钥**（=不破密钥）；
+只调 `readSingleBlock`，**没有写块 / 写 NDEF / 增值减值**（给这张带 Classic 层的卡写 NDEF 会
+重写扇区尾块的密钥 A/B 与存取位，无厂商密钥无法恢复）。源码与接线均设栅栏，拆红验证过。
+
 ### 逐块含义
 
 | 区域 | 内容 | 含义 | 证据 |
 |---|---|---|---|
 | 扇区0 块0 字节0~3 | `77 75 F0 7B` | **UID**，卡的唯一序列号 | 【Android 真机】+【鸿蒙真机】 |
-| 扇区0 块0 字节4 | `89` | BCC，UID 四字节异或自校验（`77^75^F0^7B=89` ✓） | 【Android 真机】 |
-| 扇区0 块0 字节5 | `28` | SAK（选卡应答，表明卡类型） | 【Android 真机】 |
-| 扇区0 块0 字节6~7 | `04 00` | ATQA（防冲突应答） | 【Android 真机】 |
-| 扇区0 块0 字节8~11 | `90 10 15 01` | 厂商数据块尾部 | 【Android 真机】 |
-| 扇区0 块1~3、扇区1~15 全部块 | 全 `00` | **无业务数据** | 【Android 真机】 |
+| 扇区0 块0 字节4 | `89` | BCC，UID 四字节异或自校验（`77^75^F0^7B=89` ✓） | 双机真机 |
+| 扇区0 块0 字节5 | `28` | SAK（选卡应答，表明卡类型） | 双机真机 |
+| 扇区0 块0 字节6~7 | `04 00` | ATQA（防冲突应答） | 双机真机 |
+| 扇区0 块0 字节8~11 | `90 10 15 01` | 厂商数据块尾部 | 双机真机 |
+| 扇区0 块1~3、扇区1~15 全部块 | 全 `00` | **无业务数据**（鸿蒙 80 条流水坐实） | 双机真机 |
 
 **结论**：Classic 层是**出厂状态、没被写过**。学号、姓名、余额一个都不在这里。默认密钥全通恰恰说明它没被用作业务存储——真正的数据在 CPU 卡侧。这条路到"确认是空的"为止，换别的密钥也只会重复这个结论。
 

@@ -24,6 +24,8 @@ import { runQuickProbe } from '../corelogic/CardProbeRunner.ts';
 import type { ProbeLine } from '../corelogic/CardProbeRunner.ts';
 import { runDeepScan } from '../corelogic/DeepScanLogic.ts';
 import type { DumpLine } from '../corelogic/DeepScanLogic.ts';
+import { runClassicScan, defaultBlocksPerSector } from '../corelogic/ClassicScanLogic.ts';
+import type { ClassicLine } from '../corelogic/ClassicScanLogic.ts';
 import {
   gateProbeSteps, analyzeGate, formatObservation, probeIsReadOnly
 } from '../corelogic/AuthGateLogic.ts';
@@ -62,6 +64,13 @@ export interface NfcProbeResult {
 export interface DeepScanResult {
   uid: string;
   lines: DumpLine[];
+  error: string;
+}
+
+/** Mifare Classic 全扇区只读 dump 的一次结果（#153）。 */
+export interface ClassicScanResult {
+  uid: string;
+  lines: ClassicLine[];
   error: string;
 }
 
@@ -256,6 +265,68 @@ export class NfcService {
         iso.resetConnection();
       } catch (e) {
         warn('NfcService deep resetConnection fail: ' + JSON.stringify(e));
+      }
+    }
+    return { uid: uid, lines: collected, error: err };
+  }
+
+  /**
+   * Mifare Classic 全扇区**只读** dump（#153）。
+   *
+   * ⚠️ 红线：只用出厂默认密钥 FFFFFFFFFFFF 作 KeyA 认证，认证失败即跳过、
+   * 绝不试第二个密钥（=不破密钥）；只调 readSingleBlock，绝不写块/写 NDEF/
+   * 增值/减值（写这张卡的 Classic 层会重写扇区尾块且无厂商密钥恢复）。
+   *
+   * 默认密钥全通、除 UID 块外全零是 Android 基线的已知结论，
+   * 这里在鸿蒙真机复验同一事实。
+   */
+  static async probeClassic(tagInfo: tag.TagInfo,
+    onProgress?: (lines: ClassicLine[]) => void): Promise<ClassicScanResult> {
+    const uid: string = NfcService.uidHex(tagInfo.uid);
+    if (!hasTech(tagInfo.technology, tag.MIFARE_CLASSIC)) {
+      return { uid: uid, lines: [], error: '这张卡没有 Mifare Classic 兼容层' };
+    }
+    let mc: tag.MifareClassicTag;
+    try {
+      mc = tag.getMifareClassic(tagInfo);
+      mc.connect();
+    } catch (e) {
+      warn('NfcService classic connect fail: ' + JSON.stringify(e));
+      return { uid: uid, lines: [], error: '连接 Classic 层失败：' + (e as Error).message };
+    }
+    const collected: ClassicLine[] = [];
+    let err: string = '';
+    try {
+      await runClassicScan({
+        sectorCount: mc.getSectorCount(),
+        blocksPerSector: (sector: number): number => mc.getBlockCountInSector(sector),
+        authenticate: async (sector: number, key: number[], isKeyA: boolean): Promise<boolean> => {
+          try {
+            await mc.authenticateSector(sector, key, isKeyA);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        },
+        readBlock: async (block: number): Promise<number[]> => await mc.readSingleBlock(block),
+        onLine: (l: ClassicLine) => {
+          collected.push(l);
+          if (onProgress !== undefined) {
+            onProgress(collected.slice());
+          }
+        }
+      });
+      // 默认块数口径供对照（本方法用卡上报的真实块数，兼容 1K/4K）
+      info('NfcService classic scan done uid=' + uid + ' lines=' + collected.length +
+        ' defaultBlocks=' + defaultBlocksPerSector());
+    } catch (e) {
+      err = 'Classic 扫描中断：' + (e as Error).message;
+      warn('NfcService classic scan fail: ' + JSON.stringify(e));
+    } finally {
+      try {
+        mc.resetConnection();
+      } catch (e) {
+        warn('NfcService classic resetConnection fail: ' + JSON.stringify(e));
       }
     }
     return { uid: uid, lines: collected, error: err };

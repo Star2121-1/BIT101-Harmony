@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.0.0-alpha.22",
+    "date": "2026-11-18",
+    "items": [
+      "NFC 诊断：新增「Classic dump」——只读 dump Mifare Classic 全扇区逐块字节",
+      "只用出厂默认密钥作 KeyA 认证，认证失败即跳过、不试其他密钥；只读块，绝不写块或写 NDEF"
+    ]
+  },
+  {
     "version": "1.0.0-alpha.21",
     "date": "2026-11-18",
     "items": [

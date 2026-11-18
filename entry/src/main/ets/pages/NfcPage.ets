@@ -14,6 +14,7 @@ import type { NfcCapability } from '../corelogic/NfcLogic.ts';
 import type { ProbeLine } from '../corelogic/CardProbeRunner.ts';
 import type { GateReport } from '../corelogic/AuthGateLogic.ts';
 import type { DumpLine } from '../corelogic/DeepScanLogic.ts';
+import type { ClassicLine } from '../corelogic/ClassicScanLogic.ts';
 import {
   summarize as summarizeIdentity, hasPerson, cardNoCandidates
 } from '../corelogic/CardIdentityLogic.ts';
@@ -53,6 +54,11 @@ struct NfcPage {
   @State deepBusy: boolean = false;
   @State deepLines: DumpLine[] = [];
   @State deepError: string = '';
+  // Mifare Classic 全扇区只读 dump（#153）
+  @State classicMode: boolean = false;
+  @State classicBusy: boolean = false;
+  @State classicLines: ClassicLine[] = [];
+  @State classicError: string = '';
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -111,6 +117,8 @@ struct NfcPage {
     this.authError = '';
     this.deepLines = [];
     this.deepError = '';
+    this.classicLines = [];
+    this.classicError = '';
     this.lastProbedUid = '';
     const ok: boolean = NfcService.start((r: NfcScanResult) => {
       this.gotCard = true;
@@ -122,12 +130,16 @@ struct NfcPage {
       this.error = r.ndefError.length > 0 ? ('NDEF 读取失败：' + r.ndefError) : '';
       info('NFC page scan uid=' + r.uid + ' tech=' + r.techs);
     }, (tagInfo, r) => {
-      // CPU 卡才跑 APDU；同一 UID 贴着反复触发时只跑一次
-      if (!r.apdu || r.uid === this.lastProbedUid) {
+      // 快速读/深度/认证门要 CPU 卡(APDU)；Classic dump 只要有 Classic 层。
+      // 同一 UID 贴着反复触发时只跑一次。
+      const canRun: boolean = this.classicMode ? r.classic : r.apdu;
+      if (!canRun || r.uid === this.lastProbedUid) {
         return;
       }
       this.lastProbedUid = r.uid;
-      if (this.deepMode) {
+      if (this.classicMode) {
+        this.runClassic(tagInfo);
+      } else if (this.deepMode) {
         this.runDeep(tagInfo);
       } else if (this.authMode) {
         this.runAuthGate(tagInfo);
@@ -222,6 +234,28 @@ struct NfcPage {
     });
   }
 
+  /**
+   * Mifare Classic 全扇区只读 dump（#153）。
+   * 只用默认密钥 KeyA，认证失败即跳过；不写块、不写 NDEF（红线）。
+   */
+  private runClassic(tagInfo: import('@kit.ConnectivityKit').tag.TagInfo): void {
+    this.classicBusy = true;
+    this.classicError = '';
+    this.classicLines = [];
+    NfcService.probeClassic(tagInfo, (lines: ClassicLine[]) => {
+      this.classicLines = lines;
+    }).then((result) => {
+      this.classicLines = result.lines;
+      this.classicError = result.error;
+      info('NFC page classic done lines=' + result.lines.length);
+    }).catch((e: Error) => {
+      this.classicError = 'Classic 扫描失败：' + e.message;
+      warn('NFC page classic fail: ' + JSON.stringify(e));
+    }).finally(() => {
+      this.classicBusy = false;
+    });
+  }
+
   aboutToAppear(): void {
     this.refreshCap();
   }
@@ -273,22 +307,33 @@ struct NfcPage {
                 this.studentIdInput = v;
               })
 
-            Row() {
-              Button('快速读名片')
-                .fontSize(11).layoutWeight(1).height(36)
-                .backgroundColor(!this.authMode && !this.deepMode ? this.tk().primary : this.tk().surface2)
-                .fontColor(!this.authMode && !this.deepMode ? this.tk().onPrimary : this.tk().onSurface)
-                .onClick(() => { this.authMode = false; this.deepMode = false; })
-              Button('研究 6982')
-                .fontSize(11).layoutWeight(1).height(36).margin({ left: 4 })
-                .backgroundColor(this.authMode ? this.tk().primary : this.tk().surface2)
-                .fontColor(this.authMode ? this.tk().onPrimary : this.tk().onSurface)
-                .onClick(() => { this.authMode = true; this.deepMode = false; })
-              Button('深度 dump')
-                .fontSize(11).layoutWeight(1).height(36).margin({ left: 4 })
-                .backgroundColor(this.deepMode ? this.tk().primary : this.tk().surface2)
-                .fontColor(this.deepMode ? this.tk().onPrimary : this.tk().onSurface)
-                .onClick(() => { this.deepMode = true; this.authMode = false; })
+            Column() {
+              Row() {
+                Button('快速读名片')
+                  .fontSize(11).layoutWeight(1).height(36)
+                  .backgroundColor(!this.authMode && !this.deepMode && !this.classicMode
+                    ? this.tk().primary : this.tk().surface2)
+                  .fontColor(!this.authMode && !this.deepMode && !this.classicMode
+                    ? this.tk().onPrimary : this.tk().onSurface)
+                  .onClick(() => { this.authMode = false; this.deepMode = false; this.classicMode = false; })
+                Button('研究 6982')
+                  .fontSize(11).layoutWeight(1).height(36).margin({ left: 4 })
+                  .backgroundColor(this.authMode ? this.tk().primary : this.tk().surface2)
+                  .fontColor(this.authMode ? this.tk().onPrimary : this.tk().onSurface)
+                  .onClick(() => { this.authMode = true; this.deepMode = false; this.classicMode = false; })
+              }.width('100%')
+              Row() {
+                Button('深度 dump')
+                  .fontSize(11).layoutWeight(1).height(36).margin({ top: 6 })
+                  .backgroundColor(this.deepMode ? this.tk().primary : this.tk().surface2)
+                  .fontColor(this.deepMode ? this.tk().onPrimary : this.tk().onSurface)
+                  .onClick(() => { this.deepMode = true; this.authMode = false; this.classicMode = false; })
+                Button('Classic dump')
+                  .fontSize(11).layoutWeight(1).height(36).margin({ top: 6, left: 4 })
+                  .backgroundColor(this.classicMode ? this.tk().primary : this.tk().surface2)
+                  .fontColor(this.classicMode ? this.tk().onPrimary : this.tk().onSurface)
+                  .onClick(() => { this.classicMode = true; this.authMode = false; this.deepMode = false; })
+              }.width('100%')
             }.width('100%').margin({ top: 12 })
             if (this.authMode) {
               Text('只读探测：看 0004 的 6982 是质询-应答门还是权限位门。不认证、不破密钥、不猜门后内容。')
@@ -297,6 +342,11 @@ struct NfcPage {
             }
             if (this.deepMode) {
               Text('全空间只读 dump：FID 0000~00FF + 目录下钻，逐段读到文件末尾。认证门(6982)记录后跳过，不认证、不破密钥。贴卡时间较长，请贴稳。')
+                .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').padding({ top: 8 })
+            }
+            if (this.classicMode) {
+              Text('Mifare Classic 全扇区只读 dump：只用出厂默认密钥 FFFFFFFFFFFF 作 KeyA 认证，认证失败即跳过、不试其他密钥；只读块，绝不写块或写 NDEF（会损坏卡片）。')
                 .fontSize(11).fontColor(this.tk().onSurfaceVariant)
                 .width('100%').padding({ top: 8 })
             }
@@ -481,9 +531,44 @@ struct NfcPage {
                 .fontSize(11).fontColor(this.tk().onSurfaceVariant)
                 .width('100%').padding({ top: 10 })
             }
+
+            if (this.classicMode && (this.classicBusy || this.classicLines.length > 0 || this.classicError.length > 0)) {
+              Text('Mifare Classic 全扇区只读 dump（' + this.classicLines.length + ' 条）')
+                .fontSize(13).fontWeight(FontWeight.Medium).fontColor(this.tk().onSurface)
+                .width('100%').padding({ top: 20 })
+              if (this.classicBusy) {
+                Text('正在逐扇区认证并读块，请保持贴卡…（已收 ' + this.classicLines.length + ' 条）')
+                  .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').padding({ top: 6 })
+              }
+              if (this.classicError.length > 0) {
+                Text('⚠️ ' + this.classicError)
+                  .fontSize(11).fontColor(this.tk().error)
+                  .width('100%').padding({ top: 6 })
+              }
+              ForEach(this.classicLines, (l: ClassicLine, idx: number) => {
+                Column() {
+                  Text('扇区 ' + l.sector + ' · ' + l.op + ' → ' + l.status +
+                    (l.block >= 0 ? ' · 块 ' + l.block : ''))
+                    .fontSize(10).fontColor(this.tk().onSurface)
+                  if (l.data.length > 0) {
+                    Text(l.data + (l.allZero ? '（全零）' : ''))
+                      .fontSize(9).fontColor(this.tk().onSurfaceVariant).padding({ top: 2 })
+                  }
+                  if (l.note.length > 0) {
+                    Text(l.note).fontSize(9).fontColor(this.tk().onSurfaceVariant).padding({ top: 2 })
+                  }
+                }
+                .width('100%').padding(6)
+                .backgroundColor(this.tk().surface).borderRadius(6).margin({ top: 4 })
+              }, (l: ClassicLine, idx: number) => 'classic-' + idx + '-' + l.sector + '-' + l.block)
+              Text('只用默认密钥 KeyA；认证失败跳过、不试其他密钥；只读块，不写块、不写 NDEF。')
+                .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').padding({ top: 10 })
+            }
           }
 
-          Text('说明：这里只读 UID / technology / NDEF。写校园卡、模拟刷卡、过闸机、支付都不在本功能范围内。')
+          Text('说明：这里只读 UID / technology / NDEF / Classic 块。写校园卡、模拟刷卡、过闸机、支付都不在本功能范围内。')
             .fontSize(11).fontColor(this.tk().onSurfaceVariant)
             .width('100%').padding({ top: 22, bottom: 12 })
         }

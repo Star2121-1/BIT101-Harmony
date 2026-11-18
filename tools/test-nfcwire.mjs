@@ -72,4 +72,22 @@ const svc = code('../entry/src/main/ets/service/NfcService.ts');
     ok(!has(src, '0x82') && !has(src, '0082'), name + ' 无 EXTERNAL AUTHENTICATE(82)');
   }
 }
+
+{
+  const svc4 = code('../entry/src/main/ets/service/NfcService.ts');
+  const page4 = code('../entry/src/main/ets/pages/NfcPage.ets');
+  const logic4 = code('../entry/src/main/ets/corelogic/ClassicScanLogic.ts');
+  ok(has(svc4, 'probeClassic') && has(page4, 'runClassic'), 'Classic 只读 dump 已接线到服务与页面');
+  ok(has(svc4, 'runClassicScan') && has(svc4, 'getMifareClassic'), 'Classic 扫描走纯逻辑 + MifareClassicTag');
+  ok(has(page4, 'classicMode') && has(page4, 'r.classic'), 'Classic 模式按 Classic 能力触发（不依赖 APDU）');
+  // 红线：全链路不写块、不写 NDEF、不试第二密钥（logic 的红线注释里有这些词，只扫代码行）
+  for (const [name, src] of [['classic-svc', svc4], ['classic-page', page4], ['classic-logic', logic4]]) {
+    const codeOnly = src.split('\n').filter(l => !/^\s*\*|^\s*\/\//.test(l)).join('\n');
+    ok(!/writeSingleBlock|incrementBlock|decrementBlock|transferToBlock|restoreFromBlock|writeNdef|\.format\(/.test(codeOnly),
+      name + ' 无写块/增值/NDEF 写入');
+  }
+  const logicCode = logic4.split('\n').filter(l => !/^\s*\*|^\s*\/\//.test(l)).join('\n');
+  ok(has(logicCode, 'DEFAULT_KEY_A') && !/0xFF[\s,]*0xFF[\s,]*0xFF[\s,]*0xFF[\s,]*0x00/.test(logicCode),
+    'Classic 逻辑只有唯一默认密钥，无第二候选');
+}
 console.log('\nALL PASS pass=' + pass + ' fail=0');

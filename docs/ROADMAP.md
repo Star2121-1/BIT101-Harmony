@@ -13,7 +13,8 @@
 > 本轮新增 4 个纯逻辑模块（`WeekNav` / `QuietHoursLogic` / `A11yText` / `DdlSortLogic`）+ 2 个数据层（`QuietHoursStore` 等），
 > **全部真机零验证**（用户明确要求先只改代码，后面统一 debug）。
 > **UI 迁移 #81~#91 ✅**；2026-10-28 补齐 **DDL 三颗 FAB**（＋ 新增 / 学士帽 / ⚙）与**空教室回到顶部 + 下拉刷新**，
-> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **70 套件 3431 断言绿**（2026-11-18，含 M14-A / M15-B3 / M16）；版本见下方版本行。
+> 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **71 套件 3438 断言绿**（2026-11-18，含 M14-A / M15-B3 / M16）；版本见下方版本行。
+> **2026-11-18 版本 `1.0.0-alpha.22`**（versionCode 22）：M16-7 Mifare Classic 全扇区**只读** dump——NFC 页加「Classic dump」模式，用默认密钥 `FFFFFFFFFFFF` KeyA 逐扇区认证 + `readSingleBlock` 逐块读（卡上报真实扇区/块数，兼容 1K/4K）。新增 `ClassicScanLogic` + `test-classic` 20 条；全量 **71/71 套件 3438 断言**，`assembleHap` 成功（正式包 MD5 `8435C1696EDB94AF73EC3386F4C2AB8E`）。**真机已验**：80 条流水（16 扇区 × 5）、`classic scan done lines=80`、块0=制造商块 `77 75 F0 7B 89 28 04 00 90 10 15 01 00 00 00 00`、块1 全零，与 Android 基线 §2 逐字节一致，已并入 `NFC-CARD-REGIONS.md` §2。**红线**：只用唯一默认密钥，认证失败跳过不换密钥（=不破密钥）；只读块，不写块、不写 NDEF（会重写扇区尾块无法恢复）。源码/接线栅栏拆红验证：写块调用、第二密钥均红。取证版曾加 CLASSICDUMP 逐条打印，提交前已移除重编为正式版。CI 见下方。
 > **2026-11-18 版本 `1.0.0-alpha.21`**（versionCode 21）：M16-6 深度只读 dump——NFC 页加「深度 dump」模式，扫 MF 下 FID `0000~00FF` + 目录 `0010` 下钻（SFI 1~30 + FID `0000~0020`），命中文件逐段读到 `6B00`，`6981` 改读记录，`6982` 认证门记录后跳过。新增 `DeepScanLogic` + `test-deepscan` 21 条；全量 **70/70 套件 3431 断言**，`assembleHap` 成功（正式包 MD5 `15861F9FCFB6A54201E297D0AB547E3D`）。**真机已验**：365 条流水、零掉卡、约 6 秒跑完；认证门按红线跳过。逐字节 dump 归档 `device-a21-full-dump.txt`（20 行非零数据），已并入 `NFC-CARD-REGIONS.md` §3.5。**只读**：不认证、不破密钥、不猜门后内容。取证时用临时版（带 DEEPDUMP 日志打印，MD5 `C4DC98C2…`）导出流水，提交前已移除打印重编为正式版。CI run `44250103928` success。
 > **2026-11-18 版本 `1.0.0-alpha.20`**（versionCode 20）：M16-5 认证门（6982）**只读研究**——NFC 页加「研究 6982 认证门」模式，跑 7 步只读探测（SELECT/READ/GET CHALLENGE，无 EXTERNAL AUTHENTICATE 82），判定锁的类型。新增 `AuthGateLogic` + `test-authgate` 26 条；全量 **69/69 套件 3406 断言**，`assembleHap` 成功（MD5 `51B7CCB6C46B973B88E0C075FBBBC243`）。**真机已验**：`SELECT 0004`(目录内)=9000、`READ`=6982、`GET CHALLENGE`=9000+8 字节随机数 ⇒ 判定为**质询-应答型门**（非权限位）。报告 `harmony/evidence/m14-alerts-20261116/AUTH-GATE-REPORT.md`。**不破密钥、不猜门后内容**。CI run `44246385723` success。
 > **2026-11-18 版本 `1.0.0-alpha.19`**（versionCode 19）：M16-3 NFC APDU 快速读——移植 BIT101-seat 的 CardProbeLogic/StudentIdScan/BcdScan/CardIdentityLogic 纯逻辑，注入式 runner 跑 quickScan(0001~001F)，逐条过 isReadOnly 闸门，处理 6Cxx/61xx/6981；页面显示姓名/学号（核对与疑似分开）/疑似日期/卡号候选。新增 test-cardprobe 61 + test-cardid 44 + test-proberunner 25 + test-nfcwire 17 条，全量 **68/68 套件 3373 断言**，`assembleHap` 成功（签名包 MD5 `1456CE888EDA5BA381894618A24675D4`），CI run `44241620338` success。**真机已验（2026-11-18 13:08–13:10，4CY9K25614019980）**：贴卡 `probe done steps=50`，读出姓名「高天翔」、学号（未填时标「疑似 1120241355」/填 1120241355 后标「已核对」）、卡上日期 `2028-08-30` 与 `2026-03-22 11:08:43`、卡号候选 `2004217979`，深色渲染清晰无乱码。**GBK 解码器真机可用、IsoDep transmit 真机行为、学号分段匹配真机生效**——与 BIT101-seat 真卡实测完全吻合。证据 `device-63/64/67/69-a19-*`、`device-a19-probe-hilog.txt`。**已知小瑕疵**：填学号后软键盘不会自动收起，会挡住结果区（需按返回/完成收键盘），不影响数据。
@@ -176,7 +177,7 @@
 - **35 个页面**（`main_pages.json` 注册数；`pages/` 下 36 个 `.ets`，余 1 个不是页面）、**72 个纯逻辑模块**（`corelogic/*.ts`，全部可离线单测）
 - 分层：`core/{crypto,net,model,theme,log}` + `data` + `service` + `corelogic` + `pages` + `components` + `extensionability`
 - 存储：`Preferences`（会话 / 缓存 / 偏好），**缓存键按学期分键**；无 RDB（数据量不需要）
-- 测试：`bash tools/run-tests.sh` → **70 套件 / 3431 断言**（2026-11-18 实测，exit 0）；CI 在所有分支 push 上跑
+- 测试：`bash tools/run-tests.sh` → **71 套件 / 3438 断言**（2026-11-18 实测，exit 0）；CI 在所有分支 push 上跑
 
 > 下面是 2026-10-28 记录的快照，保留作对照：
 - 145 个源文件 / 31,025 行、28 个页面、48 个纯逻辑模块、46 套件 / 2509 断言
@@ -433,6 +434,7 @@
 | M16-4 | 话廊只读 | 四流/搜索/详情/评论/用户/关注/消息 | ⬜ 未开始 |
 | M16-6 | 深度只读 dump | MF 下 FID 0000~00FF + 目录 0010 下钻；逐段读到 6B00；6981 改读记录；6982 认证门跳过 | ✅ 全量 70/70 套件 3431 断言 + `assembleHap` 成功（alpha.21 正式包 MD5 `15861F9FCFB6A54201E297D0AB547E3D`）。真机已验：365 条流水、零掉卡、约 6 秒；`test-deepscan` 21 条、认证门跳过栅栏拆红验证。逐字节 `device-a21-full-dump.txt` 已并入 `NFC-CARD-REGIONS.md` §3.5（20 行非零数据；身份在 MF 与目录各存一份；SFI5/6/7 拿到字节但语义未证）。**只读**：不认证、不破密钥、不猜门后内容 |
 | M16-5 | 话廊写操作 | 发帖/图片/点赞/评论/举报/关注 | ⬜ 未开始 |
+| M16-7 | Mifare Classic 全扇区只读 dump | 默认密钥 KeyA 逐扇区认证 + readSingleBlock；认证失败跳过不换密钥 | ✅ alpha.22 正式包 MD5 `8435C1696EDB94AF73EC3386F4C2AB8E`：新增 `ClassicScanLogic` + `test-classic` 20 条 + 全量 71/71 套件 3438 断言 + `assembleHap` 成功。真机已验：80 条流水（16 扇区 ×5）、块0=制造商块 `77 75 F0 7B 89 28 04 00 90 10 15 01 00 00 00 00`、块1 全零，与 Android 基线 §2 逐字节一致，并入 `NFC-CARD-REGIONS.md` §2。栅栏拆红：写块调用/第二密钥均红。**只读**：不写块、不写 NDEF、不试其他密钥。取证时临时版导出尝试因设备锁屏中断，页面逐块 readout 已核对首尾块 + 全 80 条计数；正式版无调试打印 |
 
 ### M1 遗留（挂在最后，不影响主线）
 
