@@ -13,6 +13,7 @@ import { NfcService, NfcScanResult } from '../service/NfcService.ts';
 import type { NfcCapability } from '../corelogic/NfcLogic.ts';
 import type { ProbeLine } from '../corelogic/CardProbeRunner.ts';
 import type { GateReport } from '../corelogic/AuthGateLogic.ts';
+import type { DumpLine } from '../corelogic/DeepScanLogic.ts';
 import {
   summarize as summarizeIdentity, hasPerson, cardNoCandidates
 } from '../corelogic/CardIdentityLogic.ts';
@@ -47,6 +48,11 @@ struct NfcPage {
   @State authLines: string[] = [];
   @State authReport: GateReport | null = null;
   @State authError: string = '';
+  // 深度只读扫描（#170）
+  @State deepMode: boolean = false;
+  @State deepBusy: boolean = false;
+  @State deepLines: DumpLine[] = [];
+  @State deepError: string = '';
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -103,6 +109,8 @@ struct NfcPage {
     this.authLines = [];
     this.authReport = null;
     this.authError = '';
+    this.deepLines = [];
+    this.deepError = '';
     this.lastProbedUid = '';
     const ok: boolean = NfcService.start((r: NfcScanResult) => {
       this.gotCard = true;
@@ -119,7 +127,9 @@ struct NfcPage {
         return;
       }
       this.lastProbedUid = r.uid;
-      if (this.authMode) {
+      if (this.deepMode) {
+        this.runDeep(tagInfo);
+      } else if (this.authMode) {
         this.runAuthGate(tagInfo);
       } else {
         this.runProbe(tagInfo);
@@ -190,6 +200,28 @@ struct NfcPage {
     });
   }
 
+  /**
+   * 深度只读扫描（#170）：dump 卡内所有不设防区域的字节。
+   * 认证门(6982)记录后跳过；不认证、不破密钥、不猜门后内容。
+   */
+  private runDeep(tagInfo: import('@kit.ConnectivityKit').tag.TagInfo): void {
+    this.deepBusy = true;
+    this.deepError = '';
+    this.deepLines = [];
+    NfcService.probeDeep(tagInfo, (lines: DumpLine[]) => {
+      this.deepLines = lines;
+    }).then((result) => {
+      this.deepLines = result.lines;
+      this.deepError = result.error;
+      info('NFC page deep done lines=' + result.lines.length);
+    }).catch((e: Error) => {
+      this.deepError = '深度扫描失败：' + e.message;
+      warn('NFC page deep fail: ' + JSON.stringify(e));
+    }).finally(() => {
+      this.deepBusy = false;
+    });
+  }
+
   aboutToAppear(): void {
     this.refreshCap();
   }
@@ -243,18 +275,28 @@ struct NfcPage {
 
             Row() {
               Button('快速读名片')
-                .fontSize(12).layoutWeight(1).height(36)
-                .backgroundColor(!this.authMode ? this.tk().primary : this.tk().surface2)
-                .fontColor(!this.authMode ? this.tk().onPrimary : this.tk().onSurface)
-                .onClick(() => { this.authMode = false; })
-              Button('研究 6982 认证门')
-                .fontSize(12).layoutWeight(1).height(36).margin({ left: 8 })
+                .fontSize(11).layoutWeight(1).height(36)
+                .backgroundColor(!this.authMode && !this.deepMode ? this.tk().primary : this.tk().surface2)
+                .fontColor(!this.authMode && !this.deepMode ? this.tk().onPrimary : this.tk().onSurface)
+                .onClick(() => { this.authMode = false; this.deepMode = false; })
+              Button('研究 6982')
+                .fontSize(11).layoutWeight(1).height(36).margin({ left: 4 })
                 .backgroundColor(this.authMode ? this.tk().primary : this.tk().surface2)
                 .fontColor(this.authMode ? this.tk().onPrimary : this.tk().onSurface)
-                .onClick(() => { this.authMode = true; })
+                .onClick(() => { this.authMode = true; this.deepMode = false; })
+              Button('深度 dump')
+                .fontSize(11).layoutWeight(1).height(36).margin({ left: 4 })
+                .backgroundColor(this.deepMode ? this.tk().primary : this.tk().surface2)
+                .fontColor(this.deepMode ? this.tk().onPrimary : this.tk().onSurface)
+                .onClick(() => { this.deepMode = true; this.authMode = false; })
             }.width('100%').margin({ top: 12 })
             if (this.authMode) {
               Text('只读探测：看 0004 的 6982 是质询-应答门还是权限位门。不认证、不破密钥、不猜门后内容。')
+                .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').padding({ top: 8 })
+            }
+            if (this.deepMode) {
+              Text('全空间只读 dump：FID 0000~00FF + 目录下钻，逐段读到文件末尾。认证门(6982)记录后跳过，不认证、不破密钥。贴卡时间较长，请贴稳。')
                 .fontSize(11).fontColor(this.tk().onSurfaceVariant)
                 .width('100%').padding({ top: 8 })
             }
@@ -403,6 +445,39 @@ struct NfcPage {
                   .width('100%').padding({ top: 4 })
               }, (line: string, idx: number) => 'auth-' + idx)
               Text('全程只发只读命令；不含 EXTERNAL AUTHENTICATE，不破密钥。')
+                .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').padding({ top: 10 })
+            }
+
+            if (this.deepMode && (this.deepBusy || this.deepLines.length > 0 || this.deepError.length > 0)) {
+              Text('深度只读 dump（' + this.deepLines.length + ' 条）')
+                .fontSize(13).fontWeight(FontWeight.Medium).fontColor(this.tk().onSurface)
+                .width('100%').padding({ top: 20 })
+              if (this.deepBusy) {
+                Text('正在逐段读卡内文件，请保持贴卡…（已收 ' + this.deepLines.length + ' 条）')
+                  .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').padding({ top: 6 })
+              }
+              if (this.deepError.length > 0) {
+                Text('⚠️ ' + this.deepError)
+                  .fontSize(11).fontColor(this.tk().error)
+                  .width('100%').padding({ top: 6 })
+              }
+              ForEach(this.deepLines, (l: DumpLine, idx: number) => {
+                Column() {
+                  Text(l.context + ' · ' + l.target + ' · ' + l.op + ' → ' + l.sw +
+                    (l.swText !== null ? '（' + l.swText + '）' : ''))
+                    .fontSize(10).fontColor(this.tk().onSurface)
+                  Text('APDU ' + l.apdu + (l.data.length > 0 ? '  DATA ' + l.data : ''))
+                    .fontSize(9).fontColor(this.tk().onSurfaceVariant).padding({ top: 2 })
+                  if (l.note.length > 0) {
+                    Text(l.note).fontSize(9).fontColor(this.tk().onSurfaceVariant).padding({ top: 2 })
+                  }
+                }
+                .width('100%').padding(6)
+                .backgroundColor(this.tk().surface).borderRadius(6).margin({ top: 4 })
+              }, (l: DumpLine, idx: number) => 'deep-' + idx + '-' + l.sw)
+              Text('只发只读命令；6982 认证门记录后跳过，不认证、不破密钥、不猜门后内容。')
                 .fontSize(11).fontColor(this.tk().onSurfaceVariant)
                 .width('100%').padding({ top: 10 })
             }

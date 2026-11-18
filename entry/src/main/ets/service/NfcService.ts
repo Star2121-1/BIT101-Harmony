@@ -22,6 +22,8 @@ import { BUNDLE_NAME, ENTRY_ABILITY } from '../corelogic/NotifyDeepLink.ts';
 import { quickScan } from '../corelogic/CardProbeLogic.ts';
 import { runQuickProbe } from '../corelogic/CardProbeRunner.ts';
 import type { ProbeLine } from '../corelogic/CardProbeRunner.ts';
+import { runDeepScan } from '../corelogic/DeepScanLogic.ts';
+import type { DumpLine } from '../corelogic/DeepScanLogic.ts';
 import {
   gateProbeSteps, analyzeGate, formatObservation, probeIsReadOnly
 } from '../corelogic/AuthGateLogic.ts';
@@ -53,6 +55,13 @@ export interface NfcProbeResult {
   uid: string;
   lines: ProbeLine[];
   /** 探测过程的可读错误（掉卡/无 IsoDep 等）；正常为空串。 */
+  error: string;
+}
+
+/** 深度只读扫描的一次结果（#170）。 */
+export interface DeepScanResult {
+  uid: string;
+  lines: DumpLine[];
   error: string;
 }
 
@@ -203,6 +212,53 @@ export class NfcService {
       }
     }
     return { uid: uid, lines: lines, error: err };
+  }
+
+  /**
+   * 深度只读扫描（#170）：把卡内不设防区域的字节全 dump 出来。
+   *
+   * ⚠️ 只读：runDeepScan 内每条命令过 isReadOnly 闸门；6982 认证门记录后跳过。
+   * 不认证、不破密钥、不猜门后内容、不写卡。掉卡时保留已收到的流水。
+   */
+  static async probeDeep(tagInfo: tag.TagInfo,
+    onProgress?: (lines: DumpLine[]) => void): Promise<DeepScanResult> {
+    const uid: string = NfcService.uidHex(tagInfo.uid);
+    if (!hasTech(tagInfo.technology, tag.ISO_DEP)) {
+      return { uid: uid, lines: [], error: '这张卡不支持 APDU（非 CPU 卡）' };
+    }
+    let iso: tag.IsoDepTag;
+    try {
+      iso = tag.getIsoDep(tagInfo);
+      iso.connect();
+    } catch (e) {
+      warn('NfcService deep connect fail: ' + JSON.stringify(e));
+      return { uid: uid, lines: [], error: '连接卡片失败：' + (e as Error).message };
+    }
+    const transmit = async (apdu: number[]): Promise<number[]> => await iso.transmit(apdu);
+    const collected: DumpLine[] = [];
+    let err: string = '';
+    try {
+      await runDeepScan({
+        transmit: transmit,
+        onLine: (l: DumpLine) => {
+          collected.push(l);
+          if (onProgress !== undefined) {
+            onProgress(collected.slice());
+          }
+        }
+      });
+      info('NfcService deep scan done uid=' + uid + ' lines=' + collected.length);
+    } catch (e) {
+      err = '深度扫描中断：' + (e as Error).message;
+      warn('NfcService deep scan fail: ' + JSON.stringify(e));
+    } finally {
+      try {
+        iso.resetConnection();
+      } catch (e) {
+        warn('NfcService deep resetConnection fail: ' + JSON.stringify(e));
+      }
+    }
+    return { uid: uid, lines: collected, error: err };
   }
 
   /**

@@ -25,9 +25,10 @@ const svc = code('../entry/src/main/ets/service/NfcService.ts');
   ok(has(svc, 'tag.ISO_DEP'), '只在 CPU 卡（ISO_DEP）上跑 APDU');
   ok(has(svc, 'runQuickProbe(quickScan()'), '接线调用快速读状态机');
   ok(has(svc, 'onCard !== undefined') && has(svc, 'onCard(info, r)'), 'readerMode 回调整条卡给页面');
-  // 每处 transmit 都必须有闸门：快速读走 runner（isReadOnly），认证门走 isReadOnlyLocal
+  // 每处 transmit 都必须有闸门：快速读走 runner、深度扫描走 DeepScanLogic（都在纯逻辑里过 isReadOnly），
+  // 认证门走 isReadOnlyLocal。三处只是注入通道，没有绕过闸门。
   const transmitCount = svc.split('iso.transmit(').length - 1;
-  ok(transmitCount === 2, '两个 transmit 入口（快速读 + 认证门研究）');
+  ok(transmitCount === 3, '三个 transmit 入口（快速读 + 深度扫描 + 认证门研究）');
   ok(has(svc, 'isReadOnlyLocal(apdu)') && has(svc, '被只读闸门拦下，未发出'),
     '认证门的 transmit 前有本地只读闸门');
 }
@@ -59,6 +60,16 @@ const svc = code('../entry/src/main/ets/service/NfcService.ts');
     ok(!has(src, '0x82') && !has(src, '0082'), name + ' 无 EXTERNAL AUTHENTICATE(82)');
     ok(!/MFOC|nested authentication|暴力|破密钥/.test(src.replace(/不破密钥|破密钥的|不去破密钥/g, '')),
       name + ' 无破密钥实现（仅红线注释允许提）');
+  }
+}
+
+{
+  const svc3 = code('../entry/src/main/ets/service/NfcService.ts');
+  const page3 = code('../entry/src/main/ets/pages/NfcPage.ets');
+  ok(has(svc3, 'probeDeep') && has(page3, 'runDeep'), '深度只读扫描已接线到服务与页面');
+  ok(has(svc3, 'runDeepScan'), '深度扫描走纯逻辑模块');
+  for (const [name, src] of [['deep-svc', svc3], ['deep-page', page3]]) {
+    ok(!has(src, '0x82') && !has(src, '0082'), name + ' 无 EXTERNAL AUTHENTICATE(82)');
   }
 }
 console.log('\nALL PASS pass=' + pass + ' fail=0');
