@@ -16,6 +16,7 @@ import { LibCookieStore } from './LibCookieStore.ts';
 import { CardCookieStore } from './CardCookieStore.ts';
 import { AutoLoginCredentialStore } from './AutoLoginCredentialStore.ts';
 import { RenewThrottleStore } from './RenewThrottleStore.ts';
+import { FakeCookieStore } from './FakeCookieStore.ts';
 import { CampusCardStore } from './CampusCardStore.ts';
 import { CampusNetTrafficStore } from './CampusNetTrafficStore.ts';
 import { info, mask, warn } from '../core/log/BitLog.ts';
@@ -118,6 +119,7 @@ export class SessionStore {
     //    否则换账号登录会拿旧凭据自动重登，或新账号被旧冻结状态挡住。
     await AutoLoginCredentialStore.clear();
     await RenewThrottleStore.clear();
+    await FakeCookieStore.clear();  // 社区票据（换账号不能留旧会话）
     info('SessionStore.logoutAll done (all sessions + creds + per-account data cleared, course cache kept)');
   }
 }

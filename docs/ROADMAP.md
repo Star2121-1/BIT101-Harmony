@@ -1,5 +1,11 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-18 深夜 版本 `1.0.0-alpha.26`（versionCode 26）— 话廊（#154 只读）落地 + 纠正「票据」误判**：用户问「票据到底是什么」，查 Android 原版 `DefaultLoginRepo.loginBIT101` **纠正此前判断**：fake-cookie **不是用户手工提供的票据**，而是 `POST /user/login {sid, md5(password)}` 返回的 `fakeCookie` 字段，App 自己就能换。我方只读探测确认：假票据 ⇒ `/posters` 401「请先登录awa」；假凭据 ⇒ `/user/login` 500「用户名或密码错误Orz」；TLS 系统根证书即可。**此前挂起 #154 等用户票据是错的，已纠正并实现**：
+> - `CommunityAuthLogic` 纯逻辑（401 只静默刷新一次 + 结果分类）；`FakeCookieStore`（票据存偏好、只记长度不记内容）；`CommunityAuthService`（md5→login 换票据 + 用已 opt-in 的 AutoLoginCredential 静默续期 + 401 重放）；`CommunityLogic`（snake_case 列表解析/匿名隐藏/多词与搜索）；`CommunityService`（四流列表）；`CommunityPage`（四流 chip + 搜索 + 登录入口，密码用户本人在 App 输、明文不落盘）。
+> - 「话」Tab 从占位换成真实 `CommunityPage`；`logoutAll` 清社区票据。新增 `test-communityauth` 20 条 + `test-community` 23 条。
+> - **边界**：只做只读列表/搜索；发帖/点赞/评论/举报（#155）未做。真机登录正路径未验（需用户本人输密码换票据，agent 不碰明文）。社区是 H5，详情走 Web 壳不解析 plugins。
+> - **验证**：全量 **78/78 套件 3651 断言**绿，`assembleHap` 成功；签名 HAP MD5 `AA2D56354B34DB93E50C4D65F460427D`（versionCode 26，`bm dump` 确认装机 26）。**真机（23:46）**：「话」Tab 已从占位换成真实页——标题/登录按钮/四流 chip/搜索框正常渲染，未登录态显示「社区会话已失效或尚未登录 / 点右上角登录，用学号密码换社区票据」，诚实降级无假数据。真机登录换票据正路径未验（需用户本人输密码）。
+
 > **2026-11-18 晚 版本 `1.0.0-alpha.25`（versionCode 25）— 真机抓到并修复座位树解析 bug（M9-2）**：用户重新登录后进座位页，所有楼层都显示「该楼层暂无区域」。根因不是没数据——真机 fixture（`tools/fixtures/seat/tree-20261022.json`，35 节点）里 type 全是**字符串** `"0"/"1"`，而鸿蒙 `SeatTreeRaw.type?: number` + `parseSeatTree` 用 `item.type ?? 0` 不转换，`groupTree` 的 `k.type === 1` 严格相等把字符串 "1" 全判成非区域 ⇒ 楼层靠 parentId 正常显示、区域全空。Android 原版是 `intOrZero("type")`，移植漏了。修：新增 `intOrZero()` 统一 number/string→number，`parseSeatTree` 走它。新增 `test-seattree`（真机 fixture 驱动，含 type 字符串保真断言 + 故意拆红验证过守卫有效）。
 > **真机复验（alpha.24，2026-11-18 23:00）**：点「五层」后区域栏正确显示「5层中厅」——这是当前服务端唯一返回的区域（我方机器只读拉 `/api/Seat/tree` 对照：当前树仅五层下有 1 区域，其余楼层 children=0，服务端数据本身如此，非 App 吞数据）；若没修 type 转换，这唯一区域也会被吞成「暂无区域」。**type 修复真机生效**。
 > ⚠️ **装机版本坑（教训固化）**：首次装机时 app.json5 仍是 versionCode 23，`install -r` 被系统静默拒（提示 success 但 `bm dump` 仍 23），导致几轮"真机验证"其实跑的都是旧代码。必须**先提 versionCode 再构建**，`bm dump -n cn.bit101.next` 确认版本号才算装上。这次 `install -r`（不 uninstall）保住了用户数据（凭据/会话/JWT 全在）。

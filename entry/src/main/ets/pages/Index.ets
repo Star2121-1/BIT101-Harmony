@@ -45,6 +45,7 @@ import { ClassroomPage } from './ClassroomPage.ets';
 import { ShuttlePage } from './ShuttlePage.ets';
 import { MePage } from './MePage.ets';
 import { SeatPage } from './SeatPage.ets';
+import { CommunityPage } from './CommunityPage.ets';
 
 @Entry
 @Component
@@ -259,11 +260,7 @@ struct Index {
           })
         }
         if (this.currentId() === 'gallery') {
-          ModulePlaceholder({
-            title: '话廊',
-            reason: '社区（发帖 / 评论 / 关注）不在当前排期里，鸿蒙侧未实现。',
-            icon: 'nav_gallery.svg',
-          })
+          CommunityPage()
         }
       }
       .width('100%')
