@@ -17,6 +17,10 @@ export interface CommunityListResult {
   message: string;
 }
 
+/** 举报类型，定义在纯逻辑层（corelogic/CommunityLogic.ts）再导出，便于离线单测。 */
+import { parseReportTypes, ReportType } from '../corelogic/CommunityLogic.ts';
+export { ReportType };
+
 /** 四流模式：Android PostersMode 的取值（推荐/最新/最热/关注）。 */
 export const COMMUNITY_MODES: string[] = ['recommend', 'latest', 'hot', 'follow'];
 
@@ -52,6 +56,23 @@ export class CommunityService {
     } catch (e) {
       warn('community list fail: ' + JSON.stringify(e));
       return { kind: 'failed', posts: [], message: '社区取数失败（网络或服务端）' };
+    }
+  }
+
+  /** 举报类型列表（只读）；拿不到返回空数组，UI 据此禁用举报，不猜 typeId。 */
+  static async reportTypes(context: Context): Promise<ReportType[]> {
+    try {
+      const res = await CommunityAuthService.getWithAuth(context, '/manage/report_types');
+      if (res.status < 200 || res.status >= 300) {
+        warn('community report_types HTTP ' + res.status);
+        return [];
+      }
+      const types: ReportType[] = parseReportTypes(res.body);
+      info('community report_types n=' + types.length);
+      return types;
+    } catch (e) {
+      warn('community report_types fail: ' + JSON.stringify(e));
+      return [];
     }
   }
 }

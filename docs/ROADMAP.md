@@ -1,5 +1,12 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-18 深夜 版本 `1.0.0-alpha.27`（versionCode 27）— 话廊写操作（#155）落地**：用户要继续做。查 Android 契约后按"可证伪、不猜字段"实现：
+> - `CommunityWriteLogic` 纯逻辑：obj 构造（`poster{id}`/`comment{id}`）、四类请求体、评论/举报/发帖校验、点赞/发帖响应解析、HTTP 三态分类；`CommunityWriteService` 薄封装（发帖/点赞/评论/举报），传输走 `CommunityAuthService.postWithAuth`（带 fake-cookie + 401 静默刷新一次重放）。
+> - **发帖契约**：Android `PostEditViewModel.post` 默认值 `claimId=0 / plugins="[]" / 无图`，确认纯文字帖可发——鸿蒙按此发纯文字帖，图片上传与 H5 富文本不做（不是缺口，是 H5 专属）。**举报类型**调 `GET /manage/report_types` 动态取（假票据返回空 ⇒ 拿不到就禁用举报，不猜 typeId）。
+> - ⚠️ **对外副作用红线**：写服务每个方法只由用户主动点击触发；源码栅栏锁死 `aboutToAppear/onPageShow` 不自动调写服务；详情页点击与写操作按钮分区隔离防误触。
+> - UI：登录后才显示「发帖」按钮 → 纯文字发帖面板；列表项独立「♥赞 / 评 / 举报」按钮（点赞显示服务端返回的操作后状态，不本地猜）；评论/举报弹层（用户填内容才发）。
+> - 验证：新增 `test-communitywrite` 58 条 + `test-community` 补举报类型解析 8 条；全量 **79/79 套件 3717 断言**绿；`assembleHap` 成功，MD5 `F8D0B8F781C8E3105C797E20BD75D351`（versionCode 27，`bm dump` 确认装机 27）。**真机（00:05）**：设备已有社区票据（显示「已登录」），「发帖」按钮出现，帖子列表真实加载（多条真实帖渲染正常），每条下方「♡赞/评/举报」按钮渲染正常、无崩溃。**写操作正路径未验**——发帖/点赞/评论/举报真会发到社区、无法撤回，agent 绝不代点，需用户本人点击验证。
+
 > **2026-11-18 深夜 版本 `1.0.0-alpha.26`（versionCode 26）— 话廊（#154 只读）落地 + 纠正「票据」误判**：用户问「票据到底是什么」，查 Android 原版 `DefaultLoginRepo.loginBIT101` **纠正此前判断**：fake-cookie **不是用户手工提供的票据**，而是 `POST /user/login {sid, md5(password)}` 返回的 `fakeCookie` 字段，App 自己就能换。我方只读探测确认：假票据 ⇒ `/posters` 401「请先登录awa」；假凭据 ⇒ `/user/login` 500「用户名或密码错误Orz」；TLS 系统根证书即可。**此前挂起 #154 等用户票据是错的，已纠正并实现**：
 > - `CommunityAuthLogic` 纯逻辑（401 只静默刷新一次 + 结果分类）；`FakeCookieStore`（票据存偏好、只记长度不记内容）；`CommunityAuthService`（md5→login 换票据 + 用已 opt-in 的 AutoLoginCredential 静默续期 + 401 重放）；`CommunityLogic`（snake_case 列表解析/匿名隐藏/多词与搜索）；`CommunityService`（四流列表）；`CommunityPage`（四流 chip + 搜索 + 登录入口，密码用户本人在 App 输、明文不落盘）。
 > - 「话」Tab 从占位换成真实 `CommunityPage`；`logoutAll` 清社区票据。新增 `test-communityauth` 20 条 + `test-community` 23 条。

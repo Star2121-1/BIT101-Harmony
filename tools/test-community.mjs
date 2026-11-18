@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  parsePosters, posterSubtitle, searchPosts
+  parsePosters, posterSubtitle, searchPosts, parseReportTypes
 } from '../entry/src/main/ets/corelogic/CommunityLogic.ts';
 
 let pass = 0;
@@ -88,6 +88,20 @@ const sample = JSON.stringify([
   ok(has(svc, "'page=' + Math.max(0"), 'page 从 0 开始且有下限守卫');
   const idx = code('../entry/src/main/ets/pages/Index.ets');
   ok(has(idx, 'CommunityPage()'), '话廊 Tab 挂真实页面（不再是占位）');
+}
+
+console.log('\n=== 举报类型解析 ===');
+{
+  const t = parseReportTypes('[{"id":1,"text":"垃圾广告"},{"id":2,"text":"色情低俗"}]');
+  eq(t.length, 2, '两个举报类型解析成功');
+  eq(t[0].id, 1, '举报类型 id 正确');
+  eq(t[1].text, '色情低俗', '举报类型文案正确');
+  const t2 = parseReportTypes('[{"id":"3","text":"诈骗"},{"id":0,"text":"无效"},{"id":4}]');
+  eq(t2.length, 1, '脏条目（id=0/缺 text）逐条丢弃');
+  eq(t2[0].id, 3, '字符串 id 归一成数字');
+  eq(parseReportTypes('[]').length, 0, '空数组 → 空');
+  eq(parseReportTypes('not json').length, 0, '非 JSON → 空（不猜 typeId）');
+  eq(parseReportTypes('{}').length, 0, '非数组 → 空');
 }
 
 console.log('\nALL PASS pass=' + pass + ' fail=0');

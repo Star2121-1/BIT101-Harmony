@@ -129,4 +129,26 @@ export class CommunityAuthService {
     }
     return res;
   }
+
+  /**
+   * 带票据发 JSON POST（点赞/评论/举报等写操作）；401 静默刷新一次再重试。
+   * ⚠️ 只负责传输，不决定"何时写"——调用方必须是用户主动点击后的 UI 动作。
+   */
+  static async postWithAuth(context: Context, path: string, body: string,
+    attempts: number = 0): Promise<HttpTextResult> {
+    const session: rcp.Session = await RcpFactory.createSession(context, JAR_COMMUNITY, false);
+    const fc: string = await FakeCookieStore.load();
+    const h: rcp.RequestHeaders = headers(fc);
+    h['Content-Type'] = 'application/json';
+    const res: HttpTextResult = await RcpFactory.postText(session, API_BASE + path, h, body);
+    if (res.status === 401 && canRefresh(fc.length > 0, attempts)) {
+      const renewed = await CommunityAuthService.renew(context);
+      if (renewed.kind === 'ok') {
+        info('community write 401 → renewed, retry once');
+        return await CommunityAuthService.postWithAuth(context, path, body, attempts + 1);
+      }
+      warn('community write 401 renew failed: ' + renewed.kind);
+    }
+    return res;
+  }
 }

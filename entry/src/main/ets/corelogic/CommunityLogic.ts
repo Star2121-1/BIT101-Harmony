@@ -112,3 +112,37 @@ export function searchPosts(posts: CommunityPost[], query: string): CommunityPos
     return words.every((w) => hay.indexOf(w) >= 0);
   });
 }
+
+/** 举报类型（Android common.ReportType { id, text }）。 */
+export interface ReportType {
+  id: number;
+  text: string;
+}
+
+/** 解析 /manage/report_types 响应；坏条目逐条丢，不猜 typeId。 */
+export function parseReportTypes(body: string): ReportType[] {
+  try {
+    const arr: Object = JSON.parse(body);
+    if (!Array.isArray(arr)) {
+      return [];
+    }
+    const out: ReportType[] = [];
+    for (const item of arr) {
+      if (item === null || typeof item !== 'object') {
+        continue;
+      }
+      const rec: Record<string, Object> = item as Record<string, Object>;
+      const idRaw: Object | undefined = rec.id;
+      const textRaw: Object | undefined = rec.text;
+      const id: number = typeof idRaw === 'number' ? idRaw
+        : (typeof idRaw === 'string' ? Number(idRaw.trim()) : NaN);
+      if (!isFinite(id) || id <= 0 || typeof textRaw !== 'string') {
+        continue;
+      }
+      out.push({ id: Math.trunc(id), text: textRaw });
+    }
+    return out;
+  } catch (e) {
+    return [];
+  }
+}
