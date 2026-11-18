@@ -9,6 +9,7 @@
 | [`../README.md`](../README.md) | 项目介绍、截图、功能清单、与原版差距、构建与测试、许可 | 第一次来 / 想跑起来 |
 | [`ROADMAP.md`](ROADMAP.md) | **唯一进度权威**：功能矩阵、M1~M12 + UI 迁移逐项验收判据与状态、风险、已付学费、版本约定 | 决定下一步做什么 / 查某项是否验过 |
 | [`FULL-PARITY-PLAN.md`](FULL-PARITY-PLAN.md) | 全功能对齐范围与边界：NFC/话廊/地图/一卡通/更新/座位/统一登录，标注可做/需服务端/平台不可行 | 决定大方向 / 判断某项能不能做 |
+| [`NFC-CARD-REGIONS.md`](NFC-CARD-REGIONS.md) | 校园卡逐区域语义地图：Classic 层/MF/各 FID/目录内 SFI/6982 门，每区内容与含义，标注证据强度 | 想知道卡里每个区域装的是什么 / 的值是什么 |
 | [`screenshots/`](screenshots/) | 真机截图（README 引用），命名 `NN-页面.jpeg` | 写文档、对齐视觉时引用 |
 | `../ui-ref/MIGRATION-BASELINE.md`（**仓库外**） | UI 基准：原版平板截图的逐像素采样 + 源码常量双证，逐页写清尺寸/色值/结构 | 改任何页面样式之前 |
 | `../evidence/`（**仓库外**） | 真机取证归档（截图、dumpLayout、日志），按里程碑命名 | 验证「这个结论凭什么这么说」 |
