@@ -28,7 +28,8 @@ import {
   wireStatusText, wireStatusColor, isFree, renegeText, renegeKey, WireSeatStatus, buildMapPoints,
   emptySeatMapImages, isSeatMapImagesEmpty,
 } from '../corelogic/SeatApiLogic.ts';
-import { warn } from '../core/log/BitLog.ts';
+import { info, warn } from '../core/log/BitLog.ts';
+import { CasLoginService } from '../service/CasLoginService.ts';
 import { getTaskRepository } from '../data/SeatTaskStore.ts';
 import { isTerminalStatus } from '../model/SeatTask.ts';
 import { joinA11y } from '../corelogic/A11yText.ts';
@@ -191,7 +192,7 @@ export struct SeatPage {
     this.loadReneges();
   }
 
-  private async loadSeats(): Promise<void> {
+  private async loadSeats(allowRenew: boolean = true): Promise<void> {
     this.seatsLoading = true;
     this.seatsErr = '';
     this.reserveTarget = null;
@@ -212,6 +213,14 @@ export struct SeatPage {
       const day: string = SeatTreeService.today();
       const res = await this.svc.fetchSeats(ctx, user.jwt, this.selArea, '', day, '00:00', '24:00');
       if (!res.ok) {
+        // JWT 会过期；死 token 时服务端返 500（与实际网络故障同码，无法从 message 区分）。
+        // silentRenewJwt 是只读探测（靠已存 CAS cookie 换 JWT，换不到就 false），
+        // 不删数据/不发短信/不撞风控 ⇒ 失败后试一次是安全的；成功才重试，否则如实报错。
+        if (allowRenew && (await CasLoginService.silentRenewJwt(ctx))) {
+          info('seat JWT silent-renewed, retry fetchSeats');
+          await this.loadSeats(false);
+          return;
+        }
         this.seatsErr = (res.message ?? '').length > 0 ? res.message! : '座位拉取失败';
         this.seats = [];
       } else {
