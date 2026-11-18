@@ -14,6 +14,8 @@ import { SchoolCookieStore } from './SchoolCookieStore.ts';
 import { EclassCookieStore } from './EclassCookieStore.ts';
 import { LibCookieStore } from './LibCookieStore.ts';
 import { CardCookieStore } from './CardCookieStore.ts';
+import { AutoLoginCredentialStore } from './AutoLoginCredentialStore.ts';
+import { RenewThrottleStore } from './RenewThrottleStore.ts';
 import { CampusCardStore } from './CampusCardStore.ts';
 import { CampusNetTrafficStore } from './CampusNetTrafficStore.ts';
 import { info, mask, warn } from '../core/log/BitLog.ts';
@@ -112,6 +114,10 @@ export class SessionStore {
     // ③ 跨账号残留的展示数据（余额趋势 / 流量历史）
     await CampusCardStore.clear();
     await CampusNetTrafficStore.clear();
-    info('SessionStore.logoutAll done (all sessions + per-account data cleared, course cache kept)');
+    // ④ 自动续期凭据 + 节流状态：登出后不能留着旧账号的密码与冷却记录，
+    //    否则换账号登录会拿旧凭据自动重登，或新账号被旧冻结状态挡住。
+    await AutoLoginCredentialStore.clear();
+    await RenewThrottleStore.clear();
+    info('SessionStore.logoutAll done (all sessions + creds + per-account data cleared, course cache kept)');
   }
 }

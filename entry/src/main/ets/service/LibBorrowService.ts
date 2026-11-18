@@ -28,6 +28,7 @@ import { RcpFactory, PersistedCookie } from '../core/net/RcpFactory.ts';
 import { webview } from '@kit.ArkWeb';
 import { LibCookieStore } from '../data/LibCookieStore.ts';
 import { SsoCookieBroker } from './SsoCookieBroker.ts';
+import { AutoReloginService } from './AutoReloginService.ts';
 import {
   BorrowRecord,
   HOST,
@@ -192,7 +193,7 @@ export class LibBorrowService {
   }
 }
 
-async function fetch(context: Context, appId: string): Promise<LibBorrowResult> {
+async function fetch(context: Context, appId: string, allowRenew: boolean = true): Promise<LibBorrowResult> {
   try {
     let s: rcp.Session = await LibBorrowService.session(context);
 
@@ -209,6 +210,18 @@ async function fetch(context: Context, appId: string): Promise<LibBorrowResult> 
         who = await RcpFactory.getText(s, USER_INFO_URL, apiHeaders());
         loginState = isLoggedIn(who.body);
       }
+    }
+    if (loginState === false && allowRenew) {
+      // CAS 总钥匙也过期时 bootstrapFromSso 救不回来（它靠 seed 的旧 CAS cookie）。
+      // 有 opt-in 凭据就静默重登一次换新钥匙，再完整重试一遍（本次不再 renew，防递归）。
+      const renewed = await AutoReloginService.renew(context);
+      if (renewed.kind === 'renewed') {
+        info('lib renew ok, retry fetch appId=' + appId);
+        return await fetch(context, appId, false);
+      }
+      // 没续上（未存密码/需短信/失败）⇒ 如实报未登录，并把原因带出去给 UI
+      info('lib loggedOut (renew=' + renewed.kind + ') appId=' + appId);
+      return { kind: 'loggedOut' };
     }
     if (loginState === false) {
       info('lib loggedOut (uid empty) appId=' + appId);

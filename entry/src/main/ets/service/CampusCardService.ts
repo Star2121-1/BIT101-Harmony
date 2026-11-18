@@ -28,6 +28,7 @@ import { RcpFactory, PersistedCookie } from '../core/net/RcpFactory.ts';
 import { webview } from '@kit.ArkWeb';
 import { CardCookieStore } from '../data/CardCookieStore.ts';
 import { SsoCookieBroker } from './SsoCookieBroker.ts';
+import { AutoReloginService } from './AutoReloginService.ts';
 import { CardSnapshot, HOME_URL, parse } from '../corelogic/CampusCardLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
@@ -41,7 +42,7 @@ export class CampusCardService {
    *
    * 顺序（Android 原序，别调换）：同步 Web cookie → GET 首页 → 按最终 URL 解析。
    */
-  static async fetchSnapshot(context: Context): Promise<CardSnapshot> {
+  static async fetchSnapshot(context: Context, allowRenew: boolean = true): Promise<CardSnapshot> {
     await CampusCardService.syncFromWeb();
     try {
       const s: rcp.Session = await CampusCardService.session(context);
@@ -52,6 +53,14 @@ export class CampusCardService {
       const snap: CardSnapshot = parse(res.body, res.finalUrl);
       info('card snapshot ok finalUrl=' + res.finalUrl +
         ' loggedIn=' + snap.loggedIn + ' entries=' + snap.entries.length);
+      if (!snap.loggedIn && allowRenew) {
+        // 落回 CAS = 会话失效；有 opt-in 凭据就静默重登换新钥匙，再完整重试一次
+        const renewed = await AutoReloginService.renew(context);
+        if (renewed.kind === 'renewed') {
+          info('card renew ok, retry snapshot');
+          return await CampusCardService.fetchSnapshot(context, false);
+        }
+      }
       return snap;
     } catch (e) {
       const msg: string = (e as Error).message;

@@ -16,6 +16,7 @@ import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts
 import { Context } from '@kit.AbilityKit';
 import { CasLoginService, LoginOutcome, hasPendingSms } from '../service/CasLoginService.ts';
 import { ProbeCreds, getProbeCreds, clearProbeCreds } from '../probe/CasProbe.ts';
+import { AutoLoginCredentialStore } from '../data/AutoLoginCredentialStore.ts';
 import { info } from '../core/log/BitLog.ts';
 
 @Entry
@@ -39,6 +40,11 @@ struct LoginPage {
   @State errorTone: string = 'muted';
   /** 调试通道：`aa start --ps probe_user X --ps probe_pass Y` 注入时才为 true。 */
   @State hasInjectedCreds: boolean = false;
+  /**
+   * opt-in：记住密码以便会话过期后自动续期。默认 false（不存密码）。
+   * 页面出现时按「是否已存凭据」回填，已经是开启态就显示勾选（不撒谎）。
+   */
+  @State remember: boolean = false;
 
   aboutToAppear(): void {
     this.needSms = hasPendingSms();
@@ -47,6 +53,9 @@ struct LoginPage {
     if (this.hasInjectedCreds) {
       this.username = creds.user;
     }
+    AutoLoginCredentialStore.has().then((on: boolean) => {
+      this.remember = on;
+    });
     info('LoginPage appear, pendingSms=' + (this.needSms ? 'yes' : 'no') +
       ' injected=' + (this.hasInjectedCreds ? 'yes' : 'no'));
   }
@@ -69,16 +78,33 @@ struct LoginPage {
       const ctx: Context = getContext(this) as Context;
       const out: LoginOutcome = await CasLoginService.login(ctx, u, p);
       // ⚠️ 密码用完立刻清（不管成败）；注入通道的凭据也不留在进程内存里
+      // 但 opt-in 要存密码：必须在清空前、且用「用户实际登录用的那组」存。
+      // 存失败不阻塞已成功的登录，只如实提示（登录态本身已经建立）。
+      let credNote: string = '';
+      // sms_required 也要存：用户会在本页输验证码完成登录，那之后就没密码了。
+      // 只有真正走完（ok 或待短信）才存；失败/验证码错误的凭据不落地。
+      const reachedLogin: boolean = out.status === 'ok' || out.status === 'sms_required';
+      if (reachedLogin && this.remember) {
+        try {
+          await AutoLoginCredentialStore.save(u, p);
+          credNote = '（已记住密码，会话过期可自动续期）';
+        } catch (e) {
+          credNote = '（自动续期未开启：' + (e as Error).message + '）';
+        }
+      } else if (out.status === 'ok' && !this.remember) {
+        // 用户本次取消了勾选 ⇒ 清掉可能存在的旧凭据（语义：不记住 = 别留着）
+        await AutoLoginCredentialStore.clear();
+      }
       this.password = '';
       if (this.hasInjectedCreds) {
         clearProbeCreds();
         this.hasInjectedCreds = false;
       }
       this.steps = out.steps;
-      this.statusText = out.message;
+      this.statusText = out.message + credNote;
       if (out.status === 'ok') {
         this.errorTone = 'success';
-        this.statusText = '登录成功，正在打开课表…';
+        this.statusText = '登录成功，正在打开课表…' + credNote;
         router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
           this.statusText = '跳转课表失败：' + JSON.stringify(e);
         });
@@ -153,7 +179,9 @@ struct LoginPage {
           .fontSize(17).fontWeight(FontWeight.Bold).layoutWeight(1)
       }.width('100%').padding({ left: 16, right: 16, top: 16, bottom: 4 })
 
-      Text('学号与密码只用于本次登录，不会保存到本机')
+      Text(this.remember
+        ? '已开启自动续期：密码加密存入本机系统密钥库，会话过期时自动重新登录'
+        : '默认不保存密码；勾选后可在本机会话过期时自动续期')
         .fontSize(12).fontColor(this.tk().onSurfaceVariant)
         .width('100%').padding({ left: 16, right: 16, bottom: 12 })
 
@@ -189,6 +217,24 @@ struct LoginPage {
           .onClick(() => {
             this.doLogin();
           })
+
+        Row() {
+          Toggle({ type: ToggleType.Checkbox, isOn: this.remember })
+            .enabled(!this.loading)
+            .onChange((on: boolean) => {
+              this.remember = on;
+            })
+          Text('记住密码，会话过期后自动续期')
+            .fontSize(13).fontColor(this.tk().onSurfaceVariant)
+            .margin({ left: 8 })
+            .accessibilityText('记住密码，会话过期后自动续期')
+            .onClick(() => {
+              if (!this.loading) {
+                this.remember = !this.remember;
+              }
+            })
+        }
+        .width('100%')
       }
       .width('100%')
       .padding({ left: 16, right: 16 })

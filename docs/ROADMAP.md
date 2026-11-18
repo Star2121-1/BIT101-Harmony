@@ -1,6 +1,11 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
-> 建立：2026-10-20 ｜ 更新：**2026-10-30**
+> **2026-11-18 版本 `1.0.0-alpha.24`（versionCode 24，代码完成 + debug 装机）**：M16-6 **会话失效自动重登（对齐 BIT101_S / Android `DefaultLoginRepo.checkLogin`）**——解决用户报「登过一次后某个页面又要重登」。
+> 根因：子系统 cookie（lib/card/eclass）与 CAS 域 cookie 有效期不同；Android 存了密码在 `checkLogin()` 静默重登续上，鸿蒙此前不存密码 ⇒ CAS 总钥匙过期后露出「未登录」（课表因 jxzxehall 域会话还在而存活）。
+> 实现：①`AutoLoginCredentialStore`（**默认不存**，登录页 opt-in 勾选后密码入系统密钥库 AssetStoreKit / `DEVICE_FIRST_UNLOCKED`，独立 alias 不碰成绩那份）；②`AutoReloginLogic` 纯逻辑（`MIN_RETRY_MS=10min` 闸门 + 连续失败 3 次冻结 8h + 短信/验证码一律 `need_user` 停手 + 密码错清凭据）；③`AutoReloginService`（进程级去重 + 落盘节流 + 只在取数**确认失效**后触发，不定时探测）；④接线图书馆/一卡通（失效→重登→重试一次，`allowRenew` 防递归），登出 `logoutAll` 清凭据+节流。新增 `test-autorelogin` 49 条，全量 **75/75 套件 3567 断言**，`assembleHap` 成功（签名 HAP MD5 `20F306C23D668FEAC8E96039C6D4A90A`，4.76 MB）。
+> **真机验证边界（如实）**：新包已装机、App 正常启动、课表从缓存渲染、opt-in 开关代码就位；**自动重登正路径未验**——需用户本人在登录页勾选并输一次密码后才能触发，agent 不代输；短信二验路径同样未触发。卸载旧包装新包会清会话（用户 14:50 那次的登录态失效）；本次装机后「我」页仍观察到余额 ¥154.22 与学号，数据来源未查明（不写推论）。
+
+> 建立：2026-10-20 ｜ 更新：**2026-11-18**
 > 文档索引 → [`README.md`](README.md)（本目录）｜项目说明与截图 → [`../README.md`](../README.md)
 >
 > **当前状态（2026-10-31）**：M0/M1 ✅ ｜ M2 课表 **10/10 ✅**（M2-8 覆盖层已真机验）｜ M3 空教室/自习 5/5 ✅ ｜

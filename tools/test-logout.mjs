@@ -39,7 +39,9 @@ console.log('\n=== 退出清空单点 (#150) ===');
     'LibCookieStore.clear()',
     'CardCookieStore.clear()',
     'CampusCardStore.clear()',
-    'CampusNetTrafficStore.clear()'
+    'CampusNetTrafficStore.clear()',
+    'AutoLoginCredentialStore.clear()',  // 自动续期凭据（换账号不能留旧密码）
+    'RenewThrottleStore.clear()'         // 自动续期节流状态（换账号不能被旧冻结挡住）
   ];
   // 只扫 logoutAll 方法体，避免别处的 clear 干扰
   const body = session.slice(session.indexOf('static async logoutAll()'));
