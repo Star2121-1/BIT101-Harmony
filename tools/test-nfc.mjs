@@ -111,7 +111,8 @@ console.log('=== 5. 权限与只读栅栏 ===');
   ok(!has(svc, 'writeNdef'), '不写 NDEF');
   ok(!has(svc, 'writeSingleBlock') && !has(svc, 'writeBlock'), '不写块');
   ok(!has(svc, 'cardEmulation'), '不碰 HCE/卡模拟');
-  ok(!has(svc, 'transmit('), 'MVP 不发 APDU（留给 #152）');
+  // #152 已接 APDU：不再是「不发 transmit」，改成「只有 probeApdu 一处 transmit 且经闸门」
+  ok(has(svc, 'probeApdu') && has(svc, 'runQuickProbe(quickScan()'), 'APDU 仅由快速读状态机发出');
 }
 {
   const page = text('../entry/src/main/ets/pages/NfcPage.ets');

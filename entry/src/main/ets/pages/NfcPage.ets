@@ -1,9 +1,8 @@
 /**
- * NFC 校园卡诊断页（M16-2）。
+ * NFC 校园卡诊断页（M16-2 + M16-3 快速读）。
  *
- * 只做读：UID / technology / NDEF。明确不做写卡、HCE、支付、闸机。
- * 目标是先验证目标机型到底给三方 App 下发哪些 technology，
- * 后续 APDU/Classic 读卡再在这个页面上加结果区。
+ * 只读：UID / technology / NDEF / APDU 快速读（姓名·学号·疑似日期）。
+ * 明确不做写卡、HCE、支付、闸机。
  */
 
 import { router } from '@kit.ArkUI';
@@ -12,7 +11,12 @@ import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { NfcService, NfcScanResult } from '../service/NfcService.ts';
 import type { NfcCapability } from '../corelogic/NfcLogic.ts';
-import { info } from '../core/log/BitLog.ts';
+import type { ProbeLine } from '../corelogic/CardProbeRunner.ts';
+import {
+  summarize as summarizeIdentity, hasPerson, cardNoCandidates
+} from '../corelogic/CardIdentityLogic.ts';
+import type { CardIdentity } from '../corelogic/CardIdentityLogic.ts';
+import { info, warn } from '../core/log/BitLog.ts';
 
 @Entry
 @Component
@@ -28,6 +32,14 @@ struct NfcPage {
   @State classic: boolean = false;
   @State ndef: string[] = [];
   @State error: string = '';
+  // APDU 快速读（M16-3）
+  @State studentIdInput: string = '';
+  @State probing: boolean = false;
+  @State probeLines: ProbeLine[] = [];
+  @State identity: CardIdentity | null = null;
+  @State probeError: string = '';
+  /** 同一张卡贴着会连续触发 readerMode，按 UID 去重，不重复跑几十条 APDU。 */
+  private lastProbedUid: string = '';
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -78,6 +90,10 @@ struct NfcPage {
     this.apdu = false;
     this.classic = false;
     this.ndef = [];
+    this.probeLines = [];
+    this.identity = null;
+    this.probeError = '';
+    this.lastProbedUid = '';
     const ok: boolean = NfcService.start((r: NfcScanResult) => {
       this.gotCard = true;
       this.uid = r.uid;
@@ -87,6 +103,13 @@ struct NfcPage {
       this.ndef = r.ndef;
       this.error = r.ndefError.length > 0 ? ('NDEF 读取失败：' + r.ndefError) : '';
       info('NFC page scan uid=' + r.uid + ' tech=' + r.techs);
+    }, (tagInfo, r) => {
+      // CPU 卡才跑 APDU；同一 UID 贴着反复触发时只跑一次
+      if (!r.apdu || r.uid === this.lastProbedUid) {
+        return;
+      }
+      this.lastProbedUid = r.uid;
+      this.runProbe(tagInfo);
     });
     if (!ok) {
       this.error = '读卡启动失败：请确认 NFC 已打开，且本机支持 NFC。';
@@ -94,6 +117,40 @@ struct NfcPage {
       return;
     }
     this.scanning = true;
+  }
+
+  /**
+   * 跑 APDU 快速读并汇总名片（#152）。
+   * 学号输入框留空则不填 —— 走「猜测」路径（结果标「疑似」）；
+   * 填了则只做核对，不猜。
+   */
+  private runProbe(tagInfo: import('@kit.ConnectivityKit').tag.TagInfo): void {
+    this.probing = true;
+    this.probeError = '';
+    const sid: string | null = this.studentIdInput.trim().length > 0
+      ? this.studentIdInput.trim() : null;
+    NfcService.probeApdu(tagInfo, sid, (lines: ProbeLine[]) => {
+      this.probeLines = lines;
+    }).then((result) => {
+      this.probeLines = result.lines;
+      this.probeError = result.error;
+      const uidNums: number[] = [];
+      const parts: string[] = result.uid.split(' ');
+      for (let i = 0; i < parts.length; i++) {
+        const n: number = parseInt(parts[i], 16);
+        if (!isNaN(n)) {
+          uidNums.push(n);
+        }
+      }
+      this.identity = summarizeIdentity(result.lines, cardNoCandidates(uidNums), sid);
+      info('NFC page probe done lines=' + result.lines.length +
+        ' person=' + (this.identity !== null && hasPerson(this.identity)));
+    }).catch((e: Error) => {
+      this.probeError = '快速读失败：' + e.message;
+      warn('NFC page probe fail: ' + JSON.stringify(e));
+    }).finally(() => {
+      this.probing = false;
+    });
   }
 
   aboutToAppear(): void {
@@ -138,6 +195,15 @@ struct NfcPage {
             .width('100%').padding({ top: 10 })
 
           if (this.cap === 'enabled') {
+            Text('学号（选填，填了才做核对；留空则自动识别并标「疑似」）')
+              .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+              .width('100%').padding({ top: 14 })
+            TextInput({ text: this.studentIdInput, placeholder: '如 1120241355' })
+              .fontSize(14).width('100%').height(40)
+              .onChange((v: string) => {
+                this.studentIdInput = v;
+              })
+
             Button(this.scanning ? '停止读卡' : '开始读卡')
               .fontSize(14).width('100%').height(42).margin({ top: 14 })
               .backgroundColor(this.scanning ? this.tk().surface2 : this.tk().primary)
@@ -195,6 +261,60 @@ struct NfcPage {
               Text(this.ndefText())
                 .fontSize(13).fontColor(this.tk().onSurface)
                 .width('100%').padding({ top: 2 })
+            }
+
+            if (this.apdu && (this.probing || this.probeLines.length > 0 || this.probeError.length > 0)) {
+              Text('快速读（只读 APDU）')
+                .fontSize(13).fontWeight(FontWeight.Medium).fontColor(this.tk().onSurface)
+                .width('100%').padding({ top: 18 })
+              if (this.probing) {
+                Text('正在读卡内文件，请保持贴卡…（' + this.probeLines.length + ' 步）')
+                  .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').padding({ top: 6 })
+              }
+              if (this.probeError.length > 0) {
+                Text('⚠️ ' + this.probeError)
+                  .fontSize(11).fontColor(this.tk().error)
+                  .width('100%').padding({ top: 6 })
+              }
+              if (this.identity !== null && hasPerson(this.identity)) {
+                Column() {
+                  if (this.identity!.name !== null) {
+                    Text('姓名  ' + this.identity!.name)
+                      .fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
+                      .width('100%').padding({ top: 6 })
+                  }
+                  if (this.identity!.studentId !== null) {
+                    Text('学号  ' + this.identity!.studentId + '（已核对）')
+                      .fontSize(14).fontColor(this.tk().primary)
+                      .width('100%').padding({ top: 6 })
+                  }
+                  if (this.identity!.guessedStudentId !== null) {
+                    Text('疑似学号  ' + this.identity!.guessedStudentId + '（未核对，填学号可确认）')
+                      .fontSize(14).fontColor(this.tk().onSurface)
+                      .width('100%').padding({ top: 6 })
+                  }
+                  if (this.identity!.dates.length > 0) {
+                    Text('卡上日期（疑似）  ' + this.identity!.dates.join('、'))
+                      .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                      .width('100%').padding({ top: 6 })
+                  }
+                  if (this.identity!.cardNo !== null) {
+                    Text('卡号候选  ' + this.identity!.cardNo)
+                      .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                      .width('100%').padding({ top: 6 })
+                  }
+                }
+                .width('100%').padding(12)
+                .backgroundColor(this.tk().surface).borderRadius(10).margin({ top: 8 })
+              } else if (!this.probing) {
+                Text('没认出姓名/学号。快速读只扫低区文件 0001~001F，换批次卡可能落在别处。')
+                  .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').padding({ top: 6 })
+              }
+              Text('命中 ' + this.probeLines.length + ' 条 APDU 流水（只读，不写卡）')
+                .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').padding({ top: 8 })
             }
           }
 

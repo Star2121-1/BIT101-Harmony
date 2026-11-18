@@ -75,9 +75,10 @@
 ### 任务
 
 - **#151 NFC MVP**：能力探测 + UID/tech 诊断页（先验证目标机型下发哪些 tech）。
-  - 进度：代码 + 40 条单测 + alpha.17 编译门已过；**真机未验**（设备掉线，未装机）。
-- **#152 APDU 快速读 + 学号**：移植 CardProbeLogic/StudentIdScan。
-- **#153 Classic 只读 + NDEF 贴纸**。
+  - 进度：✅ 2026-11-18 真机已验（UID/technology/readerMode 全通，alpha.17/18）。
+- **#152 APDU 快速读 + 学号**（= task #152/#163/#164）：移植 CardProbeLogic/StudentIdScan/BcdScan/CardIdentityLogic，注入式 runner 跑 quickScan。
+  - 进度：代码 + 147 条新单测 + alpha.19 编译门已过；**真机待验**（能否从 0016 读出姓名/学号）。
+- **#153 Classic 只读 + NDEF 贴纸**：未开始。
 
 ### 验收
 
