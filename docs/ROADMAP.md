@@ -1,5 +1,7 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-19 凌晨 座位接口 HTTP 500 根因定位（只读取证，不改核心登录）**：此前只知道"座位要独立登录、静默续期失败"，这次查清**为什么必然失败**。证据链：①真机 `school_cookies_v1` 10 条 cookie 全是 `sso.bit.edu.cn`/`jxzxehall*.bit.edu.cn` 域，**无 `seatlib.bit.edu.cn` 域**；②`silentRenewJwt`（CasLoginService.ts:416）把这些 cookie 恢复到 JAR_CAS 后直接打 seatlib `/api/cas/user`，跨域带不上 cookie ⇒ 换不到 token；③根子在登录步骤8 `snapshotAndSave(repo)` 抓的是 **JAR_LOGIN** repo，而 seatlib 域 phpCAS cookie 是 `followForCasCode(sessionC)` 在 **JAR_CAS** 罐种下的，从未落盘（`isSsoDomain` 设计上就排除 seatlib）。Android 原版用座位专用 `seatLoginStatus.token` + seatlib 域会话。报告 `evidence/seat-500-rootcause-20261119.md`，守卫 `test-seat500rc`（11 条，故意拆红验过）。**本轮不改核心登录**（test-sso 锁"只下沉 sso 域不串罐"，且设备 hilog 抓不到无法验效，避免假通过）。下一步选项 A 补 seatlib cookie 持久化 / B 加座位专用登录入口 / C 维持诚实报错——当前 C，待拍板。
+
 > **2026-11-19 凌晨 真机走查"写了未验"页面（借活会话，全部渲染正常、无伪造）**：
 > - **话廊**：已登录态，真实帖子列表加载（多条真实帖），发帖按钮 + 每条「♥赞/评/举报」按钮渲染正常；写操作正路径未点（会真发到社区，agent 不代发）。
 > - **成绩页**（设置→成绩查询）：学号/密码输入、记住勾选、查询按钮、隐私说明、未查询提示均在；取数正路径需用户本人输密码（且已知成绩接口对该账号返 `[]`），未验；口径弹窗/CSV 在查询结果页，无数据未触发。
