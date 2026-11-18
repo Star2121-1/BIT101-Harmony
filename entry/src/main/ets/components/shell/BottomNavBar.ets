@@ -22,7 +22,7 @@ import type { ShellModule } from '../../corelogic/shellNav.ts';
 @Component
 export struct BottomNavBar {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'brand';
 
   /** 模块列表（顺序即布局，来自 `shellNav.NAV_MODULES`；常量，不需要 @Prop）。 */
   items: ShellModule[] = [];

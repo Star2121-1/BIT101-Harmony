@@ -95,7 +95,7 @@ export default class FormExtension extends FormExtensionAbility {
       // 预览实例（画廊里的那张）：没有真 formId，推不进去也不该占配额
       hilog.info(DOMAIN, this.TAG, 'onAddForm preview (no formId), skip quota');
       return formBindingData.createFormBindingData({
-        widgetPayload: '', widgetPalette: 'warm', widgetDark: false
+        widgetPayload: '', widgetPalette: 'brand', widgetDark: false
       });
     }
     // 新卡片这一次必须给数据（force：不卡 30 分钟间隔），同时记一次计数并约下次刷新
@@ -139,10 +139,10 @@ export default class FormExtension extends FormExtensionAbility {
    */
   private async readTheme(): Promise<WidgetTheme> {
     let mode: string = 'auto';
-    let paletteRaw: string = 'warm';
+    let paletteRaw: string = 'brand';
     try {
       mode = await Prefs.getString('ui_theme_mode', 'auto');
-      paletteRaw = await Prefs.getString('ui_theme_palette', 'warm');
+      paletteRaw = await Prefs.getString('ui_theme_palette', 'brand');
     } catch (e) {
       hilog.warn(DOMAIN, this.TAG, 'readTheme prefs fail: %{public}s', JSON.stringify(e));
     }

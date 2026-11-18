@@ -44,7 +44,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 struct NotifySettingsPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   @State notifyEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.enabled;
   @State classEnabled: boolean = DEFAULT_NOTIFY_SETTINGS.classEnabled;
   @State classLead: number = DEFAULT_NOTIFY_SETTINGS.classLeadMinutes;

@@ -39,7 +39,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 struct NetPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State result: CampusNetResult | null = null;
   @State trend: TrafficTrend = emptyTrafficTrend();

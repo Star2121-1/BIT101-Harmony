@@ -29,7 +29,7 @@ import {
 @Component
 export struct GridCard {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   /** 卡片正文（由调用方在 @Builder 里写）。 */
   @BuilderParam content: () => void;

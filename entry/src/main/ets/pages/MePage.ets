@@ -64,7 +64,7 @@ export struct MePage {
   @Prop @Watch('onWake') epoch: number = 0;
 
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State studentId: string = '';
   @State loggedIn: boolean = false;
@@ -247,6 +247,17 @@ export struct MePage {
           .accessibilityText('刷新')
           .onClick(() => {
             this.refresh();
+          })
+        // 成绩入口：对齐 BIT101-S UserScreen 顶栏第 2 颗（Grade 图标 → ScorePage）
+        Image($rawfile('icons/ic_school.svg'))
+          .width(19).height(19)
+          .fillColor(this.p().onSurfaceVariant)
+          .margin({ right: 16 })
+          .accessibilityText('成绩')
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/ScorePage' }).catch((e: Error) => {
+              warn('me -> score fail: ' + JSON.stringify(e));
+            });
           })
         Image($rawfile('icons/ic_bell.svg'))
           .width(19).height(19)

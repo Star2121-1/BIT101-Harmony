@@ -30,7 +30,7 @@ const CHANGELOG_RAWFILE: string = 'changelog.json';
 @Component
 export struct AboutPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State versionName: string = '';
   @State versionCode: number = 0;

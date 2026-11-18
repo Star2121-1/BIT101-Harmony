@@ -209,13 +209,13 @@ rate(contrastRatio(brandL.onSecondaryContainer, brandL.secondaryContainer), 4.5,
 rate(contrastRatio(classicD.onSecondaryContainer, classicD.secondaryContainer), 4.5, 'classic.dark onSecondaryContainer');
 rate(contrastRatio(brandD.onSecondaryContainer, brandD.secondaryContainer), 4.5, 'brand.dark onSecondaryContainer');
 
-console.log('\n=== palette 名收敛（getPaletteName：脏值回落显式默认 warm）===');
+console.log('\n=== palette 名收敛（getPaletteName：脏值回落显式默认 brand）===');
 eq(getPaletteName('brand'), 'brand', '合法值 brand 恒等');
 eq(getPaletteName('classic'), 'classic', '合法值 classic 恒等');
 eq(getPaletteName('warm'), 'warm', '合法值 warm 恒等');
-eq(getPaletteName('grid'), 'warm', '脏值 grid 回落 warm（不是 brand！）');
-eq(getPaletteName(''), 'warm', '空串回落 warm');
-eq(getPaletteName('WARM'), 'warm', '大小写不宽容（WARM ≠ warm，回落默认）');
+eq(getPaletteName('grid'), 'brand', '脏值 grid 回落 brand（BIT101-S 1.12.0 默认）');
+eq(getPaletteName(''), 'brand', '空串回落 brand');
+eq(getPaletteName('WARM'), 'brand', '大小写不宽容（WARM ≠ warm，回落默认 brand）');
 
 console.log('\n=== 缺档 fail-fast（对齐 Android Palettes.error()，不许静默回退）===');
 let threwRight = false;
@@ -230,7 +230,7 @@ try {
     && e.message.indexOf('dirty-palette') >= 0;
 }
 eq(threwRight, true, '脏 palette 抛「缺档」语义错（含 palette 名，不是随便什么 TypeError）');
-eq(gridTokens(false).primary, light.primary, '不传 palette 默认 = warm 档');
+eq(gridTokens(false).primary, brandL.primary, '不传 palette 默认 = brand 档');
 
 console.log('\n=== 访问器契约 ===');
 eq(allGridTokens().length, 6, 'allGridTokens 返回 3 palette × 明暗两档');

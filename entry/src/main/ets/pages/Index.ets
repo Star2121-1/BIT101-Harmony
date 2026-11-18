@@ -46,12 +46,14 @@ import { ShuttlePage } from './ShuttlePage.ets';
 import { MePage } from './MePage.ets';
 import { SeatPage } from './SeatPage.ets';
 import { CommunityPage } from './CommunityPage.ets';
+import { MapPage } from './MapPage.ets';
+import { WorldWebPage } from './WorldWebPage.ets';
 
 @Entry
 @Component
 struct Index {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   /** 当前模块 key（卷/图/网/话/我/座）。 */
   @State private moduleKey: string = DEFAULT_MODULE;
@@ -227,37 +229,13 @@ struct Index {
           .visibility(this.visOf('seat'))
         }
 
-        // 图 / 网 / 话：格子保留（原版固定 6 格），内容如实说明现状
+        // 图：自有瓦片地图 + 4 校区按钮（1:1 对齐 BIT101-S MapScreen，ODbL 署名常驻）
         if (this.currentId() === 'map') {
-          // 原版这页是地图；鸿蒙侧不做在线瓦片（配额 + ODbL 条款），
-          // 改成「楼栋索引 + 系统地图打开」——能真用，且不假装是地图。
-          Column() {
-            Text('校园楼栋')
-              .fontSize(18).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
-              .width('100%')
-            Text('按校区列出 48 栋楼，可查「本机课表里在这栋楼上过什么课」，并可用系统地图打开。')
-              .fontSize(12).fontColor(this.tk().onSurfaceVariant)
-              .width('100%').margin({ top: 8 })
-            Button('打开楼栋索引')
-              .height(36).fontSize(13).margin({ top: 16 })
-              .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
-              .onClick(() => {
-                router.pushUrl({ url: 'pages/CampusMapPage' }).catch((e: Error) => {
-                  warn('Index -> map fail: ' + JSON.stringify(e));
-                });
-              })
-          }
-          .width('100%').height('100%')
-          .padding({ left: 20, right: 20, top: 40 })
-          .alignItems(HorizontalAlign.Start)
-          .backgroundColor(this.tk().background)
+          MapPage()
         }
+        // 网：App 内 WebView 打开 bit101.cn（对齐 BIT101-S WebScreen）
         if (this.currentId() === 'web') {
-          ModulePlaceholder({
-            title: 'BIT101 网页',
-            reason: '这个入口打开的是 BIT101 站点的网页视图。当前 BIT101 后端不可用，打开只会是空白页，所以先不挂进去。',
-            icon: 'nav_web.svg',
-          })
+          WorldWebPage()
         }
         if (this.currentId() === 'gallery') {
           CommunityPage()

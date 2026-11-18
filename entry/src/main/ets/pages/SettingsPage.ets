@@ -62,7 +62,7 @@ const RECENT_TERM_YEARS: number = 3;
 struct SettingsPage {
   /** 订阅全局深浅色：设置页自己也要立刻跟着变（用户就在这页点）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State mode: string = MODE_AUTO;
   @State studentId: string = '';
@@ -647,7 +647,7 @@ struct SettingsPage {
             .width('100%')
             .alignItems(HorizontalAlign.Start)
 
-            Text('BIT101经典配色为深蓝占位（未验证），暖棕/青绿为已落地两套')
+            Text('BIT101经典配色为 1.12.0 起的默认配色（实验性深蓝）')
               .fontSize(10).fontColor(this.p().textPlaceholder)
               .width('100%').padding({ top: 2 })
           }

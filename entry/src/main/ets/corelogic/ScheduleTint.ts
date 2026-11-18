@@ -39,7 +39,7 @@ export type ScheduleTint = 'normal' | 'holiday' | 'makeup';
  * 我方早先按课名哈希取 12 色（本文件旧版），真机对照官方课表一眼就看出不是一套。
  * 12 色板（CoursePalette）保留给别处用，课表不再引用。
  */
-export function tintedScheduleColors(isDark: boolean, tint: ScheduleTint, paletteName: string = 'warm'): CourseColors {
+export function tintedScheduleColors(isDark: boolean, tint: ScheduleTint, paletteName: string = 'brand'): CourseColors {
   const t = gridTokens(isDark, getPaletteName(paletteName));
   const base: CourseColors = {
     fill: t.secondaryContainer,

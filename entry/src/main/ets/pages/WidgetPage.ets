@@ -48,7 +48,7 @@ struct WidgetPage {
    *   算好传进来；以前这里写死深绿 #1A7F37 + 白底，和 App 的三套配色完全不搭
    *   （2026-10-27 真机对照后改）。
    */
-  @LocalStorageProp('widgetPalette') widgetPalette: string = 'warm';
+  @LocalStorageProp('widgetPalette') widgetPalette: string = 'brand';
   @LocalStorageProp('widgetDark') widgetDark: boolean = false;
   @State private currentTabIndex: number = 0;
 

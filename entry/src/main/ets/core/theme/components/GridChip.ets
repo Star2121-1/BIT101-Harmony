@@ -27,7 +27,7 @@ import {
 @Component
 export struct GridChip {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   label: string = '';
   selected: boolean = false;

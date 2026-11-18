@@ -79,7 +79,7 @@ export struct ClassroomPage {
 
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   @State loading: boolean = true;
   @State errorText: string = '';
   @State needLogin: boolean = false;
@@ -469,8 +469,8 @@ export struct ClassroomPage {
         }
         .width('100%').justifyContent(FlexAlign.Center)
       } else if (this.groups.length === 0) {
-        // 空态：一句保守的话，不点名「哪个校区没有」（列表本来就是全部校区的）
-        Text('没有获取到教学楼（可以到设置里切换默认校区）')
+        // 对齐 BIT101-S FreeClassroomSearch.kt:484 原文（含 QwQ + 换行）
+        Text('没有获取到教学楼QwQ\n(可以到设置里切换默认校区)')
           .fontSize(12).fontColor(this.tk().onSecondaryContainer).textAlign(TextAlign.Center)
           .width('100%').padding(12)
           .backgroundColor(this.tk().secondaryContainer).borderRadius(CARD_RADIUS)

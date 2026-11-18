@@ -32,7 +32,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 export struct DiagnosticsPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State lines: DiagLine[] = [];
   @State busy: boolean = true;

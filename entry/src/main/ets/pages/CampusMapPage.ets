@@ -43,7 +43,7 @@ interface BuildingCard {
 @Component
 export struct CampusMapPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State campus: string = '良乡校区';
   @State query: string = '';

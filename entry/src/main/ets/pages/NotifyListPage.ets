@@ -34,7 +34,7 @@ interface TabItem {
 @Component
 struct NotifyListPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   @State tabs: TabItem[] = [];
   @State activeTab: number = 0;
   @State records: NotifyRecord[] = [];

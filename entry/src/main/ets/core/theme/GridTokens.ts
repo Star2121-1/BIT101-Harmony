@@ -209,8 +209,8 @@ interface SharedTokens {
  */
 export type PaletteName = 'classic' | 'warm' | 'brand';
 
-/** 默认 palette：**Warm**（对齐 Android `AppPalette` 默认；⚠️ 不是展示序首位 Brand）。 */
-export const DEFAULT_PALETTE: PaletteName = 'warm';
+/** 默认 palette：**Brand**（对齐 BIT101-S 1.12.0 `SettingDataStore.SETTING_APP_PALETTE` = "brand"）。 */
+export const DEFAULT_PALETTE: PaletteName = 'brand';
 
 /** 全部 palette（UI 展示序：Brand 在前——Android `allPalettes` 展示序，用户拍板）。 */
 export const ALL_PALETTES: PaletteName[] = ['brand', 'classic', 'warm'];
@@ -520,9 +520,8 @@ const PALETTE_BRAND: PaletteTokens = {
 };
 
 /**
- * 把任意字符串收敛成合法 palette；**脏值回落显式默认 warm**
- * （对齐 Android `AppPalette.getPalette`；展示序首位是 brand，默认却是 warm，
- * 所以不能用 first() 兜底——那会把脏值回落成 Brand）。
+ * 把任意字符串收敛成合法 palette；**脏值回落显式默认 brand**
+ * （对齐 BIT101-S 1.12.0 `AppPalette.getPalette`：默认 = brand = 展示序首位）。
  *
  * 纯函数（不碰 kit）：corelogic 层（如 ScheduleTint）与 ThemeStore 共用，
  * 保证「收敛规则只有一个实现」。ThemeStore.getPalette 是它的薄封装。

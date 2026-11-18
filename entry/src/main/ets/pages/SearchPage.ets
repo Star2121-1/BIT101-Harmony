@@ -37,7 +37,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 export struct SearchPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State query: string = '';
   @State groups: SearchGroup[] = [];

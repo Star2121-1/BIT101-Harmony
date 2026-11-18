@@ -84,7 +84,7 @@ function findOverlayById(list: CourseOverlay[], id: number): CourseOverlay | nul
 @Component
 struct OverlayPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State rawCourses: CourseRow[] = [];
   @State overlays: CourseOverlay[] = [];

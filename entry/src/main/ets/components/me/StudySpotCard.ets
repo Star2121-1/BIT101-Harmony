@@ -22,7 +22,7 @@ import { Plan, SpotCard, studySpotCardOf } from '../../corelogic/StudySpotLogic.
 @Component
 export struct StudySpotCard {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'brand';
 
   @State private spotCard: SpotCard | null = null;
   @State private spotPlan: Plan | null = null;

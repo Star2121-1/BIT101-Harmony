@@ -3,12 +3,12 @@
  *
  * 两条轴，互不干涉：
  * - 深浅三档模式：`auto`（跟随系统）/ `light` / `dark`；
- * - palette 三选一：`brand` / `classic` / `warm`（默认 warm）。
+ * - palette 三选一：`brand` / `classic` / `warm`（默认 brand，对齐 BIT101-S 1.12.0）。
  *
  * 页面不自己判断，统一订阅 `AppStorage`：
  *
  *   @StorageLink('ui_dark') isDark: boolean = false;
- *   @StorageLink('ui_palette') paletteName: string = 'warm';
+ *   @StorageLink('ui_palette') paletteName: string = 'brand';
  *   .backgroundColor(gridTokens(this.isDark, ThemeStore.getPalette(this.paletteName)).surface)
  *
  * ⚠️ 为什么不用 `resources/dark/element/color.json` 那套自动换肤：
@@ -17,7 +17,8 @@
  *
  * ⚠️ palette 名 = Android `AppPalette.value` 冻结契约（brand/classic/warm），
  * 展示名映射反直觉（brand=「BIT101经典配色」/classic=「暖棕配色」/warm=「清新青绿配色」，
- * 见 GridTokens.ts 文件头）；脏值回落**显式默认 warm**，不用 first()（会把脏值变 brand）。
+ * 见 GridTokens.ts 文件头）；脏值回落**显式默认 brand**，不用 first()（顺序是
+ * brand/classic/warm，恰好与默认一致；但显式写常量，不依赖数组顺序）。
  */
 
 import { Context } from '@kit.AbilityKit';
@@ -49,7 +50,7 @@ export const PALETTE_CLASSIC: PaletteName = 'classic';
 export const PALETTE_WARM: PaletteName = 'warm';
 
 /**
- * 把任意字符串收敛成合法 palette；**脏值回落显式默认 warm**
+ * 把任意字符串收敛成合法 palette；**脏值回落显式默认 brand**
  * （薄封装：实现在 GridTokens.getPaletteName，收敛规则全工程唯一）。
  */
 export function getPalette(value: string): PaletteName {
@@ -60,7 +61,7 @@ export class ThemeStore {
   /** 当前模式（'auto' | 'light' | 'dark'）。进程内唯一。 */
   private static currentMode: string = MODE_AUTO;
   /** 当前 palette。进程内唯一。 */
-  private static currentPalette: PaletteName = PALETTE_WARM;
+  private static currentPalette: PaletteName = PALETTE_BRAND;
 
   /** 启动时调一次：读回上次选择 + 计算并广播深浅/palette。 */
   static async init(context: Context): Promise<void> {
@@ -75,9 +76,9 @@ export class ThemeStore {
       mode = MODE_AUTO;
     }
     ThemeStore.currentMode = mode;
-    let paletteRaw: string = PALETTE_WARM;
+    let paletteRaw: string = PALETTE_BRAND;
     try {
-      paletteRaw = await Prefs.getString(KEY_PALETTE, PALETTE_WARM);
+      paletteRaw = await Prefs.getString(KEY_PALETTE, PALETTE_BRAND);
     } catch (e) {
       warn('ThemeStore read palette fail: ' + JSON.stringify(e));
     }

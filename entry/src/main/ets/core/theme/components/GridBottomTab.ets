@@ -37,7 +37,7 @@ export interface GridTabItem {
 @Component
 struct GridBottomTabItemView {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   label: string = '';
   iconText: string = '';
   selected: boolean = false;
@@ -100,7 +100,7 @@ struct GridBottomTabItemView {
 @Component
 export struct GridBottomTabRow {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   items: GridTabItem[] = [];
 
   build() {

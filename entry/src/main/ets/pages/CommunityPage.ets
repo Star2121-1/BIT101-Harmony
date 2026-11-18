@@ -27,9 +27,10 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 export struct CommunityPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
-  @State modeIndex: number = 0;
+  /** 默认 index=1 =「推荐」（对齐 Android GalleryScreen initialPage=1）。 */
+  @State modeIndex: number = 1;
   @State query: string = '';
   @State posts: CommunityPost[] = [];
   @State loading: boolean = false;

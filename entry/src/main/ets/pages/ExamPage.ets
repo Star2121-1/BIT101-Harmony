@@ -26,7 +26,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 struct ExamPage {
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   @State loading: boolean = true;
   @State errorText: string = '';
   @State needLogin: boolean = false;

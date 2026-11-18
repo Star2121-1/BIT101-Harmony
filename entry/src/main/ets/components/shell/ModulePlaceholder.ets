@@ -16,7 +16,7 @@ import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../../data/ThemeStore
 @Component
 export struct ModulePlaceholder {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'brand';
 
   /** 模块名（画面上最大的那行）。 */
   title: string = '';

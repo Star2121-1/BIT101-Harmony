@@ -44,7 +44,9 @@ function refMix(c1, c2, ratio) {
 }
 
 console.log('=== 真机锚点（平板实测采样值）===');
-const light = gridTokens(false);
+// warm 真机锚点：palette 默认已切 brand（BIT101-S 1.12.0），但这些配方值来自
+// 平板 ref-01/07（Warm 实拍），是「配方正确性」守卫，必须显式 warm，不随默认变。
+const light = gridTokens(false, 'warm');
 // 今日列：primaryContainer@0.5α 复合背景 —— 实测 #FAEBE0（1504×2400 采样中位色）
 eq(mixHex(light.primaryContainer, light.background, 0.5), '#FAEBE0', '今日列 mix(primaryContainer,bg,0.5)=#FAEBE0');
 // 空教室页背景/教学楼卡：mix(surface, primaryContainer, 0.25) —— 实测 #FBE6D9
@@ -78,7 +80,7 @@ eq(withAlpha('#112369', 2).slice(1, 3), 'FF', 'withAlpha 越界(>1)收拢到 FF�
 eq(withAlpha('#112369', -1).slice(1, 3), '00', 'withAlpha 越界(<0)收拢到 00（首字节）');
 
 console.log('\n=== 空教室页卡片色（#85，源码 FreeClassroomSearch.kt）===');
-const dark = gridTokens(true);
+const dark = gridTokens(true, 'warm');
 // 校区卡 = surfaceVariant（原版 surfaceContainerHigh，warm 下同值）；实测 ref-07 采样 #F4EFE8
 eq(light.surfaceVariant, '#F4EFE8', '校区卡 = surfaceVariant #F4EFE8（真机实测）');
 // 教学楼卡 = mixColor(surface, primaryContainer, 0.25f)，源码 FreeClassroomSearch.kt:183
@@ -151,12 +153,12 @@ for (const dark of [false, true]) {
     (dark ? 'dark' : 'light') + ' holiday warm!=classic（palette 轴生效）');
   ok(cDiff(tw.fill, tb.fill) > 5,
     (dark ? 'dark ' : 'light ') + ' holiday warm!=brand（palette 轴生效）');
-  // 不传第三参 = warm（默认），与显式 warm 一致
-  eq(tintedScheduleColors(dark, 'holiday').fill, tw.fill,
-    (dark ? 'dark' : 'light') + ' holiday 不传 palette = warm');
-  // 脏 palette 名收敛到 warm（与显式 warm 一致，不许崩）
-  eq(tintedScheduleColors(dark, 'holiday', 'grid').fill, tw.fill,
-    (dark ? 'dark' : 'light') + ' holiday 脏 palette 收敛 = warm');
+  // 不传第三参 = brand（默认，对齐 BIT101-S 1.12.0），与显式 brand 一致
+  eq(tintedScheduleColors(dark, 'holiday').fill, tb.fill,
+    (dark ? 'dark' : 'light') + ' holiday 不传 palette = brand');
+  // 脏 palette 名收敛到 brand（与显式 brand 一致，不许崩）
+  eq(tintedScheduleColors(dark, 'holiday', 'grid').fill, tb.fill,
+    (dark ? 'dark' : 'light') + ' holiday 脏 palette 收敛 = brand');
 }
 
 console.log('\n=== 非法输入必须抛错（不猜）===');

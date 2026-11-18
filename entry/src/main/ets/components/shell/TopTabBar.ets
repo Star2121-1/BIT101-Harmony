@@ -22,7 +22,7 @@ import type { ShellTab } from '../../corelogic/shellNav.ts';
 @Component
 export struct TopTabBar {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'brand';
 
   /** 页签列表（顺序即布局，来自 `shellNav.SCHEDULE_TABS`；常量，不需要 @Prop）。 */
   tabs: ShellTab[] = [];

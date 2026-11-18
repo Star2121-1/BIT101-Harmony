@@ -27,7 +27,7 @@ import { info, warn } from '../core/log/BitLog.ts';
 @Component
 struct CardPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State snap: CardSnapshot | null = null;
   @State busy: boolean = false;

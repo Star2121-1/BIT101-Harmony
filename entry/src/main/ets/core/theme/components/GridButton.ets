@@ -30,7 +30,7 @@ import {
 @Component
 export struct GridButton {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   label: string = '';
   variant: string = 'filled';

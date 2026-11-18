@@ -1,5 +1,13 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-19 版本 `1.0.0-alpha.28`（versionCode 28）— 按 Android 全面对齐第一批（用户拍板「一切以 BIT101-S 为准，UI/外观/配色/功能，肉眼无区别」）**：
+> - **默认配色 warm → brand**：对齐 BIT101-S 1.12.0 `SettingDataStore.SETTING_APP_PALETTE="brand"`（此前鸿蒙全仓默认 warm，与用户手机主 App 首屏色系不符）。改 40 个文件首帧初值 + `GridTokens.DEFAULT_PALETTE` + `ThemeStore` + `FormExtension` + `ScheduleTint` 默认参数 + 测试断言。守卫 `test-gridtokens`/`test-scheduletint` 故意拆红验证（改回 warm 立刻 12 条红，恢复全绿）。
+> - **「图」Tab 接自有瓦片地图**：新建 `MapPage.ets`（原生壳 + WebView 内联瓦片引擎 `rawfile/map.html`）+ `corelogic/MapTileMath.ts`（坐标换算，34 断言 `test-maptile`）。瓦片源 `map.bit101.flwfdd.xyz/tile/{z}/{col}/{row}.png` 与 Android 同源；ODbL 署名常驻；4 校区按钮 + 缩放滑杆 + ODbL 署名走 gridTokens。**未真机验**（本轮无设备）。
+> - **「网」Tab 恢复 WebView**：新建 `WorldWebPage.ets`（`https://bit101.cn` + 顶部 #FF9A57 + onPageBegin 注入 theme_mode/fake_cookie 到 localStorage.store，对齐 Android WebScreen）。社区后端当前不可用，首页可能空白属服务端现状，如实呈现不伪造。
+> - **低风险文案/结构对齐**：话廊四流顺序改「关注/推荐/最新/最热」+ 默认落推荐（Android initialPage=1）；我页顶栏补成绩入口（ic_school→ScorePage）；DDL 空态回 Android 原文；空教室空态补 QwQ+换行；动态空态补 UNAVAILABLE 第三态 +「打开延河课堂」按钮。
+> - 验证：全量 **81/81 套件 3762 断言**（含新增 test-maptile），`assembleHap` BUILD SUCCESSFUL。**全部改动均未真机验证**（设备未连接，hdc/adb 无设备）——「肉眼无区别」需连真机逐页对照。
+> - **明确未做（需单独排期，本轮不草率替换）**：设置页 12 入口卡 + 8 个二级子页（现为分组列表，MIGRATION-BASELINE §9.3 记录为有意取舍）；座位抢座任务模式/日期选择；我页帖子列表；课表显示开关（周末/边框/时间线）；话廊设置子页。这些涉及数据层或大规模结构搬迁，需真机对照后再定。
+
 > **2026-11-19 凌晨 座位接口 HTTP 500 根因定位（只读取证，不改核心登录）**：此前只知道"座位要独立登录、静默续期失败"，这次查清**为什么必然失败**。证据链：①真机 `school_cookies_v1` 10 条 cookie 全是 `sso.bit.edu.cn`/`jxzxehall*.bit.edu.cn` 域，**无 `seatlib.bit.edu.cn` 域**；②`silentRenewJwt`（CasLoginService.ts:416）把这些 cookie 恢复到 JAR_CAS 后直接打 seatlib `/api/cas/user`，跨域带不上 cookie ⇒ 换不到 token；③根子在登录步骤8 `snapshotAndSave(repo)` 抓的是 **JAR_LOGIN** repo，而 seatlib 域 phpCAS cookie 是 `followForCasCode(sessionC)` 在 **JAR_CAS** 罐种下的，从未落盘（`isSsoDomain` 设计上就排除 seatlib）。Android 原版用座位专用 `seatLoginStatus.token` + seatlib 域会话。报告 `evidence/seat-500-rootcause-20261119.md`，守卫 `test-seat500rc`（11 条，故意拆红验过）。**本轮不改核心登录**（test-sso 锁"只下沉 sso 域不串罐"，且设备 hilog 抓不到无法验效，避免假通过）。下一步选项 A 补 seatlib cookie 持久化 / B 加座位专用登录入口 / C 维持诚实报错——当前 C，待拍板。
 
 > **2026-11-19 凌晨 真机走查"写了未验"页面（借活会话，全部渲染正常、无伪造）**：

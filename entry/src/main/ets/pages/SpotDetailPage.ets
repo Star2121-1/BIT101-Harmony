@@ -35,7 +35,7 @@ interface DetailRow {
 struct SpotDetailPage {
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   @State metaText: string = '';
   @State errorText: string = '';
   @State errorKind: string = 'none';

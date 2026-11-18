@@ -86,7 +86,7 @@ export struct SchedulePage {
 
   /** 订阅全局深浅色（由设置页切换、AppStorage 广播）。 */
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   /**
    * 设置页选的学期（'' = 跟随教务）。
    * ⚠️ 壳里是 Stack 保活，从设置页返回时 `aboutToAppear` 不会再跑 ⇒ 必须靠

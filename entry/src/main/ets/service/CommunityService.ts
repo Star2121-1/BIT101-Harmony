@@ -22,7 +22,8 @@ import { parseReportTypes, ReportType } from '../corelogic/CommunityLogic.ts';
 export { ReportType };
 
 /** 四流模式：Android PostersMode 的取值（推荐/最新/最热/关注）。 */
-export const COMMUNITY_MODES: string[] = ['recommend', 'latest', 'hot', 'follow'];
+/** 四流顺序 = Android GalleryScreen.pages（关注/推荐/最新/最热），默认落「推荐」index=1。 */
+export const COMMUNITY_MODES: string[] = ['follow', 'recommend', 'latest', 'hot'];
 
 export class CommunityService {
   /**

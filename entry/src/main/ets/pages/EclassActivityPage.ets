@@ -47,7 +47,7 @@ export struct EclassActivityPage {
   isEmbedded: boolean = false;
 
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State list: EclassActivity[] = [];
   @State status: string = '';
@@ -189,31 +189,21 @@ export struct EclassActivityPage {
     })
   }
 
-  /** 空态卡（原版 `ActivityEmptyCard`，1:1 结构；文案随会话有无切换）。 */
+  /** 空态卡（原版 `ActivityEmptyCard`，1:1 结构；三态对齐 EclassActivityScreen.kt）。 */
   @Builder
   emptyCard() {
     Column() {
-      Text(this.hasSession ? '暂时没有课程动态' : '还没登录延河课堂')
+      Text(this.emptyTitle())
         .fontSize(14)
         .fontColor(this.tk().onSecondaryContainer)
-      Text(this.hasSession ? '老师发布资料或作业后，这里会显示出来'
-        : '登录后即可看到课程动态（作业、资料、公告）')
+      Text(this.emptySub())
         .fontSize(12)
         .fontColor(this.tk().onSecondaryContainer)
         .opacity(0.75)
         .textAlign(TextAlign.Center)
         .margin({ top: 6 })
       Row() {
-        if (this.hasSession) {
-          Button('刷新')
-            .fontSize(13)
-            .height(34)
-            .backgroundColor(this.tk().primary)
-            .fontColor(this.tk().onPrimary)
-            .onClick(() => {
-              this.load();
-            })
-        } else {
+        if (!this.hasSession) {
           Button('去登录')
             .fontSize(13)
             .height(34)
@@ -224,6 +214,24 @@ export struct EclassActivityPage {
                 warn('activity -> eclass login fail: ' + JSON.stringify(e));
               });
             })
+        } else {
+          // 对齐 Android：已登录空态给「打开延河课堂 + 刷新」两颗
+          Button('打开延河课堂')
+            .fontSize(13).height(34).margin({ right: 8 })
+            .backgroundColor(this.tk().secondaryContainer)
+            .fontColor(this.tk().onSecondaryContainer)
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/WebShellPage', params: { url: 'https://zy-eclass.bit.edu.cn/' } })
+                .catch((e: Error) => warn('activity -> eclass web fail: ' + JSON.stringify(e)));
+            })
+          Button('刷新')
+            .fontSize(13)
+            .height(34)
+            .backgroundColor(this.tk().primary)
+            .fontColor(this.tk().onPrimary)
+            .onClick(() => {
+              this.load();
+            })
         }
       }
       .margin({ top: 10 })
@@ -233,6 +241,19 @@ export struct EclassActivityPage {
     .margin({ top: 5, bottom: 5 })
     .backgroundColor(this.tk().secondaryContainer)
     .borderRadius(12)
+  }
+
+  /** 空态三态标题：故障(UNAVAILABLE) / 未登录(NEEDS_LOGIN) / 正常(ALIVE)。 */
+  private emptyTitle(): string {
+    if (this.hasSession && this.statusIsProblem()) return '延河课堂暂时打不开';
+    return this.hasSession ? '暂时没有课程动态' : '还没登录延河课堂';
+  }
+
+  /** 空态三态副文案（逐字对齐 EclassActivityScreen.kt:273-286）。 */
+  private emptySub(): string {
+    if (this.hasSession && this.statusIsProblem()) return '学校那边没响应，不是你没登录。稍后再试即可';
+    return this.hasSession ? '老师发布资料或作业后，这里会显示出来'
+      : '登录后即可看到课程动态（作业、资料、公告）';
   }
 
   build() {

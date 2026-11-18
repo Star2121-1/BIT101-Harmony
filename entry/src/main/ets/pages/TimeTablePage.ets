@@ -35,7 +35,7 @@ function fmt(minutes: number): string {
 @Component
 struct TimeTablePage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State rows: RowDraft[] = [];
   @State custom: boolean = false;

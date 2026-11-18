@@ -83,7 +83,7 @@ function fmtAgo(ms: number, now: number): string {
 @Component
 struct TaskMonitorCard {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   @Prop task: ReservationTask = {} as ReservationTask;
   @Prop foreground: boolean = true;
   @Prop now: number = 0;
@@ -218,7 +218,7 @@ struct TaskMonitorCard {
 @Component
 struct SeatMonitorPage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   @State tasks: ReservationTask[] = [];
   @State foreground: boolean = true;
   @State now: number = Date.now();

@@ -41,7 +41,7 @@ export struct SeatPage {
   isEmbedded: boolean = false;
 
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   /** 座位页两个视图（对齐原版顶部「预约/列表」双 chip）：'book' 预约 / 'list' 列表。 */
   @State seatTab: string = 'book';
@@ -954,7 +954,7 @@ export struct SeatPage {
 @Component
 struct SeatChip {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   label: string = '';
   selected: boolean = false;

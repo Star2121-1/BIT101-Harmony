@@ -53,7 +53,7 @@ export struct DdlPage {
   isEmbedded: boolean = false;
 
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State entries: DdlEntry[] = [];
   @State status: string = '';
@@ -336,7 +336,8 @@ export struct DdlPage {
               Text(this.noSource
                 ? '没有启用任何作业来源。去「设置 → 作业来源」打开延河课堂或本地新增。'
                 : (this.hasSession
-                  ? '没有作业数据。点右上角「同步」从延河课堂拉取。'
+                  // 对齐 BIT101-S DDLSchedule.kt:158 空态原文
+                  ? '怎么会有人没事儿了啊ヽ(｀Д´)ﾉ\n快去卷😭'
                   : '还没有作业数据。先在延河课堂登录，再同步。'))
                 .fontSize(12).fontColor(this.tk().onSecondaryContainer)
                 .width('100%').textAlign(TextAlign.Center)

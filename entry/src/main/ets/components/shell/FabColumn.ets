@@ -34,7 +34,7 @@ export const FAB_CONTAINER_ALPHA: number = 0.8;
 @Component
 export struct FabColumn {
   @StorageLink(STORAGE_DARK) private isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) private paletteName: string = 'brand';
 
   /** 自下而上排布（原版 Column 的书写顺序即视觉顺序，从上到下）。 */
   actions: FabAction[] = [];

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #E8E6E1; }
+  #map { display: block; width: 100%; height: 100%; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="map"></canvas>
+<script>
+/**
+ * 内联瓦片地图引擎（BIT101-S 鸿蒙版「图」页）
+ * 瓦片源与 Android 同源：https://map.bit101.flwfdd.xyz/tile/{z}/{col}/{row}.png
+ * 坐标口径：Web-Mercator 归一化 0..1，缩放 z15..z18，瓦片 256px。
+ * 不依赖任何外部 JS/CDN，WebView 里自包含运行。
+ */
+(function () {
+  'use strict';
+  var TILE = 256;
+  var MINZ = 15, MAXZ = 18;
+  var canvas = document.getElementById('map');
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var W = 0, H = 0;
+
+  // 视图状态：cx/cy 归一化中心，zoom 连续层级（渲染时取整取瓦片，缩放用浮点平滑）
+  var cx = 0.822685, cy = 0.379560, zoom = 16;
+  var tileCache = {};     // key = z/c/r → Image (或 'err')
+  var loading = {};
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function resize() {
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+
+  /** 世界像素尺寸（浮点 zoom，保证缩放平滑）。 */
+  function worldSize() { return TILE * Math.pow(2, zoom); }
+
+  /**
+   * 渲染：把中心归一化坐标换算成世界像素，算出可见瓦片并绘制。
+   * 屏幕中心 = (cx,cy)*worldSize；瓦片 (col,row) 左上角 = (col*TILE,row*TILE)。
+   */
+  function render() {
+    if (W === 0 || H === 0) return;
+    ctx.fillStyle = '#E8E6E1';
+    ctx.fillRect(0, 0, W, H);
+    var ws = worldSize();
+    var centerPx = cx * ws, centerPy = cy * ws;
+    var z = clamp(Math.round(zoom), MINZ, MAXZ);
+    var originX = W / 2 - centerPx;   // 世界像素 → 屏幕像素的平移
+    var originY = H / 2 - centerPy;
+    var c0 = Math.floor((0 - originX) / TILE);
+    var c1 = Math.floor((W - originX) / TILE);
+    var r0 = Math.floor((0 - originY) / TILE);
+    var r1 = Math.floor((H - originY) / TILE);
+    var maxTile = Math.pow(2, z);
+
+    for (var r = r0; r <= r1; r++) {
+      for (var c = c0; c <= c1; c++) {
+        // 环绕经度，垂直方向越界跳过（Web-Mercator 极区无瓦片）
+        if (r < 0 || r >= maxTile) continue;
+        var cc = ((c % maxTile) + maxTile) % maxTile;
+        var srcX = originX + c * TILE;
+        var srcY = originY + r * TILE;
+        var key = z + '/' + cc + '/' + r;
+        var img = tileCache[key];
+        if (img && img !== 'err' && img.complete && img.naturalWidth > 0) {
+          ctx.drawImage(img, srcX, srcY, TILE, TILE);
+        } else {
+          ctx.fillStyle = '#DCDAD4';
+          ctx.fillRect(srcX, srcY, TILE, TILE);
+          ctx.strokeStyle = '#CFCFC9';
+          ctx.strokeRect(srcX + 0.5, srcY + 0.5, TILE - 1, TILE - 1);
+          loadTile(key, z, cc, r);
+        }
+      }
+    }
+  }
+
+  function loadTile(key, z, c, r) {
+    if (loading[key]) return;
+    loading[key] = true;
+    var img = new Image();
+    img.onload = function () { tileCache[key] = img; loading[key] = false; render(); };
+    img.onerror = function () { tileCache[key] = 'err'; loading[key] = false; render(); };
+    img.src = 'https://map.bit101.flwfdd.xyz/tile/' + z + '/' + c + '/' + r + '.png';
+  }
+
+  /** 世界像素 → 归一化。 */
+  function pxToNorm(px, py) {
+    var ws = worldSize();
+    return { x: px / ws, y: py / ws };
+  }
+
+  // ── 交互：拖拽平移 ──
+  var dragging = false, lastX = 0, lastY = 0;
+  var pointers = {};
+  var pinchDist = 0;
+
+  canvas.addEventListener('pointerdown', function (e) {
+    canvas.setPointerCapture(e.pointerId);
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var ids = Object.keys(pointers);
+    if (ids.length === 1) { dragging = true; lastX = e.clientX; lastY = e.clientY; }
+    else if (ids.length === 2) { dragging = false; pinchDist = twoFingerDist(); }
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (pointers[e.pointerId]) pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var ids = Object.keys(pointers);
+    if (ids.length === 2) {
+      var d = twoFingerDist();
+      if (pinchDist > 0 && d > 0) {
+        zoom = clamp(zoom + Math.log2(d / pinchDist), MINZ, MAXZ);
+      }
+      pinchDist = d;
+      render();
+      return;
+    }
+    if (!dragging) return;
+    var dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    var ws = worldSize();
+    cx -= dx / ws; cy -= dy / ws;
+    cy = clamp(cy, 0, 1);
+    cx = ((cx % 1) + 1) % 1;
+    render();
+  });
+  function endPointer(e) {
+    delete pointers[e.pointerId];
+    var ids = Object.keys(pointers);
+    if (ids.length < 2) pinchDist = 0;
+    if (ids.length === 0) dragging = false;
+    else if (ids.length === 1) {
+      var p = pointers[ids[0]]; lastX = p.x; lastY = p.y; dragging = true;
+    }
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  function twoFingerDist() {
+    var ids = Object.keys(pointers);
+    if (ids.length < 2) return 0;
+    var a = pointers[ids[0]], b = pointers[ids[1]];
+    return Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+  }
+  canvas.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    zoom = clamp(zoom - Math.sign(e.deltaY) * 0.35, MINZ, MAXZ);
+    render();
+  }, { passive: false });
+
+  // ── 供 ArkTS 调用的桥接 API ──
+  window.MapEngine = {
+    /** 定位到归一化坐标（Android scrollTo 的 x/y）。 */
+    goto: function (x, y, z) {
+      cx = x; cy = y;
+      if (typeof z === 'number') zoom = clamp(z, MINZ, MAXZ);
+      render();
+    },
+    /** 设定连续缩放层级。 */
+    setZoom: function (z) { zoom = clamp(z, MINZ, MAXZ); render(); },
+    getZoom: function () { return zoom; },
+    resize: resize,
+  };
+  window.addEventListener('resize', resize);
+  resize();
+})();
+</script>
+</body>
+</html>

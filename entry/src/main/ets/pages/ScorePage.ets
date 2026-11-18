@@ -45,7 +45,7 @@ import { warn } from '../core/log/BitLog.ts';
 @Component
 export struct ScorePage {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
-  @StorageLink(STORAGE_PALETTE) paletteName: string = 'warm';
+  @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
 
   @State entries: ScoreEntry[] = [];
   /** 缓存时刻（毫秒；0 = 没有缓存）。 */
