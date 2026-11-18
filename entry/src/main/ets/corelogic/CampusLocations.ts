@@ -32,7 +32,7 @@ export interface Location {
   aliases: string[];
 }
 
-/** 全部地点（良乡 30 + 中关村 20，与 Android 表逐条一致）。 */
+/** 全部地点（良乡 34 + 中关村 14 = 48，与 Android 表逐条一致；旧注释 30+20 已过期）。 */
 export const ALL: Location[] = [
   // ── 良乡校区 ──
   { name: "文萃楼A", campusName: "良乡校区", x: 0.822690, y: 0.379552, aliases: ["文萃楼A", "文萃A"] },

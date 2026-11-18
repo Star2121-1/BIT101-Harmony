@@ -165,6 +165,18 @@ struct CardPage {
                 .borderRadius(10)
               }, (entry: CardEntry) => entry.label + '=' + entry.value)
           }
+
+          // ── 流水边界说明（#157：Android 探针已证 Web 端 302 到充值页，不伪造原生流水） ──
+          Column() {
+            Text('消费流水 / 明细')
+              .fontSize(12).fontColor(this.tk().onSurface).width('100%')
+            Text('学校的一卡通流水只在 i北理（钉钉）客户端提供，网页端会跳到充值页。这里只显示余额与趋势，不提供流水入口，也不伪造明细。')
+              .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+              .width('100%').margin({ top: 4 })
+          }
+          .width('100%').padding(12).margin({ top: 16 })
+          .backgroundColor(this.tk().surface).borderRadius(10)
+          .alignItems(HorizontalAlign.Start)
         }
         .width('100%').padding({ left: 12, right: 12 })
       }

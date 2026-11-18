@@ -29,12 +29,6 @@ import {
   PALETTE_BRAND, PALETTE_CLASSIC, PALETTE_WARM
 } from '../data/ThemeStore.ts';
 import { SessionStore } from '../data/SessionStore.ts';
-import { SchoolCookieStore } from '../data/SchoolCookieStore.ts';
-import { EclassCookieStore } from '../data/EclassCookieStore.ts';
-import { LibCookieStore } from '../data/LibCookieStore.ts';
-import { CardCookieStore } from '../data/CardCookieStore.ts';
-import { CampusCardStore } from '../data/CampusCardStore.ts';
-import { CampusNetTrafficStore } from '../data/CampusNetTrafficStore.ts';
 import { Prefs } from '../data/Prefs.ts';
 import { TermStore, STORAGE_TERM, splitTermsByRecentYears, TermSplit } from '../data/TermStore.ts';
 import { SchoolService } from '../service/SchoolService.ts';
@@ -518,19 +512,9 @@ struct SettingsPage {
   private async doLogout(): Promise<void> {
     this.busy = true;
     try {
-      // 只清会话，保留课表缓存（登出后仍可离线看课表）
-      await SessionStore.clear();
-      await SchoolCookieStore.clear();
-      // eclass 会话三处都清（Prefs + rcp 罐 + Web 组件存储）——
-      // 不清 Web 存储的话下次 syncFromWeb 会把旧会话同步回来
-      await EclassCookieStore.clear();
-      // 图书馆会话同款三处（Prefs + rcp 罐 + Web 组件存储）
-      await LibCookieStore.clear();
-      // 一卡通会话同款三处 + 余额趋势历史（换账号不串趋势）
-      await CardCookieStore.clear();
-      await CampusCardStore.clear();
-      // 校园网流量历史（同样换账号不串趋势）
-      await CampusNetTrafficStore.clear();
+      // 唯一入口：清所有会话 + 跨账号残留（课表缓存保留，见 SessionStore.logoutAll 注释）。
+      // 以前这里逐条调 7 个 clear，新增 store 容易漏 —— #150 收拢到 logoutAll。
+      await SessionStore.logoutAll();
       this.loggedIn = false;
       this.studentId = '';
       this.campusList = [];

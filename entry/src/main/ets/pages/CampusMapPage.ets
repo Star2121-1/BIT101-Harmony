@@ -23,6 +23,8 @@ import {
 } from '../corelogic/CampusDirectory.ts';
 import type { CampusGroup, CoursePlace } from '../corelogic/CampusDirectory.ts';
 import type { Location } from '../corelogic/CampusLocations.ts';
+import { CAMPUSES, findCampus, campusGeoUri, noIndexHint } from '../corelogic/CampusCenters.ts';
+import type { CampusCenter } from '../corelogic/CampusCenters.ts';
 import { sanitizeBuildingName, STORAGE_FOCUS_BUILDING } from '../corelogic/SearchNav.ts';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
@@ -55,6 +57,12 @@ export struct CampusMapPage {
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
+  }
+
+  /** 当前校区无建筑索引时的诚实说明（珠海/嘉兴）。 */
+  private noIndexHint(): string {
+    const c: CampusCenter | null = findCampus(this.campus);
+    return c === null ? '' : noIndexHint(c);
   }
 
   aboutToAppear(): void {
@@ -178,6 +186,25 @@ export struct CampusMapPage {
     });
   }
 
+  /** 无建筑索引的校区：用校区中心点经纬度在系统地图定位（#156）。 */
+  private openCampusInMap(): void {
+    const c: CampusCenter | null = findCampus(this.campus);
+    if (c === null) {
+      return;
+    }
+    const uri: string = campusGeoUri(c);
+    const ctx = getContext(this) as common.UIAbilityContext;
+    ctx.startAbility({
+      action: 'ohos.want.action.viewData',
+      uri: uri,
+    }).then(() => {
+      info('CampusMapPage open campus map ok ' + c.name);
+    }).catch((e: Error) => {
+      promptAction.showToast({ message: '没有可用的地图应用。校区坐标：' + c.lat + ',' + c.lon });
+      warn('CampusMapPage open campus fail: ' + JSON.stringify(e));
+    });
+  }
+
   @Builder
   campusChip(name: string) {
     Text(name)
@@ -259,9 +286,9 @@ export struct CampusMapPage {
 
       // 校区 chips
       Flex({ wrap: FlexWrap.Wrap }) {
-        ForEach(this.groups, (g: CampusGroup) => {
-          this.campusChip(g.campus)
-        }, (g: CampusGroup) => g.campus)
+        ForEach(CAMPUSES, (c: CampusCenter) => {
+          this.campusChip(c.name)
+        }, (c: CampusCenter) => c.name)
       }
       .width('100%')
       .padding({ left: 14, right: 14, top: 10, bottom: 6 })
@@ -276,9 +303,22 @@ export struct CampusMapPage {
       Scroll() {
         Column() {
           if (this.cards.length === 0) {
-            Text(this.query.length > 0 ? '这个校区没有匹配的楼栋' : '这个校区没有楼栋数据')
-              .fontSize(13).fontColor(this.tk().onSurfaceVariant)
-              .width('100%').padding(24)
+            Column() {
+              Text(this.query.length > 0 ? '这个校区没有匹配的楼栋' : '这个校区没有楼栋数据')
+                .fontSize(13).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').padding({ top: 24, left: 24, right: 24 })
+              // 珠海/嘉兴：诚实说明 + 用校区中心点定位（不编造建筑）
+              if (this.noIndexHint().length > 0) {
+                Text(this.noIndexHint())
+                  .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').padding({ left: 24, right: 24, top: 8 })
+                Button('在系统地图查看校区')
+                  .fontSize(13).height(36).margin({ top: 14 })
+                  .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+                  .onClick(() => this.openCampusInMap())
+              }
+            }
+            .width('100%').alignItems(HorizontalAlign.Center)
           } else {
             Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
               ForEach(this.cards, (card: BuildingCard) => {

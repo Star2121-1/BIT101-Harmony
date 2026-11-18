@@ -11,6 +11,11 @@
 
 import { Prefs } from './Prefs.ts';
 import { SchoolCookieStore } from './SchoolCookieStore.ts';
+import { EclassCookieStore } from './EclassCookieStore.ts';
+import { LibCookieStore } from './LibCookieStore.ts';
+import { CardCookieStore } from './CardCookieStore.ts';
+import { CampusCardStore } from './CampusCardStore.ts';
+import { CampusNetTrafficStore } from './CampusNetTrafficStore.ts';
 import { info, mask, warn } from '../core/log/BitLog.ts';
 
 const KEY_JWT: string = 'seatlib_jwt_v1';
@@ -82,5 +87,31 @@ export class SessionStore {
   static async clearToken(): Promise<void> {
     await Prefs.remove(KEY_JWT);
     warn('SessionStore token cleared (cookies kept)');
+  }
+
+  /**
+   * 退出登录的唯一入口（#150）：清掉所有会话与跨账号残留数据。
+   *
+   * 为什么收拢到这里：以前这些 clear 逐条散在 SettingsPage.doLogout 里，
+   * 将来新增一个按账号存储的 store 很容易忘记加进去 —— 表现为"登出了但换账号还看到旧数据"。
+   * 现在新增 store 只需在这里加一行，页面不用改。
+   *
+   * ⚠️ 边界：
+   * - **不清课表缓存**（TimeTableStore/CourseCache）——登出后仍可离线看课表，这是产品决定。
+   * - 不碰 TermStore/主题/通知设置等非账号数据。
+   * - CardLoginPage/EclassLoginPage 里"重新登录前清旧会话"是另一个语义（只清单个子系统），
+   *   不走这里，别混淆。
+   */
+  static async logoutAll(): Promise<void> {
+    // ① JWT + 教务会话（clear() 内部已含 SchoolCookieStore.clear()）
+    await SessionStore.clear();
+    // ② 三个 Web 子系统会话（各清 Prefs + rcp 罐 + Web cookie 存储）
+    await EclassCookieStore.clear();
+    await LibCookieStore.clear();
+    await CardCookieStore.clear();
+    // ③ 跨账号残留的展示数据（余额趋势 / 流量历史）
+    await CampusCardStore.clear();
+    await CampusNetTrafficStore.clear();
+    info('SessionStore.logoutAll done (all sessions + per-account data cleared, course cache kept)');
   }
 }

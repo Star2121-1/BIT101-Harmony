@@ -119,5 +119,5 @@ console.log('\n=== Classic 只读 dump ===');
     ok(code.indexOf('DEFAULT_KEY_A') >= 0, '认证统一走 DEFAULT_KEY_A 常量');
   }
 
-  console.log('\nALL PASS ' + n + ' assertions');
+  console.log('\nALL PASS pass=' + n + ' fail=0');
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
