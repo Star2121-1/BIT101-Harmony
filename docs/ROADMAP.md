@@ -14,7 +14,7 @@
 > **全部真机零验证**（用户明确要求先只改代码，后面统一 debug）。
 > **UI 迁移 #81~#91 ✅**；2026-10-28 补齐 **DDL 三颗 FAB**（＋ 新增 / 学士帽 / ⚙）与**空教室回到顶部 + 下拉刷新**，
 > 学期列表改为**近 3 学年 + 折叠旧学期**。全量单测 **64 套件 3226 断言绿**（2026-11-18，含 M14-A / M15-B3 / M16）；版本见下方版本行。
-> **2026-11-18 版本 `1.0.0-alpha.18`**（versionCode 18）：修真机发现的 NFC 两处瑕疵——①扫到卡后状态由「正在等卡」切到「已读到卡」；②重新读卡时清空上一次 UID/technology，避免「正在等卡」却显示旧值。`test-nfc` 42 条（新增绑定/清空两条栅栏，各故意拆红 1 条验证后恢复），全量 **64/64 套件 3226 断言**，`assembleHap` 成功。
+> **2026-11-18 版本 `1.0.0-alpha.18`**（versionCode 18）：修真机发现的 NFC 两处瑕疵——①扫到卡后状态由「正在等卡」切到「已读到卡」；②重新读卡时清空上一次 UID/technology，避免「正在等卡」却显示旧值。`test-nfc` 42 条（新增绑定/清空两条栅栏，各故意拆红 1 条验证后恢复），全量 **64/64 套件 3226 断言**，`assembleHap` 成功（签名包 MD5 `F354134C6EE386FB37744FECA280816D`），CI run `44236348543` success。**两处修复均真机复验通过**（`device-55/56/57-v18-*`、`device-59/60/61-v18f-*`）。
 > **2026-11-18 真机补验（4CY9K25614019980，深色模式，alpha.17 装机）**：NFC 诊断页三态检测显示「NFC 可用」、只读标签、深色渲染正常；点「开始读卡」日志 `NfcService reader started`（readerMode 真机注册成功，非仅编译过）；贴卡读出 UID `77 75 F0 7B`、technology `IsoDep / NfcA / NfcA / MifareClassic / NdefFormatable`、`ndef=0`（该卡无 NDEF 内容，属正常），页面正确识别「CPU 卡（可 APDU）」+「Mifare Classic」两个能力标签，无 ForEach 撞键/错误页；「停止读卡」后按钮复原。**未验**：NDEF 贴纸的文本读取（当前卡无 NDEF 内容）、APDU 读学号（#152 未做）。**已知瑕疵**：扫到卡后顶部状态文案仍停留「正在等卡」，未切到「已读到卡」，不影响数据正确性。证据 `harmony/evidence/m14-alerts-20261116/device-49-v17-nfc*.png` / `device-51-v17-nfc-scan*` / `device-v17-sso-nfc-hilog.txt`。
 > **2026-11-18 真机补验 SSO（同上设备）**：日志 `SsoCookieBroker seed jar=bit_lib / bit_card count=4` ⇒ 下沉确实执行；一卡通 CAS 会话失效时 `finalUrl=sso.bit.edu.cn/cas/login loggedIn=false`，页面明确「未登录 + 去一卡通登录」，未把失败伪装成余额 0；图书馆独立会话有效，`lib fetch ok ... n=0`、`lib page refresh cur=ok his=ok`，在借 0 本/历史 1 本。**成功路径仍未验**：当前账号 CAS cookie 已过期（设置页「取不到学期列表（cookie 已过期）」），无法证伪「只登录一次后进图书馆/一卡通不再要求单独登录」；需重新登录后复验。
 
