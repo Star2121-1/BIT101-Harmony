@@ -1,5 +1,12 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-19 下午 alpha.29→31 真机验证第一批 + 修地图浮层 bug（设备 4CY9K25614019980）**：
+> - **装机**：alpha.28/29/30/31 逐版装机，`bm dump` 确认 versionCode（hdc 通道极不稳，多次需 kill 重置；钉钉反复抢前台）。**未卸载**，用户会话数据保留。
+> - **真机验证通过 6 项**：①首屏课表 5 页签+6 底栏+深色 Brand 正确（会话过期诚实显示缓存不伪造）②「图」瓦片真实加载+乡/村/珠/嘉 5 钮+切换提示 ③「网」#FF9A57 状态栏+BIT101 站点头部加载（主体空白=后端现状）④话廊四流「关注/推荐/最新/最热」+默认推荐+真实帖 ⑤「我」页成绩入口（4 图标）⑥地图 ODbL 署名右下+提示条底部（bug 修复后）。证据 `evidence/device-alpha28/`（RESULT.md + 截图）。
+> - **真机发现并修复的 bug**：地图浮层（署名/提示条）因 Stack 默认 TopStart 贴在左上角。提示条用 position+markAnchor 锚底部；署名改用 `rawfile/map.html` CSS absolute 定位（ArkUI 层 vp 换算在不同屏宽反复飘），alpha.31 复验通过。
+> - **未验（如实）**：浅色态 Brand 配色（设备深色模式，设置页齿轮坐标在 hdc 坐标漂移+钉钉抢焦点下反复点不进）；地图缩放滑杆交互；村/珠/嘉校区切换（只验了默认乡）。
+> - hdc 踩坑固化：Windows hdc 不认 `/f/`、`F:/` 绝对路径会拼到 cwd ⇒ cd 到目录用相对文件名；kill 后通道重建 ~3-4s；连续命令竞争通道 ⇒ 每动作独立脚本+探活+sleep。详见 `evidence/device-alpha28/RESULT.md`。
+
 > **2026-11-19 版本 `1.0.0-alpha.28`（versionCode 28）— 按 Android 全面对齐第一批（用户拍板「一切以 BIT101-S 为准，UI/外观/配色/功能，肉眼无区别」）**：
 > - **默认配色 warm → brand**：对齐 BIT101-S 1.12.0 `SettingDataStore.SETTING_APP_PALETTE="brand"`（此前鸿蒙全仓默认 warm，与用户手机主 App 首屏色系不符）。改 40 个文件首帧初值 + `GridTokens.DEFAULT_PALETTE` + `ThemeStore` + `FormExtension` + `ScheduleTint` 默认参数 + 测试断言。守卫 `test-gridtokens`/`test-scheduletint` 故意拆红验证（改回 warm 立刻 12 条红，恢复全绿）。
 > - **「图」Tab 接自有瓦片地图**：新建 `MapPage.ets`（原生壳 + WebView 内联瓦片引擎 `rawfile/map.html`）+ `corelogic/MapTileMath.ts`（坐标换算，34 断言 `test-maptile`）。瓦片源 `map.bit101.flwfdd.xyz/tile/{z}/{col}/{row}.png` 与 Android 同源；ODbL 署名常驻；4 校区按钮 + 缩放滑杆 + ODbL 署名走 gridTokens。**未真机验**（本轮无设备）。

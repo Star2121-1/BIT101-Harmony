@@ -7,10 +7,16 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #E8E6E1; }
   #map { display: block; width: 100%; height: 100%; touch-action: none; }
+  #attrib {
+    position: absolute; right: 8px; bottom: 74px; z-index: 10;
+    font-size: 11px; color: #555; background: rgba(255,255,255,0.72);
+    padding: 2px 6px; border-radius: 4px; pointer-events: none;
+  }
 </style>
 </head>
 <body>
 <canvas id="map"></canvas>
+<div id="attrib">© OpenStreetMap contributors</div>
 <script>
 /**
  * 内联瓦片地图引擎（BIT101-S 鸿蒙版「图」页）

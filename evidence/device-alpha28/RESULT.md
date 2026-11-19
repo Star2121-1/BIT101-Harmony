@@ -14,11 +14,12 @@
 | 话廊四流 | ✅ 顺序「关注/推荐/最新/最热」；默认「推荐」高亮；真实帖子加载 | a28-04-gallery.jpeg |
 | 「我」页成绩入口 | ✅ 右上 4 图标(刷新/学士帽成绩/铃铛/齿轮)；账号区+自习卡+一卡通/校园网双卡+图书馆卡正常 | a28-05-me.jpeg |
 
-## ⚠️ 真机发现的真实 bug（已修，待 alpha.29 复验）
+## ✅ 真机发现的 bug 已修复并复验（alpha.31）
 
-- **地图浮层位置错**：ODbL 署名「© OpenStreetMap contributors」+「已切换到…」提示条都贴在**左上角**（Stack 默认 TopStart），应分别在右下角/底部居中。
-  - 修复：MapPage.ets 对署名/提示条/底部设置栏加 `.position()` + `.markAnchor()` 绝对定位。
-  - alpha.29 重新编译装机后复验。
+- **地图浮层位置错**：ODbL 署名 +「已切换到…」提示条都贴在**左上角**（Stack 默认 TopStart）。
+  - 提示条：`.position + .markAnchor` → alpha.29 复验 ✅ 底部居中（a29-map5.jpeg）。
+  - 署名：ArkUI 层 position/markAnchor 在不同屏宽 vp 下反复飘（alpha.29/30 署名跑出屏幕）；**最终改为在 `rawfile/map.html` 里用 CSS `position:absolute; right:8px; bottom:74px` 固定定位** → alpha.31 复验 ✅ 右下角可见、与提示条不重叠（a31-map.jpeg）。
+  - 地图瓦片 / 左上 5 钮在 alpha.29/31 复验均正常。
 
 ## ❌ 未验（如实）
 

@@ -20,7 +20,6 @@
 import { webview } from '@kit.ArkWeb';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
-import { withAlpha } from '../core/theme/colorUtil.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { CAMPUSES, findCampus } from '../corelogic/CampusCenters.ts';
 import type { CampusCenter } from '../corelogic/CampusCenters.ts';
@@ -119,16 +118,10 @@ export struct MapPage {
       }
       .margin({ left: 10, top: 20 })
 
-      // ── 右下 ODbL 署名（OSM 许可要求，常驻）──
-      // Stack 默认 TopStart，必须用 position + markAnchor 锚到右下角
-      Text('© OpenStreetMap contributors')
-        .fontSize(11)
-        .fontColor(this.tk().onSurfaceVariant)
-        .backgroundColor(withAlpha(this.tk().surface, 0.72))
-        .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-        .borderRadius(4)
-        .position({ x: '100%', y: '100%' })
-        .markAnchor({ x: 8, y: 8 })
+      // ── ODbL 署名：在 map.html 里用 CSS 固定定位渲染（右下角，底栏之上）──
+      // 不放 ArkUI 层的原因：Stack 子元素默认 TopStart，position/markAnchor 在不同
+      // 屏宽 vp 换算下反复飘（真机 alpha.28/29 署名跑到屏幕外）；HTML 层 absolute
+      // 定位最稳，且底栏是原生层不在 WebView 内，署名 bottom 抬离底栏即可。
 
       // ── 切换提示条（对齐 Android snackbar：底部居中）──
       if (this.tip.length > 0) {
