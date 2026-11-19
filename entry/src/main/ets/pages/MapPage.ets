@@ -120,14 +120,17 @@ export struct MapPage {
       .margin({ left: 10, top: 20 })
 
       // ── 右下 ODbL 署名（OSM 许可要求，常驻）──
+      // Stack 默认 TopStart，必须用 position + markAnchor 锚到右下角
       Text('© OpenStreetMap contributors')
         .fontSize(11)
         .fontColor(this.tk().onSurfaceVariant)
         .backgroundColor(withAlpha(this.tk().surface, 0.72))
         .padding({ left: 6, right: 6, top: 2, bottom: 2 })
         .borderRadius(4)
+        .position({ x: '100%', y: '100%' })
+        .markAnchor({ x: 8, y: 8 })
 
-      // ── 切换提示条（对齐 Android snackbar）──
+      // ── 切换提示条（对齐 Android snackbar：底部居中）──
       if (this.tip.length > 0) {
         Text(this.tip)
           .fontSize(13)
@@ -135,6 +138,8 @@ export struct MapPage {
           .backgroundColor(this.tk().secondaryContainer)
           .padding({ left: 14, right: 14, top: 8, bottom: 8 })
           .borderRadius(8)
+          .position({ x: '50%', y: '100%' })
+          .markAnchor({ x: '50%', y: 80 })
       }
 
       // ── 底部设置栏（缩放滑杆，对齐 Android 上滑面板）──
@@ -166,6 +171,8 @@ export struct MapPage {
         .padding(20)
         .backgroundColor(this.tk().surfaceElevated)
         .borderRadius({ topLeft: 16, topRight: 16 })
+        .position({ x: 0, y: '100%' })
+        .markAnchor({ x: 0, y: 0 })
       }
     }
     .width('100%')
