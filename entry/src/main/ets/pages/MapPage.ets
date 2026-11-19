@@ -29,7 +29,11 @@ import { info, warn } from '../core/log/BitLog.ts';
 const SCALE_MIN: number = 1;
 const SCALE_MAX: number = 5;
 const SCALE_STEP: number = 0.5;
-const CAMPUS_ZOOM: number = 16;
+
+/** 倍率 → 瓦片层级（1 倍=z15 视野最大，5 倍=z18；与底栏缩放滑杆同一口径）。 */
+function scaleToZoom(value: number): number {
+  return 15 + (value - SCALE_MIN) / (SCALE_MAX - SCALE_MIN) * 3;
+}
 
 @Component
 export struct MapPage {
@@ -38,7 +42,8 @@ export struct MapPage {
 
   @State private currentCampus: string = '良乡校区';
   @State private showBottomBar: boolean = false;
-  @State private mapScale: number = 2;
+  /** 默认 1 倍（用户拍板）：z15 视野最大，完整显示校区范围。 */
+  @State private mapScale: number = 1;
   @State private tip: string = '';
 
   private controller: webview.WebviewController = new webview.WebviewController();
@@ -69,7 +74,7 @@ export struct MapPage {
     }
     this.currentCampus = name;
     this.controller.runJavaScript('window.MapEngine && window.MapEngine.goto(' +
-      c.x.toFixed(6) + ',' + c.y.toFixed(6) + ',' + CAMPUS_ZOOM.toString() + ')')
+      c.x.toFixed(6) + ',' + c.y.toFixed(6) + ',' + scaleToZoom(this.mapScale).toFixed(2) + ')')
       .catch((e: Error) => warn('MapEngine.goto fail: ' + JSON.stringify(e)));
     this.tip = '已切换到' + c.name;
   }
@@ -77,7 +82,7 @@ export struct MapPage {
   /** 缩放滑杆 → 引擎层级（1..5 映射到 z15..18）。 */
   private onScaleChange(value: number): void {
     this.mapScale = value;
-    const z: number = 15 + (value - SCALE_MIN) / (SCALE_MAX - SCALE_MIN) * 3;
+    const z: number = scaleToZoom(value);
     this.controller.runJavaScript('window.MapEngine && window.MapEngine.setZoom(' + z.toFixed(2) + ')')
       .catch((e: Error) => warn('MapEngine.setZoom fail: ' + JSON.stringify(e)));
   }

@@ -95,9 +95,10 @@ export struct MePage {
 
   private cardLine(): string {
     const s: CardSnapshot | null = this.cardSnap;
-    if (s === null) return '—';
-    if (s.failed) return '取不到（点开重试）';
-    if (!s.loggedIn) return '未登录，点开登录';
+    // 文案逐字对齐 BIT101-S CampusCardLogic.balanceText
+    if (s === null) return '获取中…';
+    if (s.failed) return '获取失败，下拉/点刷新重试';
+    if (!s.loggedIn) return '未登录，进详情页登录';
     return s.entries.length > 0 ? '¥' + s.entries[0].value : '未识别到余额';
   }
 
@@ -112,12 +113,13 @@ export struct MePage {
 
   private netLine(): string {
     const r: CampusNetResult | null = this.netResult;
-    if (r === null) return '—';
+    // 文案逐字对齐 BIT101-S UserScreen.kt:679-686（显示余额，不是总量）
+    if (r === null) return '获取中…';
     if (r.kind === 'online') {
-      return formatTraffic(r.info.bytesTotal) + ' / ' + formatTraffic(LIMIT_BYTES);
+      return '本月 ' + formatTraffic(r.info.bytesTotal) + ' · 余额 ¥' + r.info.balanceYuan.toFixed(2);
     }
-    if (r.kind === 'notOnline') return '未认证，点开去登录';
-    return '连不上（多半不在校园网内）';
+    if (r.kind === 'notOnline') return '本机未认证';
+    return '不在校园网';
   }
 
   private netSubLine(): string {
@@ -263,7 +265,7 @@ export struct MePage {
           .width(19).height(19)
           .fillColor(this.p().onSurfaceVariant)
           .margin({ right: 16 })
-          .accessibilityText('消息通知')
+          .accessibilityText('消息')
           .onClick(() => {
             router.pushUrl({ url: 'pages/NotifyListPage' }).catch((e: Error) => {
               warn('me -> notify fail: ' + JSON.stringify(e));
@@ -331,11 +333,10 @@ export struct MePage {
               Text(this.cardLine())
                 .fontSize(20).fontWeight(FontWeight.Medium)
                 .fontColor(this.p().onSecondaryContainer).margin({ top: 6 })
-              if (this.cardTrendLine().length > 0) {
-                Text(this.cardTrendLine())
-                  .fontSize(10).fontColor(this.p().onSecondaryContainer)
-                  .width('100%').margin({ top: 4 })
-              }
+              Text(this.cardTrendLine().length > 0 ? this.cardTrendLine() : '点开详情')
+                .fontSize(10).fontColor(this.p().onSecondaryContainer)
+                .opacity(this.cardTrendLine().length > 0 ? 1 : 0.6)
+                .width('100%').margin({ top: 4 })
             }
             .width('48%').padding(12)
             .backgroundColor(this.p().secondaryContainer).borderRadius(12)
@@ -351,13 +352,12 @@ export struct MePage {
               Text('校园网')
                 .fontSize(12).fontColor(this.p().onSecondaryContainer)
               Text(this.netLine())
-                .fontSize(15).fontWeight(FontWeight.Medium)
+                .fontSize(20).fontWeight(FontWeight.Medium)
                 .fontColor(this.p().onSecondaryContainer).margin({ top: 6 })
-              if (this.netSubLine().length > 0) {
-                Text(this.netSubLine())
-                  .fontSize(10).fontColor(this.p().onSecondaryContainer)
-                  .width('100%').margin({ top: 4 })
-              }
+              Text(this.netSubLine().length > 0 ? this.netSubLine() : '点开详情')
+                .fontSize(10).fontColor(this.p().onSecondaryContainer)
+                .opacity(this.netSubLine().length > 0 ? 1 : 0.6)
+                .width('100%').margin({ top: 4 })
             }
             .width('48%').padding(12)
             .backgroundColor(this.p().secondaryContainer).borderRadius(12)

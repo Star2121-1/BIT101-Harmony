@@ -20,7 +20,7 @@
 import { router } from '@kit.ArkUI';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import { warn } from '../core/log/BitLog.ts';
-import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, STORAGE_TOP_INSET, getPalette } from '../data/ThemeStore.ts';
 import {
   NAV_MODULES,
   SCHEDULE_TABS,
@@ -54,6 +54,8 @@ import { WorldWebPage } from './WorldWebPage.ets';
 struct Index {
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
+  /** 顶部安全区（状态栏/前摄），内容下压避让、背景由 expandSafeArea 延伸。 */
+  @StorageLink(STORAGE_TOP_INSET) topInset: number = 0;
 
   /** 当前模块 key（卷/图/网/话/我/座）。 */
   @State private moduleKey: string = DEFAULT_MODULE;
@@ -256,6 +258,8 @@ struct Index {
     }
     .width('100%')
     .height('100%')
+    .padding({ top: this.topInset })
+    .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT], [SafeAreaEdge.TOP])
     .backgroundColor(this.tk().background)
   }
 }

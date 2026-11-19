@@ -53,7 +53,10 @@
 
   /**
    * 渲染：把中心归一化坐标换算成世界像素，算出可见瓦片并绘制。
-   * 屏幕中心 = (cx,cy)*worldSize；瓦片 (col,row) 左上角 = (col*TILE,row*TILE)。
+   *
+   * ⚠️ 缩放变灰根因修复：worldSize 用浮点 zoom（平滑），瓦片图片却是整数层 z。
+   * 必须让「可见范围 / 瓦片编号 / 绘制尺寸」都按 z 层瓦片在浮点世界中的边长
+   * tilePx = TILE * 2^(zoom-z) 计算，否则 col/row 偏 2^(zoom-z) 倍 → 请求错瓦片 → 全灰。
    */
   function render() {
     if (W === 0 || H === 0) return;
@@ -62,12 +65,13 @@
     var ws = worldSize();
     var centerPx = cx * ws, centerPy = cy * ws;
     var z = clamp(Math.round(zoom), MINZ, MAXZ);
+    var tilePx = TILE * Math.pow(2, zoom - z);
     var originX = W / 2 - centerPx;   // 世界像素 → 屏幕像素的平移
     var originY = H / 2 - centerPy;
-    var c0 = Math.floor((0 - originX) / TILE);
-    var c1 = Math.floor((W - originX) / TILE);
-    var r0 = Math.floor((0 - originY) / TILE);
-    var r1 = Math.floor((H - originY) / TILE);
+    var c0 = Math.floor((0 - originX) / tilePx);
+    var c1 = Math.floor((W - originX) / tilePx);
+    var r0 = Math.floor((0 - originY) / tilePx);
+    var r1 = Math.floor((H - originY) / tilePx);
     var maxTile = Math.pow(2, z);
 
     for (var r = r0; r <= r1; r++) {
@@ -75,17 +79,17 @@
         // 环绕经度，垂直方向越界跳过（Web-Mercator 极区无瓦片）
         if (r < 0 || r >= maxTile) continue;
         var cc = ((c % maxTile) + maxTile) % maxTile;
-        var srcX = originX + c * TILE;
-        var srcY = originY + r * TILE;
+        var srcX = originX + c * tilePx;
+        var srcY = originY + r * tilePx;
         var key = z + '/' + cc + '/' + r;
         var img = tileCache[key];
         if (img && img !== 'err' && img.complete && img.naturalWidth > 0) {
-          ctx.drawImage(img, srcX, srcY, TILE, TILE);
+          ctx.drawImage(img, srcX, srcY, tilePx + 0.5, tilePx + 0.5);
         } else {
           ctx.fillStyle = '#DCDAD4';
-          ctx.fillRect(srcX, srcY, TILE, TILE);
+          ctx.fillRect(srcX, srcY, tilePx, tilePx);
           ctx.strokeStyle = '#CFCFC9';
-          ctx.strokeRect(srcX + 0.5, srcY + 0.5, TILE - 1, TILE - 1);
+          ctx.strokeRect(srcX + 0.5, srcY + 0.5, tilePx - 1, tilePx - 1);
           loadTile(key, z, cc, r);
         }
       }

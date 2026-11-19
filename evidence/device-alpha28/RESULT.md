@@ -27,6 +27,31 @@
 - **地图底部设置栏滑杆交互**：未在真机点开验证。
 - **校区切换（村/珠/嘉）**：只验了默认「乡」。
 
+## ✅ alpha.32 真机验证（2026-11-19 第二轮 6 项诉求，versionCode 32 确认）
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 沉浸式顶部 | ✅ 状态栏透明、页面背景延续到最顶部；顶部 5 页签完整未被前摄遮挡 | a32-launch.jpeg |
+| 课程卡片左竖条 | ✅ 卡片左侧 4vp 深色竖条（对齐原版 CourseScheduleItem stripeColor） | a32-launch.jpeg |
+| 地图默认 1 倍 | ✅ 默认显示整个良乡校区 + 周边道路 + 地铁线（完整校园范围），瓦片全加载无变灰 | a32-map.jpeg |
+| 地图署名/提示条 | ✅ 署名右下、提示条底部（alpha.31 修复在 32 仍成立） | a32-map.jpeg |
+| 课程详情点空白收起 | ✅ 点卡片弹出详情 → 点周7空白格 → 详情消失、课表恢复完整 | a32-detail-open.jpeg / a32-detail-closed.jpeg |
+| 课程详情切页自动关 | ✅ 开详情 → 切「图」→ 切回「卷」→ 详情已自动关闭 | a32-switchback2.jpeg |
+| 浅色态配色 | ✅ 本轮设备处于浅色态，浅灰底+深色文字的 Brand 浅色配色正常（先前未验项补上） | a32-launch.jpeg |
+
+### 本轮代码改动（编译 BUILD SUCCESSFUL + 全量 81/81 套件 3762 断言绿）
+1. 地图缩放变灰：map.html 引入 tilePx=TILE*2^(zoom-z) 统一可见范围与绘制尺寸（原先浮点 zoom 与整数瓦片层级坐标不一致导致轻微缩放变灰）；默认 mapScale 2→1、goto 沿用当前倍率。
+2. 课程详情关闭：SchedulePage 空格子 onClick 收起 + onWake 入口切任意页清 selected/selectedPlanNote。
+3. 课表版式：卡片左竖条 4vp ink（去掉整圈 secondary 边框，对齐原版）；话廊帖子卡加分隔线。
+4. 我页文案：一卡通/校园网空态"A 原文"、校园网字号 15→20、双卡第三行"点开详情"、消息图标文案"消息"、自习卡文案对齐。
+5. 沉浸式：EntryAbility setWindowLayoutFullScreen(true)+透明状态栏+topInset 写 AppStorage；Index 外壳 padding(topInset)+expandSafeArea；STORAGE_TOP_INSET 常量。
+6. 统一登录：LoginPage 成功分支用同一学号密码 best-effort 调 CommunityAuthService.login 换 fake-cookie（社区免二次登录），短信分支仅 opt-in 凭据存在时补连；失败只提示不阻塞。
+
+### ❌ 本轮未验（如实）
+- **统一登录正路径**：CAS 登录需用户本人输密码/短信验证码，agent 不代输，故 community 自动连接只做了代码+编译验证，真机正路径未走。
+- **座位静默续期（座位 500 根因）**：涉及 seatlib 域 cookie 持久化 + 真实预约副作用，需用户拍板方案（A 补 cookie / B 专用登录 / C 维持诚实报错），本轮不动。
+- 地图缩放手势真机连续缩放未手动滑验（JS 换算有单测覆盖 tile 换算 34 条断言）。
+
 ## 装机踩坑（已解决，记录）
 1. hdc 是 Windows 程序：不认 `/f/` 路径、`F:/` 绝对路径会拼到 cwd 后 ⇒ 必须 cd 到目标目录用相对文件名。
 2. `hdc kill` 后通道重建需 ~4s，期间所有命令报 "need connect-key" ⇒ 脚本内探活+重试。

@@ -14,6 +14,7 @@
 import { router } from '@kit.ArkUI';
 import { Context } from '@kit.AbilityKit';
 import { gridTokens } from '../core/theme/GridTokens.ts';
+import { withAlpha } from '../core/theme/colorUtil.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { CommunityService, COMMUNITY_MODES, CommunityListResult, ReportType } from '../service/CommunityService.ts';
@@ -449,6 +450,8 @@ export struct CommunityPage {
             }
           }, (p: CommunityPost) => p.id.toString())
         }.layoutWeight(1)
+        // 原版 PostersTabPage.kt L113-119：每帖后 0.5dp 分隔线 onSurface@0.08
+        .divider({ strokeWidth: 0.5, color: withAlpha(this.tk().onSurface, 0.08) })
       }
 
       // 评论弹层（仅 loggedIn + 用户点「评」后出现；发送按钮才触发写请求）

@@ -1,5 +1,14 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-19 晚 alpha.32 第二轮 6 项诉求（versionCode 32，真机 nv14Pro 已验）**：
+> - **地图轻微缩放变灰修复**：`rawfile/map.html` 引入 `tilePx=TILE*2^(zoom-z)`，统一可见瓦片范围与绘制尺寸（原浮点 zoom 与整数瓦片层级坐标不一致⇒缩放后取错瓦片变灰）；默认 mapScale 2→1、切校区沿用当前倍率。真机：默认显示完整良乡校区+周边道路+地铁线，瓦片全加载无灰。
+> - **课程详情面板关闭**：`SchedulePage` 空格子 onClick 收起 + `onWake` 入口切任意页清 selected。真机验过点空白收起、切「图」再切回详情已自动关。
+> - **课表/话廊版式**：课程卡左侧 4vp ink 竖条（对齐原版 `CourseScheduleItem.stripeColor`，去掉整圈 secondary 边框）；话廊帖子卡分隔线。
+> - **我页文案对齐**：一卡通/校园网空态原文、校园网字号 15→20、双卡第三行「点开详情」、消息图标文案、自习卡文案。
+> - **沉浸式顶部**：`EntryAbility` setWindowLayoutFullScreen(true)+透明状态栏+topInset 写 AppStorage；`Index` 外壳 padding(topInset)+expandSafeArea。真机：状态栏透明、背景延续顶部、5 页签未被前摄遮挡。
+> - **统一登录一次全通**：`LoginPage` 成功分支用同一学号密码 best-effort 调 `CommunityAuthService.login` 换 fake-cookie（社区免二次登录）；短信分支仅 opt-in 凭据存在时补连；失败只提示不阻塞。正路径需用户本人输密码⇒未代验。
+> - 全量 81/81 套件 3762 断言绿 + assembleHap BUILD SUCCESSFUL；证据 `evidence/device-alpha28/` RESULT.md + a32-*.jpeg。**未验**：统一登录正路径（需本人密码）、座位静默续期（500 根因需拍板方案）、地图连续缩放手势。
+
 > **2026-11-19 下午 alpha.29→31 真机验证第一批 + 修地图浮层 bug（设备 4CY9K25614019980）**：
 > - **装机**：alpha.28/29/30/31 逐版装机，`bm dump` 确认 versionCode（hdc 通道极不稳，多次需 kill 重置；钉钉反复抢前台）。**未卸载**，用户会话数据保留。
 > - **真机验证通过 6 项**：①首屏课表 5 页签+6 底栏+深色 Brand 正确（会话过期诚实显示缓存不伪造）②「图」瓦片真实加载+乡/村/珠/嘉 5 钮+切换提示 ③「网」#FF9A57 状态栏+BIT101 站点头部加载（主体空白=后端现状）④话廊四流「关注/推荐/最新/最热」+默认推荐+真实帖 ⑤「我」页成绩入口（4 图标）⑥地图 ODbL 署名右下+提示条底部（bug 修复后）。证据 `evidence/device-alpha28/`（RESULT.md + 截图）。

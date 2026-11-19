@@ -362,6 +362,10 @@ export struct SchedulePage {
 
   /** active / epoch 变化都走这里（切回课表页签、从子页返回）。 */
   private onWake(): void {
+    // active / epoch 任一变化（切走、切回、从子页返回）都收起课程详情：
+    // 详情关闭按钮被 FAB 遮挡，切页是可靠的退出路径（对齐原版点外部 dismiss）
+    this.selected = null;
+    this.selectedPlanNote = '';
     if (this.active) {
       this.reloadOverlaysAndRemerge();
       // 搜索页点课程结果 → replaceUrl(Index) → epoch 自增 → 这里触发。
@@ -643,6 +647,7 @@ export struct SchedulePage {
     this.errorText = '';
     this.refreshNote = '';
     this.selected = null;
+    this.selectedPlanNote = '';
 
     const cached: CachedSchedule | null = await CourseCache.load(t);
     if (cached !== null) {
@@ -1015,6 +1020,12 @@ export struct SchedulePage {
                     Row()
                       .width('100%').height(CELL_H * b.span)
                       .border({ width: { bottom: 0.5, right: 0.5 }, color: this.p().outlineVariant })
+                      // 点空白格收起课程详情（原版 AlertDialog 点外部 dismiss；
+                      // 此处详情是内联面板，关闭按钮又被 FAB 遮挡，空白格是可靠出口）
+                      .onClick(() => {
+                        this.selected = null;
+                        this.selectedPlanNote = '';
+                      })
                   } else {
                     this.courseBlock(b, i + 1)
                   }
@@ -1179,8 +1190,9 @@ export struct SchedulePage {
     .padding(3)
     .backgroundColor(this.blockColors(dayIndex).fill)
     .borderRadius(12)
-    // 原版边框 = secondary@0.25 的细边（ScheduleItemColor.boarderColor），不是左缘粗竖条
-    .border({ width: 1, color: withAlpha(this.p().secondary, 0.25) })
+    // 原版 CourseScheduleItem.kt L64-69：左缘 4dp ink 竖条（§8.2 第二编码），
+    // 整圈边框仅在 showBorder 开关打开时才有，默认形态没有边框。
+    .border({ width: { left: 4 }, color: this.blockColors(dayIndex).ink })
     // 无障碍：读屏要念「课程名，第几节到第几节，教室」，只念课名等于没信息
     .accessibilityText(b.course === null ? '' : (b.course.KCM + '，周' + DAY_LABELS[dayIndex] +
       '第 ' + b.course.KSJC + '-' + b.course.JSJC + ' 节，' +

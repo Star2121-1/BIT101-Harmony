@@ -19,7 +19,7 @@ import { window } from '@kit.ArkUI';
 import { runProbe } from '../corelogic/compile-probe.ts';
 import { setProbeCreds } from '../probe/CasProbe.ts';
 import { Prefs } from '../data/Prefs.ts';
-import { ThemeStore } from '../data/ThemeStore.ts';
+import { ThemeStore, STORAGE_TOP_INSET } from '../data/ThemeStore.ts';
 import { TermStore } from '../data/TermStore.ts';
 import { ReminderScheduler } from '../service/ReminderScheduler.ts';
 import { ScoreCheckRunner } from '../service/ScoreCheckRunner.ts';
@@ -152,15 +152,48 @@ export default class EntryAbility extends UIAbility {
       }
     });
 
-    // 测试期常亮：App 在前台时屏幕不自动熄灭（避免 M1/M2 调试中反复锁屏）
+    // 测试期常亮 + 沉浸式（对齐 BIT101-S：内容延伸到状态栏/前摄，背景铺满，
+    // 可交互内容由各页用 STATUS_BAR_TOP 下压避让）。
     windowStage.getMainWindow()
-      .then((win: window.Window) => {
+      .then(async (win: window.Window) => {
         this.mainWindow = win;
         this.keepScreenOn(true);
+        try {
+          await win.setWindowLayoutFullScreen(true);
+          // 透明状态栏；图标白色（深色主题）。浅色主题由 onConfigurationUpdate 另设深色图标。
+          await win.setWindowSystemBarProperties({
+            statusBarColor: '#00000000',
+            statusBarContentColor: '#FFFFFFFF',
+          });
+          this.publishTopInset(win);
+        } catch (e) {
+          hilog.error(DOMAIN, 'testTag', 'immersive setup fail: %{public}s', JSON.stringify(e));
+        }
       })
       .catch((err: Error) => {
         hilog.error(DOMAIN, 'testTag', 'getMainWindow fail: %{public}s', JSON.stringify(err));
       });
+  }
+
+  /**
+   * 读取状态栏 + 前摄挖孔高度，写入 AppStorage 供各页 padding。
+   * 取 SYSTEM 与 CUTOUT 的较大值：有挖孔时用挖孔高度，无挖孔时退到状态栏高度。
+   */
+  private publishTopInset(win: window.Window): void {
+    try {
+      const sys = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      const cutout = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_CUTOUT);
+      const sysH: number = px2vp(sys.topRect.height);
+      const cutH: number = cutout.visible ? px2vp(cutout.topRect.height) : 0;
+      const top: number = Math.max(sysH, cutH);
+      AppStorage.setOrCreate<number>(STORAGE_TOP_INSET, top);
+      hilog.info(DOMAIN, 'testTag', 'top inset sys=%{public}d cut=%{public}d use=%{public}d',
+        Math.round(sysH), Math.round(cutH), Math.round(top));
+    } catch (e) {
+      // 拿不到避让区就退回 0：各页 padding 为 0，至少不崩（不会比改之前更差）
+      AppStorage.setOrCreate<number>(STORAGE_TOP_INSET, 0);
+      hilog.warn(DOMAIN, 'testTag', 'get avoid area fail: %{public}s', JSON.stringify(e));
+    }
   }
 
   onWindowStageDestroy(): void {

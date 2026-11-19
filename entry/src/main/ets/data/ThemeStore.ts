@@ -34,6 +34,13 @@ export const STORAGE_DARK: string = 'ui_dark';
 /** AppStorage 键：当前 palette 名（页面用 @StorageLink 订阅它）。 */
 export const STORAGE_PALETTE: string = 'ui_palette';
 
+/**
+ * AppStorage 键：顶部安全区高度（vp）= 状态栏/前摄挖孔的较大值。
+ * 由 EntryAbility 在读窗口避让区后写入；各页可交互内容用它下压，
+ * 背景用 expandSafeArea 延伸到状态栏（对齐 BIT101-S 的 edge-to-edge）。
+ */
+export const STORAGE_TOP_INSET: string = 'ui_top_inset';
+
 /** 持久化键：深浅模式。 */
 const KEY_MODE: string = 'ui_theme_mode';
 

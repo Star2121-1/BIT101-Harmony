@@ -17,7 +17,8 @@ import { Context } from '@kit.AbilityKit';
 import { CasLoginService, LoginOutcome, hasPendingSms } from '../service/CasLoginService.ts';
 import { ProbeCreds, getProbeCreds, clearProbeCreds } from '../probe/CasProbe.ts';
 import { AutoLoginCredentialStore } from '../data/AutoLoginCredentialStore.ts';
-import { info } from '../core/log/BitLog.ts';
+import { CommunityAuthService } from '../service/CommunityAuthService.ts';
+import { info, warn } from '../core/log/BitLog.ts';
 
 @Entry
 @Component
@@ -104,7 +105,11 @@ struct LoginPage {
       this.statusText = out.message + credNote;
       if (out.status === 'ok') {
         this.errorTone = 'success';
-        this.statusText = '登录成功，正在打开课表…' + credNote;
+        // 一次登录全通（对齐 BIT101-S DefaultLoginRepo.login L382）：
+        // 校园 CAS 成功后用同一学号密码 best-effort 连 BIT101 社区换 fake-cookie，
+        // 让话廊/成绩等社区能力免二次登录。失败只提示，不影响校园功能。
+        const communityNote: string = await this.autoConnectCommunity(ctx, u, p);
+        this.statusText = '登录成功，正在打开课表…' + credNote + communityNote;
         router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
           this.statusText = '跳转课表失败：' + JSON.stringify(e);
         });
@@ -120,6 +125,26 @@ struct LoginPage {
       this.statusText = '登录异常（已停手，不自动重试）：' + JSON.stringify(e);
     }
     this.loading = false;
+  }
+
+  /**
+   * 校园登录后 best-effort 连 BIT101 社区（对齐 A 的 loginBIT101）。
+   * 只读换票：POST /user/login {sid, md5(pwd)} → fakeCookie 落盘，不发帖不预约。
+   * 失败只返回一句提示，绝不阻塞校园登录（社区挂了校内功能照常用）。
+   */
+  private async autoConnectCommunity(ctx: Context, sid: string, password: string): Promise<string> {
+    try {
+      const d = await CommunityAuthService.login(ctx, sid, password);
+      if (d.kind === 'ok') {
+        info('LoginPage: community auto-connect ok');
+        return '；BIT101 社区已自动连接';
+      }
+      info('LoginPage: community auto-connect skip, kind=' + d.kind);
+      return '；社区未自动连接（可稍后在话廊登录）';
+    } catch (e) {
+      warn('LoginPage community auto-connect fail: ' + JSON.stringify(e));
+      return '；社区未自动连接（可稍后在话廊登录）';
+    }
   }
 
   private async doSubmitSms(): Promise<void> {
@@ -139,6 +164,13 @@ struct LoginPage {
       if (out.status === 'ok') {
         this.errorTone = 'success';
         this.needSms = false;
+        // 短信路径手头没有明文密码；仅当 opt-in 存过凭据时补连社区（不凭空猜）
+        let communityNote: string = '';
+        const cred = await AutoLoginCredentialStore.load();
+        if (cred !== null) {
+          communityNote = await this.autoConnectCommunity(ctx, cred.username, cred.password);
+        }
+        this.statusText = out.message + communityNote;
         router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
           this.statusText = '跳转课表失败：' + JSON.stringify(e);
         });

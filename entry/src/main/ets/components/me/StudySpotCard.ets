@@ -108,18 +108,19 @@ export struct StudySpotCard {
       }
 
       if (this.spotLoading) {
-        Text('正在逐栋查空教室（约 20 秒）…')
+        Text('正在找空教室…')
           .fontSize(12).fontColor(this.tk().onSecondaryContainer)
           .width('100%').margin({ top: 10 })
       } else if (this.spotCard !== null) {
         Text(this.spotCard.title)
-          .fontSize(20).fontWeight(FontWeight.Medium)
+          .fontSize(16).fontWeight(FontWeight.Medium)
           .fontColor(this.tk().onSecondaryContainer)
           .width('100%').margin({ top: 10 })
         if (this.spotCard.detail !== null) {
           Text(this.spotCard.detail)
             .fontSize(12).fontColor(this.tk().onSecondaryContainer)
             .width('100%').margin({ top: 4 })
+            .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         // 有 card 又有 error ⇒ 降级：说清缺了什么（与 detail 重复时不再渲染）
         if (this.spotError.length > 0 && this.spotError !== this.spotCard.detail) {
@@ -151,7 +152,7 @@ export struct StudySpotCard {
               }
             })
         } else {
-          Text('换一个 ↻')
+          Text('换一个')
             .fontSize(12).fontColor(this.tk().primary)
             .onClick(() => {
               if (this.spotLoading) {
