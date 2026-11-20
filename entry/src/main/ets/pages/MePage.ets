@@ -24,6 +24,7 @@
 
 import { Context } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
+import { withAlpha } from '../core/theme/colorUtil.ts';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
@@ -42,6 +43,13 @@ import type { DateTime } from '../corelogic/timeutil.ts';
 import { rowA11y, joinA11y } from '../corelogic/A11yText.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 import { StudySpotCard } from '../components/me/StudySpotCard.ets';
+import { FakeCookieStore } from '../data/FakeCookieStore.ts';
+import { CommunityUserService, UserProfileResult } from '../service/CommunityUserService.ts';
+import { CommunityService, CommunityListResult } from '../service/CommunityService.ts';
+import { CommunityPost, posterSubtitle } from '../corelogic/CommunityLogic.ts';
+import {
+  CommunityUserProfile, emptyUserProfile, showVerifiedBadge, identityIsMuted, joinedText
+} from '../corelogic/CommunityUserLogic.ts';
 
 @Entry
 @Component
@@ -68,6 +76,13 @@ export struct MePage {
 
   @State studentId: string = '';
   @State loggedIn: boolean = false;
+  /** BIT101 社区资料（昵称/签名/身份/粉丝关注/UID）。取不到 = empty，UI 隐藏这些行。 */
+  @State userProfile: CommunityUserProfile = emptyUserProfile();
+  /** 社区是否已登录（fake-cookie 存在），与学校登录态 loggedIn 是两套，独立判断。 */
+  @State communityLoggedIn: boolean = false;
+  /** 我的帖子（对齐 Android UserScreen 帖子列表）；null=未加载，空数组=真没有。 */
+  @State myPosts: CommunityPost[] = [];
+  @State myPostsKind: string = '';  // '' | 'ok' | 'needLogin' | 'failed'
 
   @State cardSnap: CardSnapshot | null = null;
   @State cardTrend: BalanceTrend = emptyTrend();
@@ -185,6 +200,43 @@ export struct MePage {
     }
   }
 
+  /**
+   * BIT101 社区资料（对齐 Android UserViewModel id=0）。
+   * 只在有 fake-cookie 时发请求——没登录不发无谓 401；取不到一律 empty，UI 隐藏字段不编造。
+   */
+  private async loadProfile(ctx: Context): Promise<void> {
+    try {
+      const has: boolean = await FakeCookieStore.has();
+      this.communityLoggedIn = has;
+      if (!has) {
+        this.userProfile = emptyUserProfile();
+        this.myPosts = [];
+        this.myPostsKind = 'needLogin';
+        return;
+      }
+      // 我的帖子与资料并行取（同一会话，互不阻塞）
+      const postsTask: Promise<CommunityListResult> = CommunityService.listMyPosts(ctx, 0);
+      const r: UserProfileResult = await CommunityUserService.fetchMe(ctx);
+      if (r.kind === 'ok') {
+        this.userProfile = r.profile;
+      } else if (r.kind === 'needLogin') {
+        this.communityLoggedIn = false;
+        this.userProfile = emptyUserProfile();
+      } else {
+        // 失败保留空资料，不覆盖成假数据；下次刷新重试
+        this.userProfile = emptyUserProfile();
+      }
+      const pr: CommunityListResult = await postsTask;
+      this.myPostsKind = pr.kind;
+      this.myPosts = pr.posts;
+      if (pr.kind === 'needLogin') this.communityLoggedIn = false;
+    } catch (e) {
+      warn('me community profile fail: ' + JSON.stringify(e));
+      this.userProfile = emptyUserProfile();
+      this.myPostsKind = 'failed';
+    }
+  }
+
   private async refresh(): Promise<void> {
     if (this.busy) {
       return;
@@ -199,7 +251,9 @@ export struct MePage {
     }
     // 三卡**并行**且各自兜底：一个挂了不影响另外两张
     const ctx: Context = getContext(this) as Context;
-    const tasks: Promise<void>[] = [this.loadCard(ctx), this.loadNet(ctx), this.loadLib(ctx)];
+    const tasks: Promise<void>[] = [
+      this.loadCard(ctx), this.loadNet(ctx), this.loadLib(ctx), this.loadProfile(ctx)
+    ];
     await Promise.all(tasks);
     this.busy = false;
     info('me refresh done loggedIn=' + this.loggedIn);
@@ -285,27 +339,86 @@ export struct MePage {
 
       Scroll() {
         Column() {
-          // ── 账号区（ref-03：居中直接铺在背景上，**无白卡**）──
-          // 对照原版拆掉白卡（MIGRATION-BASELINE §12.3-4）；UID/签名/粉丝关注
-          // 原版有但鸿蒙无数据源，不编造，只落「居中 + 无卡」这两条能落的。
+          // ── 账号区（对齐原版 UserInfoContentForMe：居中、无白卡）──
+          // 字段全部来自社区 GET /user/info/0（fake-cookie）；取不到/未登录一律隐藏对应行，
+          // 不编造昵称/粉丝数。未登录时保留学号占位 + 登录入口。
           Column() {
-            // 头像：品牌鸽（与桌面图标同源的前景图，透明底）+ primaryContainer 圆底
-            Column() {
-              Image($r('app.media.foreground'))
-                .width(44).height(44)
-                .objectFit(ImageFit.Contain)
+            // 头像：原版 78dp 圆形；鸿蒙无网络头像加载器，用品牌鸽占位（与桌面图标同源）
+            Stack() {
+              Column() {
+                Image($r('app.media.foreground'))
+                  .width(48).height(48)
+                  .objectFit(ImageFit.Contain)
+              }
+              .width(78).height(78)
+              .justifyContent(FlexAlign.Center)
+              .backgroundColor(this.p().primaryContainer)
+              .borderRadius(39)
+              // 认证勾：id!=0 且服务端给了颜色才显示（Android Avatar.kt:79-92）
+              if (showVerifiedBadge(this.userProfile)) {
+                Text('✓')
+                  .fontSize(20).fontWeight(FontWeight.Bold)
+                  .fontColor(this.p().onPrimary)
+                  .backgroundColor(this.p().primary)
+                  .width(28).height(28).borderRadius(14)
+                  .textAlign(TextAlign.Center)
+                  .position({ x: 56, y: 56 })
+              }
             }
-            .width(72).height(72)
-            .justifyContent(FlexAlign.Center)
-            .backgroundColor(this.p().primaryContainer)
-            .borderRadius(36)
 
-            Text(this.loggedIn ? (this.studentId.length > 0 ? this.studentId : '已登录') : '未登录')
-              .fontSize(18).fontWeight(FontWeight.Medium).fontColor(this.p().onSurface)
+            // 昵称：社区昵称优先；取不到回落学号/「已登录」/「未登录」
+            Text(this.communityLoggedIn && this.userProfile.nickname.length > 0
+              ? this.userProfile.nickname
+              : (this.loggedIn ? (this.studentId.length > 0 ? this.studentId : '已登录') : '未登录'))
+              .fontSize(18).fontWeight(FontWeight.Bold).fontColor(this.p().onSurface)
               .margin({ top: 10 })
-            Text(this.loggedIn ? '学校账号' : '登录后可同步课表与作业')
-              .fontSize(12).fontColor(this.p().textPlaceholder).margin({ top: 4 })
+
+            // 身份称号：紧跟昵称下（id==0 转灰，否则服务端色）
+            if (this.communityLoggedIn && this.userProfile.identity.text.length > 0) {
+              Text(this.userProfile.identity.text)
+                .fontSize(13).fontWeight(FontWeight.Bold)
+                .fontColor(identityIsMuted(this.userProfile)
+                  ? this.p().textPlaceholder : this.p().primary)
+                .margin({ top: 2 })
+            }
+
+            // 签名 motto（原版可点击打开链接/帖子，鸿蒙纯文本展示）
+            if (this.communityLoggedIn && this.userProfile.motto.length > 0) {
+              Text(this.userProfile.motto)
+                .fontSize(14).fontColor(this.p().onSurface)
+                .textAlign(TextAlign.Center)
+                .margin({ top: 6 }).padding({ left: 24, right: 24 })
+            }
+
+            // 粉丝 / 关注（原版点击进关注列表；鸿蒙无二级页，纯展示数字）
+            if (this.communityLoggedIn &&
+                (this.userProfile.followingNum > 0 || this.userProfile.followerNum > 0)) {
+              Row() {
+                Text(this.userProfile.followingNum.toString())
+                  .fontSize(15).fontWeight(FontWeight.Bold).fontColor(this.p().onSurface)
+                Text(' 关注').fontSize(12).fontColor(this.p().onSurfaceVariant)
+                Text('   ' + this.userProfile.followerNum.toString())
+                  .fontSize(15).fontWeight(FontWeight.Bold).fontColor(this.p().onSurface)
+                Text(' 粉丝').fontSize(12).fontColor(this.p().onSurfaceVariant)
+              }
+              .justifyContent(FlexAlign.Center).margin({ top: 6 })
+            }
+
+            // UID（全角冒号，对齐原版「UID：xxx」）
+            if (this.communityLoggedIn && this.userProfile.id > 0) {
+              Text('UID：' + this.userProfile.id.toString())
+                .fontSize(13).fontColor(this.p().onSurfaceVariant).margin({ top: 4 })
+            }
+            // 加入时间
+            if (this.communityLoggedIn && joinedText(this.userProfile).length > 0) {
+              Text(joinedText(this.userProfile))
+                .fontSize(12).fontColor(this.p().textPlaceholder).margin({ top: 2 })
+            }
+
+            // 未登录学校账号时给入口（社区登录另在话廊页）
             if (!this.loggedIn) {
+              Text('登录后可同步课表与作业')
+                .fontSize(12).fontColor(this.p().textPlaceholder).margin({ top: 4 })
               Button('去登录')
                 .height(32).fontSize(13).margin({ top: 12 })
                 .backgroundColor(this.p().primary).fontColor(this.p().onPrimary)
@@ -398,6 +511,70 @@ export struct MePage {
               warn('me -> lib fail: ' + JSON.stringify(e));
             });
           })
+
+          // ── 我的帖子（对齐 Android UserScreen 帖子列表：PosterCard + 0.5dp 分隔线）──
+          Column() {
+            Row() {
+              Text('我的帖子')
+                .fontSize(15).fontWeight(FontWeight.Bold).fontColor(this.p().onSurface)
+                .layoutWeight(1)
+              if (this.myPostsKind === 'ok' && this.myPosts.length > 0) {
+                Text(this.myPosts.length.toString() + ' 条')
+                  .fontSize(12).fontColor(this.p().onSurfaceVariant)
+              }
+            }
+            .width('100%')
+
+            if (this.myPostsKind === 'ok' && this.myPosts.length > 0) {
+              // 最多展示 5 条（原版无限列表；这里首屏摘要，避免我页过长）
+              ForEach(this.myPosts.slice(0, 5), (post: CommunityPost, idx: number) => {
+                Column() {
+                  if (post.title.length > 0) {
+                    Text(post.title)
+                      .fontSize(14).fontWeight(FontWeight.Medium).fontColor(this.p().onSurface)
+                      .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+                      .width('100%')
+                  }
+                  Text(post.text.length > 0 ? post.text : posterSubtitle(post))
+                    .fontSize(12).fontColor(this.p().onSurfaceVariant)
+                    .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .width('100%').margin({ top: 2 })
+                  Text(posterSubtitle(post) + ' · ' + post.likeCount.toString() + '赞 · ' +
+                    post.commentCount.toString() + '评')
+                    .fontSize(11).fontColor(this.p().textPlaceholder)
+                    .width('100%').margin({ top: 4 })
+                }
+                .width('100%').padding({ top: 10, bottom: 10 })
+                .alignItems(HorizontalAlign.Start)
+                .onClick(() => {
+                  router.pushUrl({
+                    url: 'pages/WebShellPage',
+                    params: { url: 'https://bit101.flwfdd.xyz/posters/' + post.id.toString() }
+                  }).catch((e: Error) => {
+                    warn('me -> post fail: ' + JSON.stringify(e));
+                  });
+                })
+                if (idx < Math.min(this.myPosts.length, 5) - 1) {
+                  Divider().color(withAlpha(this.p().onSurface, 0.08)).strokeWidth(0.5)
+                }
+              }, (post: CommunityPost) => post.id.toString())
+            } else if (this.myPostsKind === 'ok') {
+              Text('还没有发帖')
+                .fontSize(12).fontColor(this.p().textPlaceholder)
+                .width('100%').margin({ top: 10 }).textAlign(TextAlign.Center)
+            } else if (this.myPostsKind === 'needLogin') {
+              Text('未登录，登录后查看我的帖子')
+                .fontSize(12).fontColor(this.p().textPlaceholder)
+                .width('100%').margin({ top: 10 }).textAlign(TextAlign.Center)
+            } else if (this.myPostsKind === 'failed') {
+              Text('我的帖子暂不可用（点顶栏刷新重试）')
+                .fontSize(12).fontColor(this.p().textPlaceholder)
+                .width('100%').margin({ top: 10 }).textAlign(TextAlign.Center)
+            }
+          }
+          .width('100%').padding(12).margin({ top: 10 })
+          .backgroundColor(this.p().surface).borderRadius(12)
+          .alignItems(HorizontalAlign.Start)
 
           // ── 功能入口组已删（对照原版 ref-03：原版没有这组）──
           // 作业/座位 → 底部 tab 已覆盖；通知/设置 → 顶栏 🔔/⚙ 已覆盖；

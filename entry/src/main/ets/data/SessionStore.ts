@@ -11,6 +11,7 @@
 
 import { Prefs } from './Prefs.ts';
 import { SchoolCookieStore } from './SchoolCookieStore.ts';
+import { SeatCookieStore } from './SeatCookieStore.ts';
 import { EclassCookieStore } from './EclassCookieStore.ts';
 import { LibCookieStore } from './LibCookieStore.ts';
 import { CardCookieStore } from './CardCookieStore.ts';
@@ -120,6 +121,7 @@ export class SessionStore {
     await AutoLoginCredentialStore.clear();
     await RenewThrottleStore.clear();
     await FakeCookieStore.clear();  // 社区票据（换账号不能留旧会话）
+    await SeatCookieStore.clear();  // 座位独立 cookie（方案 A′，换账号不能留旧座位会话）
     info('SessionStore.logoutAll done (all sessions + creds + per-account data cleared, course cache kept)');
   }
 }

@@ -43,6 +43,9 @@ import type { TimeTable } from '../corelogic/timeutil.ts';
 import { parseISODate } from '../corelogic/timeutil.ts';
 import { TeachingAdjustmentService } from '../service/TeachingAdjustmentService.ts';
 import { DayPlan, DayPlanMakeUp, dayPlanOf } from '../corelogic/TeachingAdjustment.ts';
+import {
+  loadScheduleDisplay, ScheduleDisplayFlags, defaultScheduleDisplay
+} from '../data/ScheduleDisplayStore.ts';
 import { TeachingEntry } from '../corelogic/TeachingAdjustmentParser.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 import { weekSpanText } from '../corelogic/WeekSpan.ts';
@@ -105,6 +108,8 @@ export struct SchedulePage {
   @State loading: boolean = true;
   @State statusText: string = '正在读取课表…';
   @State errorText: string = '';
+  /** 课表显示开关（对齐原版 SettingDataStore）：当前只接边框/分隔线两项。 */
+  @State displayFlags: ScheduleDisplayFlags = defaultScheduleDisplay();
   @State needLogin: boolean = false;
   @State term: string = '';
   /** 可选学期（接口返回，新→旧）。空 = 没取到（选择器不显示）。 */
@@ -152,7 +157,17 @@ export struct SchedulePage {
 
   aboutToAppear(): void {
     this.computeToday();
+    this.loadDisplayFlags();
     this.load();
+  }
+
+  /** 读显示开关（设置页改完返回也重读，见 onWake）。 */
+  private async loadDisplayFlags(): Promise<void> {
+    try {
+      this.displayFlags = await loadScheduleDisplay();
+    } catch (e) {
+      warn('schedule display flags fail: ' + JSON.stringify(e));
+    }
   }
 
   /**
@@ -366,6 +381,7 @@ export struct SchedulePage {
     // 详情关闭按钮被 FAB 遮挡，切页是可靠的退出路径（对齐原版点外部 dismiss）
     this.selected = null;
     this.selectedPlanNote = '';
+    this.loadDisplayFlags();  // 设置页改显示开关后切回来生效
     if (this.active) {
       this.reloadOverlaysAndRemerge();
       // 搜索页点课程结果 → replaceUrl(Index) → epoch 自增 → 这里触发。
@@ -1019,7 +1035,10 @@ export struct SchedulePage {
                   if (b.course === null) {
                     Row()
                       .width('100%').height(CELL_H * b.span)
-                      .border({ width: { bottom: 0.5, right: 0.5 }, color: this.p().outlineVariant })
+                      // 网格分隔线受原版 showDivider 开关控制（默认开）
+                      .border(this.displayFlags.showDivider
+                        ? { width: { bottom: 0.5, right: 0.5 }, color: this.p().outlineVariant }
+                        : { width: 0, color: Color.Transparent })
                       // 点空白格收起课程详情（原版 AlertDialog 点外部 dismiss；
                       // 此处详情是内联面板，关闭按钮又被 FAB 遮挡，空白格是可靠出口）
                       .onClick(() => {
@@ -1190,9 +1209,14 @@ export struct SchedulePage {
     .padding(3)
     .backgroundColor(this.blockColors(dayIndex).fill)
     .borderRadius(12)
-    // 原版 CourseScheduleItem.kt L64-69：左缘 4dp ink 竖条（§8.2 第二编码），
-    // 整圈边框仅在 showBorder 开关打开时才有，默认形态没有边框。
-    .border({ width: { left: 4 }, color: this.blockColors(dayIndex).ink })
+    // 原版 CourseScheduleItem.kt L64-69：左缘 4dp ink 竖条（恒显，§8.2 第二编码）；
+    // 另三边的细边框仅 showBorder 开关打开时显示（Android showBorder 默认 false）。
+    .border({
+      width: this.displayFlags.showBorder
+        ? { left: 4, right: 1, top: 1, bottom: 1 }
+        : { left: 4, right: 0, top: 0, bottom: 0 },
+      color: this.blockColors(dayIndex).ink
+    })
     // 无障碍：读屏要念「课程名，第几节到第几节，教室」，只念课名等于没信息
     .accessibilityText(b.course === null ? '' : (b.course.KCM + '，周' + DAY_LABELS[dayIndex] +
       '第 ' + b.course.KSJC + '-' + b.course.JSJC + ' 节，' +

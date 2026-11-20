@@ -34,6 +34,10 @@ import { TermStore, STORAGE_TERM, splitTermsByRecentYears, TermSplit } from '../
 import { SchoolService } from '../service/SchoolService.ts';
 import { CampusInfo } from '../core/model/SchoolModels.ts';
 import { info, warn } from '../core/log/BitLog.ts';
+import {
+  loadScheduleDisplay, saveScheduleDisplayFlag,
+  ScheduleDisplayFlags, defaultScheduleDisplay, KEY_SHOW_BORDER, KEY_SHOW_DIVIDER
+} from '../data/ScheduleDisplayStore.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
 import { TimeTableStore } from '../data/TimeTableStore.ts';
 import { ScoreCheckRunner } from '../service/ScoreCheckRunner.ts';
@@ -107,12 +111,30 @@ struct SettingsPage {
   @State termMsg: string = '';
   /** 旧学期是否展开（默认收起，避免一长串历史学期占满屏）。 */
   @State termExpanded: boolean = false;
+  /** 课表显示开关（当前只暴露边框/分隔线两项，其余原版开关待接）。 */
+  @State displayFlags: ScheduleDisplayFlags = defaultScheduleDisplay();
 
   private p(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
+  /** 读课表显示开关（对齐原版 CalendarSettingPage）。 */
+  private async loadDisplayFlags(): Promise<void> {
+    try {
+      this.displayFlags = await loadScheduleDisplay();
+    } catch (e) {
+      warn('settings display flags fail: ' + JSON.stringify(e));
+    }
+  }
+
+  private async toggleDisplayFlag(key: string, value: boolean): Promise<void> {
+    await saveScheduleDisplayFlag(key, value);
+    await this.loadDisplayFlags();
+    this.toast = '已保存，切回课表生效';
+  }
+
   aboutToAppear(): void {
+    this.loadDisplayFlags();
     this.refresh();
     this.loadVersion();
     this.loadTermList();
@@ -932,6 +954,36 @@ struct SettingsPage {
                 this.toast = '跳转失败：' + JSON.stringify(e);
               });
             })
+          }
+          .width('100%').padding(12)
+          .backgroundColor(this.p().secondaryContainer)
+          .borderRadius(12)
+
+          // ── 课表显示（对齐原版 CalendarSettingPage 的显示开关）──
+          this.groupTitle('课表显示')
+          Column() {
+            Row() {
+              Text('课程卡边框')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('课程块四周细边框，默认关')
+                .fontSize(11).fontColor(this.p().textPlaceholder)
+              Toggle({ type: ToggleType.Checkbox, isOn: this.displayFlags.showBorder })
+                .onChange((on: boolean) => {
+                  this.toggleDisplayFlag(KEY_SHOW_BORDER, on);
+                })
+            }
+            .width('100%').padding({ bottom: 10 })
+            Row() {
+              Text('网格分隔线')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text('空格的横竖细线，默认开')
+                .fontSize(11).fontColor(this.p().textPlaceholder)
+              Toggle({ type: ToggleType.Checkbox, isOn: this.displayFlags.showDivider })
+                .onChange((on: boolean) => {
+                  this.toggleDisplayFlag(KEY_SHOW_DIVIDER, on);
+                })
+            }
+            .width('100%')
           }
           .width('100%').padding(12)
           .backgroundColor(this.p().secondaryContainer)

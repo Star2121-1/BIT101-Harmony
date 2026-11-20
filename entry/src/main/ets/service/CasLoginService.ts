@@ -28,6 +28,7 @@ import {
 import { RcpFactory, PersistedCookie } from '../core/net/RcpFactory.ts';
 import { SessionStore } from '../data/SessionStore.ts';
 import { SchoolCookieStore } from '../data/SchoolCookieStore.ts';
+import { SeatCookieStore } from '../data/SeatCookieStore.ts';
 import { info, mask, warn } from '../core/log/BitLog.ts';
 
 const SSO_BASE: string = 'https://sso.bit.edu.cn';
@@ -279,7 +280,10 @@ export class CasLoginService {
       await SchoolCookieStore.snapshotAndSave(repo);
       await SessionStore.saveToken(outcome.jwt, username, '');
       const n: number = (await SchoolCookieStore.load()).length;
-      steps.push('step8 persisted cookies=' + n + ' jxzx=' + jxDetail);
+      // 座位 500 方案 A′：JAR_CAS 罐里 seatlib 域 phpCAS cookie 从未落盘（根因），
+      // 这里单独落进独立 key，不动 school_cookies_v1（不串罐）。新增数记进 steps 供诊断。
+      const seatN: number = await SeatCookieStore.appendFromCas(RcpFactory.cookieRepo(JAR_CAS));
+      steps.push('step8 persisted cookies=' + n + ' jxzx=' + jxDetail + ' seatlib=' + seatN);
       info('login step8 persisted cookies=' + n);
     } catch (e) {
       steps.push('step8 persist_fail ' + JSON.stringify(e));
@@ -391,7 +395,8 @@ export class CasLoginService {
         await SchoolCookieStore.snapshotAndSave(p.repoLogin);
         await SessionStore.saveToken(jwt, p.username, '');
         const n: number = (await SchoolCookieStore.load()).length;
-        steps.push('c5 persisted cookies=' + n + ' jxzx=' + jxDetail);
+        const seatN: number = await SeatCookieStore.appendFromCas(RcpFactory.cookieRepo(JAR_CAS));
+        steps.push('c5 persisted cookies=' + n + ' jxzx=' + jxDetail + ' seatlib=' + seatN);
       } catch (e) {
         steps.push('c5 persist_fail ' + JSON.stringify(e));
         outcome.message = '登录成功，但本地会话保存失败';
@@ -415,13 +420,18 @@ export class CasLoginService {
    */
   static async silentRenewJwt(context: Context): Promise<boolean> {
     const cookies: PersistedCookie[] = await SchoolCookieStore.load();
-    if (cookies.length === 0) {
+    // 座位 500 方案 A′：seatlib 域 phpCAS cookie 存独立 key，恢复时一并灌进 JAR_CAS。
+    // 打 seatlib /api/cas/user 时只有 seatlib 域 cookie 能带上——这是续期成功的关键。
+    const seatCookies: PersistedCookie[] = await SeatCookieStore.load();
+    if (cookies.length === 0 && seatCookies.length === 0) {
       info('silentRenew: no cookies, skip');
       return false;
     }
     const session: rcp.Session = await RcpFactory.createSession(context, JAR_CAS);
     const repo: rcp.CookieRepository = RcpFactory.cookieRepo(JAR_CAS);
     await RcpFactory.restoreCookies(repo, cookies);
+    const seatRestored: number = await RcpFactory.restoreCookies(repo, seatCookies);
+    info('silentRenew: seatlib cookies restored=' + seatRestored);
     try {
       const jwt: string = await CasLoginService.exchangeJwt(session, '');
       if (jwt.length === 0) {

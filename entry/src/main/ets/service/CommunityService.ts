@@ -60,6 +60,32 @@ export class CommunityService {
     }
   }
 
+  /**
+   * 我的帖子：对齐 Android `getPostersOfUserByUid(uid=0)` → `GET /posters?mode=search&uid=0&page=N`。
+   * uid=0 表示本人（Android MyFollowListViewModel 契约）；分页从 0 开始。
+   * ⚠️ mode=search 的序列化值需真机核对（Android PostersMode.search 序列化为 "search"），
+   * 取不到就如实降级，不伪造"暂无帖子"。
+   */
+  static async listMyPosts(context: Context, page: number): Promise<CommunityListResult> {
+    const path: string = '/posters?mode=search&uid=0&page=' + Math.max(0, Math.trunc(page)).toString();
+    try {
+      const res = await CommunityAuthService.getWithAuth(context, path);
+      if (res.status === 401) {
+        return { kind: 'needLogin', posts: [], message: '社区会话已失效，请登录' };
+      }
+      if (res.status < 200 || res.status >= 300) {
+        warn('community my posts HTTP ' + res.status);
+        return { kind: 'failed', posts: [], message: '我的帖子取数失败（HTTP ' + res.status + '）' };
+      }
+      const posts: CommunityPost[] = parsePosters(res.body);
+      info('community my posts ok count=' + posts.length);
+      return { kind: 'ok', posts: posts, message: '' };
+    } catch (e) {
+      warn('community my posts fail: ' + JSON.stringify(e));
+      return { kind: 'failed', posts: [], message: '我的帖子取数失败（网络或服务端）' };
+    }
+  }
+
   /** 举报类型列表（只读）；拿不到返回空数组，UI 据此禁用举报，不猜 typeId。 */
   static async reportTypes(context: Context): Promise<ReportType[]> {
     try {

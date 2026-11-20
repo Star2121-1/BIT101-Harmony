@@ -52,6 +52,24 @@
 - **座位静默续期（座位 500 根因）**：涉及 seatlib 域 cookie 持久化 + 真实预约副作用，需用户拍板方案（A 补 cookie / B 专用登录 / C 维持诚实报错），本轮不动。
 - 地图缩放手势真机连续缩放未手动滑验（JS 换算有单测覆盖 tile 换算 34 条断言）。
 
+## alpha.33 第三批（我页视觉 + 课表开关 + 座位500方案A′，versionCode 33）
+
+> 本轮设备未连（2026-11-21 凌晨），**全部代码改动未真机验**，只做编译 + 单测。
+
+### 代码改动
+1. **我页账号区**（对齐 Android `UserInfoContentForMe`）：新增 `corelogic/CommunityUserLogic.ts`（解析 `/user/info/0`，49 断言）+ `service/CommunityUserService.ts`（带 fake-cookie GET，三态）。MePage 账号区补昵称/身份称号/签名/粉丝关注/UID/注册时间/认证勾；头像 72→78dp；字段取不到一律隐藏，不编造。`loggedIn`（学校 cookie）与 `communityLoggedIn`（社区票据）两套登录态独立判断。
+2. **我页我的帖子**：`CommunityService.listMyPosts`（`GET /posters?mode=search&uid=0&page=0`），MePage 图书馆卡下加帖子列表（最多 5 条 + 0.5dp 分隔线 + Web 壳详情），三态文案（未登录/失败/空）如实区分，不伪装「暂无帖子」。
+3. **课表显示开关**：新增 `corelogic/ScheduleDisplayLogic.ts`（7 开关默认值对齐 Android SettingDataStore + 22 断言）+ `data/ScheduleDisplayStore.ts`（Prefs 适配）。设置页「课表显示」组加边框/分隔线两个 Checkbox（真生效）；SchedulePage onWake 重读开关，课程卡整圈边框 + 空格网格线随开关变。周末列隐藏/当前时间线/考试信息**未接**（涉及网格结构，避免假开关）。
+4. **座位 500 方案 A′**：新增 `corelogic/SeatCookieLogic.ts`（31 断言）+ `data/SeatCookieStore.ts`（独立 key `seatlib_cookies_v1`）。登录步骤8/短信c5在原 `snapshotAndSave` 之后追加 `SeatCookieStore.appendFromCas(JAR_CAS)`；`silentRenewJwt` 恢复 school cookies 后再恢复 seatlib cookies；`SessionStore.logoutAll` 补清独立 key。**不并入 school_cookies_v1**⇒`test-seat500rc`「无 seatlib」事实继续成立、`test-sso`「只下沉 sso 域不串罐」语义不破，源码栅栏锁死。
+
+### 验证
+- 新增 3 套件（communityuser 49 + scheduledisplay 22 + seat500a 31），全量见下方测试结果。
+- 编译 `assembleHap` 结果见下方。**未真机验**：账号区/帖子/开关/座位续期正路径全未上机（设备未连）。
+
+### ❌ 未验（如实）
+- 社区 `/user/info/0` 与 `/posters?mode=search&uid=0` 真机契约（Android 已证实存在，H 端首次调用）——若 mode 序列化不符会如实降级，不伪造数据。
+- 座位方案 A′ 生效判据：重新登录后 `seatlib_cookies_v1` 出现 seatlib 域记录 + 座位页不再恒 500。设备未连未验。
+
 ## 装机踩坑（已解决，记录）
 1. hdc 是 Windows 程序：不认 `/f/` 路径、`F:/` 绝对路径会拼到 cwd 后 ⇒ 必须 cd 到目标目录用相对文件名。
 2. `hdc kill` 后通道重建需 ~4s，期间所有命令报 "need connect-key" ⇒ 脚本内探活+重试。
