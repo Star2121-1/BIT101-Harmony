@@ -1,5 +1,12 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-21 凌晨 alpha.33 第三批（用户拍板：批3 我页视觉 + 座位500方案A）**：
+> - **我页账号区**：新增 `/user/info/0` 解析（CommunityUserLogic 49 断言）+ CommunityUserService 三态；补昵称/身份称号/签名/粉丝关注/UID/注册时间/认证勾，头像 72→78dp。**取不到一律隐藏不编造**；社区登录态（fake-cookie）独立于学校登录态，两套分别判断。
+> - **我页我的帖子**：`CommunityService.listMyPosts`（`GET /posters?mode=search&uid=0&page=0`，对齐 Android `getPostersOfUserByUid`）；5 条摘要 + 0.5dp 分隔线 + Web 壳详情；三态文案（未登录/失败/空）如实区分。
+> - **课表显示开关**：ScheduleDisplayLogic 7 开关默认值严格对齐 Android SettingDataStore（周末 true/边框 false/分隔线 true/当前时间 true/考试 true）；设置页「课表显示」组加边框+分隔线两个 Checkbox **真生效**，SchedulePage onWake 重读。⚠️ 周末列隐藏/当前时间线/考试信息**未接**（涉网格结构，不做假开关）。
+> - **座位 500 方案 A′（用户拍板 A）**：采用**独立 key `seatlib_cookies_v1`** 而非并入 school_cookies_v1——登录步骤8/短信c5在原 `snapshotAndSave` 之后追加从 JAR_CAS 罐筛 seatlib 域 cookie 落盘；`silentRenewJwt` 恢复 school cookies 后再恢复 seatlib cookies；`logoutAll` 清空独立 key。**不串罐**：test-sso「只下沉 sso 域」/test-seat500rc「school_cookies_v1 无 seatlib」语义不破，源码栅栏锁死（test-seat500a 31 断言）。
+> - 全量 **84/84 套件 3864 断言绿** + assembleHap BUILD SUCCESSFUL（5m51s，编译机负载高），versionCode 33，commit `d20ca2d` 已推 main。**未真机验**（设备未连）：社区两接口真机契约、座位续期生效判据（重登后 seatlib_cookies_v1 有 seatlib 域 + 座位页不再恒 500）全未上机。
+
 > **2026-11-19 晚 alpha.32 第二轮 6 项诉求（versionCode 32，真机 nv14Pro 已验）**：
 > - **地图轻微缩放变灰修复**：`rawfile/map.html` 引入 `tilePx=TILE*2^(zoom-z)`，统一可见瓦片范围与绘制尺寸（原浮点 zoom 与整数瓦片层级坐标不一致⇒缩放后取错瓦片变灰）；默认 mapScale 2→1、切校区沿用当前倍率。真机：默认显示完整良乡校区+周边道路+地铁线，瓦片全加载无灰。
 > - **课程详情面板关闭**：`SchedulePage` 空格子 onClick 收起 + `onWake` 入口切任意页清 selected。真机验过点空白收起、切「图」再切回详情已自动关。
