@@ -1,5 +1,11 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-21 傍晚 alpha.35 修复「点击登录报结构异常」（用户真机反馈，commit aa45b84）**：
+> - **症状**：点「授权座位系统」→ 登录页输学号密码 → 红字「登录页结构异常（未解析到 execution/croypto）」，step1 http=302 bodyLen=0，卡死无法登录。
+> - **根因（真机实证）**：用户已有有效 CAS 会话（只座位 JWT 失效），带 sso cookie GET `cas/login` → **302 空 body + ticket**（curl 复现 Location=`seatlib/api/cas/cas?ticket=ST-...`；不带 cookie 才 200 表单）。鸿蒙 `autoRedirect=false`，step1 拿到 302 解析不到六锚点误报「结构异常」——**把「已登录」误判成「服务端改版」**。Android 不直连 cas/login，走 BIT101 认证主机 webVpnVerifyInit，不踩坑。
+> - **修复**：step1 解析失败时若 `302 + Location 带 ticket` ⇒ 直接复用 ticket 走步骤6（`followForCasCode`→`exchangeJwt`）换 JWT，跳过密码表单步骤2~5；步骤7/8 照常。首次登录（200 表单）路径不变。`test-login302` 15 断言 + 故意拆红验过。
+> - **真机验**：登录成功跳课表页（此前卡结构异常）；`seatlib_jwt_saved_at`/`fake_cookie_saved_at` 同刻更新=统一登录生效。座位重登后仍 500（单会话互踢 §5，需本人干净重登），门禁 UI 可见。versionCode 34→35，全量 86/86 套件 3876 断言绿。
+
 > **2026-11-21 下午 alpha.34 座位 500 真正根因 + 授权门禁（用户提示查 BIT101-S，commit c03f66f）**：
 > - **根因（权威实测，非推测）**：`BIT101-seat/docs/seatlib-contract.md` §1——带失效/伪造 token 打 `/api/Seat/seat` → **HTTP 500 + 空 body**；不带 token → 200。认证失败是 200+code 10001，**不是 401**（按 401 判失效永远不触发）。§5 seatlib **单会话互踢**——我们 prefs 里的 PHPSESSID 是 11-18 的，早已失效。§6 Android 靠 `SeatHttp.session` 常驻 phpCAS 会话 + `authenticateSeatlib()` 静默换 JWT；失败显示 `SeatAuthGate` 门禁 +「授权座位系统」按钮（用户点击才 allowCredentials=true）。
 > - **鸿蒙缺口**：此前 500 只报「响应解析失败（HTTP 500）」看不懂，无门禁、无授权入口。
