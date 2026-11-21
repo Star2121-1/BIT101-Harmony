@@ -1,5 +1,13 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-21 下午 alpha.33 真机验证（nv14Pro，versionCode 33 确认）**：
+> - ✅ **我页账号区/帖子大超预期通过**：`/user/info/0` 真机契约成立——昵称 `BIT101-1b1da3de`+身份「普通用户」+签名+`UID：9597`+`2024-11-12加入` 全加载；「我的帖子」显示真态「还没有发帖」；校园网真数据 ¥20.01。
+> - ✅ **课表默认态渲染通过**：左竖条+无整圈边框（边框默认关）+网格线可见（分隔线默认开）+今日列高亮⇒开关默认值读取生效。
+> - ✅ **座位 A′ 落盘判据通过**：prefs 实测 `seatlib_cookies_v1` 1 条 `PHPSESSID`（32位 seatlib 域），`school_cookies_v1` 仍 10 条无 seatlib（不串罐守卫成立）。
+> - ❌ **座位 A′ 行为判据失败**：点「5层中厅」仍 `响应解析失败（HTTP 500）`，但无「登录已失效」⇒静默续期路径已走通、服务端仍不认旧 phpCAS 会话。命中根因报告反证分支 ⇒ 转方案 B：需用户**本人重新登录**产生新 PHPSESSID 再验；若重登仍 500 则服务端侧问题，非 App 可修。
+> - ❌ **课表开关切换交互未点验**：设置页齿轮三次点击坐标均未进（Image 单独 onClick hitTest 失效，alpha.28 也踩过）；默认值渲染已真机确认，切换生效靠单测+栅栏。
+> - 证据 `evidence/device-alpha28/RESULT.md` + a33-me/schedule/seat-status.jpeg；含 cookie 值的 prefs 未入库。commit `f2be50a`。
+
 > **2026-11-21 凌晨 alpha.33 第三批（用户拍板：批3 我页视觉 + 座位500方案A）**：
 > - **我页账号区**：新增 `/user/info/0` 解析（CommunityUserLogic 49 断言）+ CommunityUserService 三态；补昵称/身份称号/签名/粉丝关注/UID/注册时间/认证勾，头像 72→78dp。**取不到一律隐藏不编造**；社区登录态（fake-cookie）独立于学校登录态，两套分别判断。
 > - **我页我的帖子**：`CommunityService.listMyPosts`（`GET /posters?mode=search&uid=0&page=0`，对齐 Android `getPostersOfUserByUid`）；5 条摘要 + 0.5dp 分隔线 + Web 壳详情；三态文案（未登录/失败/空）如实区分。
