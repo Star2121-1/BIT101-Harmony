@@ -1,5 +1,12 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-21 下午 alpha.34 座位 500 真正根因 + 授权门禁（用户提示查 BIT101-S，commit c03f66f）**：
+> - **根因（权威实测，非推测）**：`BIT101-seat/docs/seatlib-contract.md` §1——带失效/伪造 token 打 `/api/Seat/seat` → **HTTP 500 + 空 body**；不带 token → 200。认证失败是 200+code 10001，**不是 401**（按 401 判失效永远不触发）。§5 seatlib **单会话互踢**——我们 prefs 里的 PHPSESSID 是 11-18 的，早已失效。§6 Android 靠 `SeatHttp.session` 常驻 phpCAS 会话 + `authenticateSeatlib()` 静默换 JWT；失败显示 `SeatAuthGate` 门禁 +「授权座位系统」按钮（用户点击才 allowCredentials=true）。
+> - **鸿蒙缺口**：此前 500 只报「响应解析失败（HTTP 500）」看不懂，无门禁、无授权入口。
+> - **修复**：SeatPage 识别 HTTP 500 → `seatAuthExpired` + 门禁 UI（文案对齐 SeatAuthGate.kt）+「授权座位系统」按钮 + 进行态。`authorizeSeat()` 先只读 silentRenewJwt（不发短信），失败跳 LoginPage 请本人重登。红线：授权只用户点击触发，自动路径只 cookie 续期（`test-seatauthgate` 12 断言锁死，故意拆红验过）。`test-seattree` 栅栏修正为方法体内比对（避免 authorizeSeat 新增调用造成假红）。
+> - 全量 **85/85 套件 3876 断言绿** + assembleHap BUILD SUCCESSFUL，versionCode 34。**真机验**：门禁 UI（不再显示看不懂的 500）+ 按钮跳登录页均通过（a34-gate/a34-authorize.jpeg）；守卫故意拆红有效。
+> - **最终验证需用户本人**：登录页输密码重登 → 新 seatlib 会话 → 再进座位页。若重登仍 500 ⇒ 服务端侧问题，非 App 可修。
+
 > **2026-11-21 下午 alpha.33 真机验证（nv14Pro，versionCode 33 确认）**：
 > - ✅ **我页账号区/帖子大超预期通过**：`/user/info/0` 真机契约成立——昵称 `BIT101-1b1da3de`+身份「普通用户」+签名+`UID：9597`+`2024-11-12加入` 全加载；「我的帖子」显示真态「还没有发帖」；校园网真数据 ¥20.01。
 > - ✅ **课表默认态渲染通过**：左竖条+无整圈边框（边框默认关）+网格线可见（分隔线默认开）+今日列高亮⇒开关默认值读取生效。
