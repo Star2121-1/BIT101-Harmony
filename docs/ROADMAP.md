@@ -1,5 +1,12 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-22 alpha.37 座位"未授权"根因修复 + 研讨间补齐**（versionCode 36→37）：
+> - **根因重判（真机探针铁证，evidence/seat-unauth-rootcause-20261121.md）**：用户本人重登后仍"未授权"。应用内座位 wire 探针对同一把 JWT（len=513）实测：subscribe/reneges/seminar **全 200 code=1**（seminar 返回真实 booker=1120241355 的 9 条）⇒ JWT 有效、认证正常，**"未授权"是误判**。（renew 失败=PHPSESSID 死，但不影响 authed 端点。）真因：`SeatPage.loadSeats` 从不调 `fetchSeatDates`，segment 写死 `''`、时间写死 `00:00-24:00` ⇒ 契约 §2 空/非法 segment → HTTP 500 空 body，前端又把 500 一律判成"授权失效"。**此前 alpha.34/36 归因为"单会话互踢/token 失效"对此场景是错的**（单会话机制真实存在但非本次根因）。
+> - **修复**：新增 `resolveSeatSegment`（corelogic 纯逻辑，对齐 Android `SeatViewModel.resolveSegmentParams`，test-seatsegment 11 断言 + 拆红验过）；loadSeats 先 `fetchSeatDates(build_id=selArea)` 拿真实时段再查座位；confirm 用同一时段；500 判据收紧为"用正确参数仍 500 才算失效"。test-seatloop 加 5 条守卫锁死"不再传空 segment"（拆红验过）。
+> - **研讨间补齐**：真机探针证实 `/api/Member/seminar` 有 9 条真实数据，但旧代码只显示"接口未接通"占位。新增 `parseSeminarRecords`（wire→SeminarRecord，test-seminar 覆盖）；`SeatService.seminarReservations` 改返回 records；`seminarCard` 渲染真实列表（房间/时间/状态，status=2 才显取消，取消走二次确认 + cancelReservation `{id}`）。**顺带修正**：`buildCancelSeminarBody` 旧用 `{seminar_id}` 是错的（契约 §3 与座位共用 `/api/Space/cancel` body `{id}`），test-seminar 曾把错误字段锁成假守卫，已改对。
+> - 全量 **89/89 套件 3885 断言绿**；assembleHap BUILD SUCCESSFUL。**真机验证待设备重连**（alpha.37 未装机）。
+> - 未补（如实）：研讨间**发起预约**仍需网页（整间+时段+成员，与 Android 一致不在 App 内做）；签到提示精确文案（Android "60分钟内/次日9:00前"）鸿蒙仍笼统；`calcSignInDeadline` 死代码用 -15min 错误规则但无调用点，未动。
+
 > **2026-11-21 夜 alpha.36 修复座位授权死循环（用户反馈「授权→登录→回课表→预约→又授权」，先查安卓再改）**：
 > - **安卓闭环（BIT101-S 1.12.0 权威）**：① 登录页是座位流程内部状态开关（`showCasLogin` StateFlow，共用同一 ViewModel/SeatApi 单例，路由不变），成功写 token→`isLoggedIn` 从 `tokenFlow` 派生当场变真→回原座位页；② 三级续期 `renew(allowCredentials)` 第一步 cookie 静默、失败才凭据直登，`authed()` 对所有认证接口遇 TOKEN_EXPIRED 静默续期并自动重放；③ token 赋值即持久化（`seat_token` 加密存储），冷启动恢复。
 > - **鸿蒙三处断裂**：① `authorizeSeat` pushUrl(LoginPage) 无来源参数、登录成功写死 `replaceUrl('pages/Index')` 回课表；② 三级选择是 SeatPage 组件内 @State，跳转后上下文丢失、无自动重试；③ **换票链用进程级单例 JAR_CAS 罐**（残留陈旧 phpCAS cookie），违反 `seatlib-contract.md §6「每次全量干净 jar」`——换到的 JWT 服务端不认 → 仍 500 → 门禁再现。

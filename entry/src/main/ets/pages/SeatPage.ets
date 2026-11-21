@@ -24,15 +24,18 @@ import {
 } from '../corelogic/SeatViewLogic.ts';
 import {
   type WireSeat, type MyReservation, type RenegeRecord, type MapPointVM,
-  type SeatMapImages,
+  type SeatMapImages, type SeatSegmentParams,
   wireStatusText, wireStatusColor, isFree, renegeText, renegeKey, WireSeatStatus, buildMapPoints,
-  emptySeatMapImages, isSeatMapImagesEmpty,
+  emptySeatMapImages, isSeatMapImagesEmpty, resolveSeatSegment,
 } from '../corelogic/SeatApiLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 import { CasLoginService } from '../service/CasLoginService.ts';
 import { getTaskRepository } from '../data/SeatTaskStore.ts';
 import { isTerminalStatus } from '../model/SeatTask.ts';
 import { joinA11y } from '../corelogic/A11yText.ts';
+import {
+  type SeminarRecord, formatSeminarTime, getSeminarStatusText, isSeminarCancellable,
+} from '../corelogic/SeminarLogic.ts';
 
 @Entry
 @Component
@@ -65,6 +68,13 @@ export struct SeatPage {
   @State seatsLoading: boolean = false;
   @State seatsErr: string = '';
   @State seatsLoaded: boolean = false;
+  /**
+   * 当前区域当天解析出的真实查询时段（对齐 Android SeatQuery）。
+   * 由 loadSeats 先 fetchSeatDates(build_id=区域 id) 再 resolveSeatSegment 得到；
+   * confirmReserve 复用同一时段，保证「查得到 → 约得到」参数一致。
+   * 普通私有字段（不驱动 UI），仅初始化一次。
+   */
+  private segParams: SeatSegmentParams = { segment: '1', startTime: '08:00', endTime: '22:30' };
   /**
    * 座位会话失效门禁（对齐 Android SeatAuthGate）。
    * seatlib 契约（docs/seatlib-contract.md §1）：带失效 token 打 /api/Seat/seat → HTTP 500 + 空 body；
@@ -104,8 +114,13 @@ export struct SeatPage {
   @State reneges: RenegeRecord[] = [];
   @State renLoading: boolean = false;
   @State renErr: string = '';
-  /** 研讨间卡内的如实提示（研讨间接口未接通，铁律 0.9 不造假数据）。 */
-  @State seminarHint: string = '';
+  /** 我的研讨间预约（账号级，POST /api/Member/seminar；2026-11-22 真机探针证实有真实数据）。 */
+  @State seminars: SeminarRecord[] = [];
+  @State semLoading: boolean = false;
+  @State semErr: string = '';
+  /** 研讨间取消二次确认态（对外副作用，铁律 0.6：用户显式点 + 二次确认）。 */
+  @State semCancelTarget: string | null = null;
+  @State semCancelResult: string = '';
   /** 任务卡操作结果提示（清除终态任务的条数）。 */
   @State taskHint: string = '';
 
@@ -217,6 +232,7 @@ export struct SeatPage {
     this.loadSeats();
     this.loadMyReservations();
     this.loadReneges();
+    this.loadSeminars();
   }
 
   /**
@@ -264,21 +280,27 @@ export struct SeatPage {
         this.seatsLoading = false;
         return;
       }
-      // 权威契约：/api/Seat/seat 按「区域 + 时段 + 日期 + 起讫时刻」取该区域的座位。
-      // 时段：默认段 "1"（times[].id 实测恒 null，回落默认是正常路径）；
-      // 起讫时刻：今天 00:00 → 24:00（服务端据此过滤状态，空时段照常返回全量）。
+      // ⚠️ 根因修复（2026-11-21 evidence/seat-unauth-rootcause-20261121.md）：
+      // /api/Seat/seat 的 segment 必须是**真实时段 id**。先按 build_id=区域 id 拉
+      // /api/Seat/date 才有非 null 的 times[].id；传空 segment → HTTP 500 空 body，
+      // 旧代码写死 '' 被误判成"未授权"。对齐 Android SeatViewModel.resolveSegmentParams。
       const day: string = SeatTreeService.today();
-      const res = await this.svc.fetchSeats(ctx, user.jwt, this.selArea, '', day, '00:00', '24:00');
+      const datesRes = await this.svc.fetchSeatDates(ctx, user.jwt, this.selArea);
+      this.segParams = datesRes.ok
+        ? resolveSeatSegment(datesRes.dates, day)
+        : { segment: '1', startTime: '08:00', endTime: '22:30' };
+      info('seat segments resolved: ' + JSON.stringify(this.segParams)
+        + ' (datesOk=' + datesRes.ok + ')');
+      const res = await this.svc.fetchSeats(ctx, user.jwt, this.selArea,
+        this.segParams.segment, day, this.segParams.startTime, this.segParams.endTime);
       if (!res.ok) {
-        // JWT 会过期；死 token 时服务端返 500（与实际网络故障同码，无法从 message 区分）。
-        // silentRenewJwt 是只读探测（靠已存 CAS cookie 换 JWT，换不到就 false），
-        // 不删数据/不发短信/不撞风控 ⇒ 失败后试一次是安全的；成功才重试，否则如实报错。
+        // 参数修正后仍 500 才可能是会话问题：先只读静默续期探一次（不删数据/不发短信/不撞风控）。
         if (allowRenew && (await CasLoginService.silentRenewJwt(ctx))) {
           info('seat JWT silent-renewed, retry fetchSeats');
           await this.loadSeats(false);
           return;
         }
-        // seatlib 500 + 空 body = 失效 token（不是网络故障，见 seatlib-contract §1）
+        // 已用真实时段参数仍 500 ⇒ 服务端拒绝（契约 §1：带失效 token 打免认证接口 → 500 空 body）
         this.seatAuthExpired = (res.message ?? '').indexOf('HTTP 500') >= 0;
         this.seatsErr = this.seatAuthExpired
           ? '座位系统授权已失效（服务端拒绝旧会话）'
@@ -406,8 +428,8 @@ export struct SeatPage {
   }
 
   /** 二次确认后才真正预约（有对外副作用，铁律 0.6）。
-   *  权威契约 confirm 只传 {seat_id, segment}；segment 传 ''，buildConfirmBody 会回落默认段 "1"
-   *  （times[].id 实测恒 null，回落是正常路径）。成功后刷新座位快照 + 我的预约。 */
+   *  权威契约 confirm 只传 {seat_id, segment}；segment 用 loadSeats 解析出的真实时段 id
+   *  （与查座位同一时段，契约 §2 传非法 id → 500）。成功后刷新座位快照 + 我的预约。 */
   private async confirmReserve(): Promise<void> {
     const sid: string | null = this.reserveTarget;
     if (sid === null) {
@@ -424,7 +446,7 @@ export struct SeatPage {
         this.reserveTarget = null;
         return;
       }
-      let res = await this.svc.confirmSeat(ctx, user.jwt, sid, '');
+      let res = await this.svc.confirmSeat(ctx, user.jwt, sid, this.segParams.segment);
       // 对齐 Android SeatApi.authed(): token 失效先静默续期（只 cookie，不发短信），
       // 成功则用新 JWT 重放**同一次**预约（仍是用户刚才点击的意图，不是自动预约）。
       if (!res.ok && (res.message ?? '').indexOf('登录已失效') >= 0) {
@@ -432,7 +454,7 @@ export struct SeatPage {
         if (await CasLoginService.silentRenewJwt(ctx)) {
           const fresh = await SeatService.getSession(ctx);
           if (fresh !== null) {
-            res = await this.svc.confirmSeat(ctx, fresh.jwt, sid, '');
+            res = await this.svc.confirmSeat(ctx, fresh.jwt, sid, this.segParams.segment);
           }
         }
       }
@@ -475,6 +497,56 @@ export struct SeatPage {
       this.renErr = '违约记录拉取失败：' + (e as Error).message;
     }
     this.renLoading = false;
+  }
+
+  /** 拉我的研讨间预约（/api/Member/seminar；账号级，不按区域）。
+   *  2026-11-22 真机探针证实接口 200 code=1 有真实数据，补齐 wire 解析后渲染真实列表。 */
+  private async loadSeminars(): Promise<void> {
+    this.semLoading = true;
+    this.semErr = '';
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const user = await SeatService.getSession(ctx);
+      if (user === null) {
+        this.semErr = '未登录，未取到研讨间预约';
+        this.seminars = [];
+        this.semLoading = false;
+        return;
+      }
+      const res = await this.svc.seminarReservations(ctx, user.jwt);
+      if (!res.ok) {
+        this.semErr = (res.message ?? '').length > 0 ? res.message! : '研讨间预约拉取失败';
+        this.seminars = [];
+      } else {
+        this.seminars = res.records;
+      }
+    } catch (e) {
+      this.semErr = '研讨间预约拉取失败：' + (e as Error).message;
+      this.seminars = [];
+    }
+    this.semLoading = false;
+  }
+
+  /** 研讨间取消二次确认（对外副作用，仅用户点 + 二次确认才真调）。
+   *  对齐 Android cancelReservation：POST /api/Space/cancel body {id: 记录id}。 */
+  private async confirmSeminarCancel(): Promise<void> {
+    const id: string | null = this.semCancelTarget;
+    if (id === null) return;
+    this.semCancelTarget = null;
+    this.semCancelResult = '';
+    try {
+      const ctx: Context = getContext(this) as Context;
+      const user = await SeatService.getSession(ctx);
+      if (user === null) {
+        this.semCancelResult = '未登录，无法取消';
+        return;
+      }
+      const res = await this.svc.cancelReservation(ctx, user.jwt, id);
+      this.semCancelResult = res.ok ? '研讨间预约已取消' : (res.message ?? '取消失败');
+      if (res.ok) await this.loadSeminars();
+    } catch (e) {
+      this.semCancelResult = '取消失败：' + (e as Error).message;
+    }
   }
 
   build() {
@@ -950,20 +1022,67 @@ export struct SeatPage {
     .alignItems(HorizontalAlign.Start)
   }
 
-  /** 研讨间卡（列表视图；对齐原版 ref-05 空态）。
-   *  ⚠️ 研讨间 wire 字段未真机核对（铁律 0.9）⇒ 不渲染假列表、不放假刷新按钮，
-   *  空态文案与原版一致，网页预约入口真实可用。 */
+  /** 研讨间卡（列表视图；对齐 Android SeminarCards）。
+   *  2026-11-22 补齐：接口真机探针可用（9 条真实数据），渲染真实列表 + 取消（仅 status=2）。
+   *  App 内仍不能"发起"研讨间预约（要整间+时段+成员），故保留网页预约入口 + 空态说明。
+   *  取消有对外副作用：用户点 → 二次确认 → 才调 cancelReservation（铁律 0.6）。 */
   @Builder
   seminarCard() {
     Column() {
-      Text('我的研讨间预约')
-        .fontSize(14).fontWeight(FontWeight.Bold)
-        .fontColor(this.tk().onSurface).width('100%')
-      Text('研讨间要按照「整间 + 时段 + 参与成员」提交申请，App 内还没做这一步；先用图书馆网页预约，约好后回到本页下拉刷新，就能在这里查看和取消。')
-        .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
       Row() {
+        Text('我的研讨间预约')
+          .fontSize(14).fontWeight(FontWeight.Bold)
+          .fontColor(this.tk().onSurface).layoutWeight(1)
+        Text('刷新')
+          .fontSize(12).fontColor(this.tk().primary)
+          .onClick(() => { this.loadSeminars(); })
+      }
+      .width('100%')
+
+      if (this.semLoading) {
+        Text('拉取研讨间预约…').fontSize(11).fontColor(this.tk().onSurfaceVariant)
+          .width('100%').margin({ top: 6 })
+      } else if (this.semErr.length > 0) {
+        Text(this.semErr).fontSize(11).fontColor(this.tk().stateAttention)
+          .width('100%').margin({ top: 6 })
+      } else if (this.seminars.length > 0) {
+        ForEach(this.seminars, (r: SeminarRecord) => {
+          Column() {
+            Text(r.nameMerge.length > 0 ? r.nameMerge : '研讨间预约')
+              .fontSize(13).fontColor(this.tk().onSurface).width('100%')
+            Text(formatSeminarTime(r))
+              .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 3 })
+            Row() {
+              if (!isSeminarCancellable(r) && getSeminarStatusText(r).length > 0) {
+                Text(getSeminarStatusText(r))
+                  .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+              }
+              if (isSeminarCancellable(r)) {
+                Text(this.semCancelTarget === r.id ? '确认取消?' : '取消预约')
+                  .fontSize(11).fontColor(this.tk().stateAttention)
+                  .onClick(() => {
+                    if (this.semCancelTarget === r.id) {
+                      this.confirmSeminarCancel();
+                    } else {
+                      this.semCancelTarget = r.id;
+                      this.semCancelResult = '';
+                    }
+                  })
+              }
+            }
+            .width('100%').margin({ top: 4 })
+          }
+          .width('100%').padding(10).margin({ top: 6 })
+          .backgroundColor(this.tk().surface).borderRadius(8)
+          .alignItems(HorizontalAlign.Start)
+        }, (r: SeminarRecord) => r.id)
+      } else {
+        Text('还没有研讨间预约').fontSize(12).fontColor(this.tk().onSurfaceVariant)
+          .width('100%').margin({ top: 6 })
+        Text('研讨间要按「整间 + 时段 + 参与成员」提交申请，App 内还没做这一步；先用网页预约，约好后点刷新即可在这里查看和取消。')
+          .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
         Button('去图书馆网页预约')
-          .height(32).fontSize(12)
+          .height(32).fontSize(12).margin({ top: 10 })
           .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
           .onClick(() => {
             router.pushUrl({
@@ -971,17 +1090,10 @@ export struct SeatPage {
               params: { url: 'https://seatlib.bit.edu.cn' },
             });
           })
-        Text('刷新')
-          .fontSize(12).fontColor(this.tk().primary).margin({ left: 16 })
-          .onClick(() => {
-            // 研讨间接口未接通：不装能刷（铁律：假控件比没有更糟）
-            this.seminarHint = '研讨间接口尚未接通（wire 字段未真机核对），暂时刷不出数据';
-          })
       }
-      .width('100%').margin({ top: 10 })
-      if (this.seminarHint.length > 0) {
-        Text(this.seminarHint)
-          .fontSize(10).fontColor(this.tk().stateAttention).width('100%').margin({ top: 6 })
+      if (this.semCancelResult.length > 0) {
+        Text(this.semCancelResult).fontSize(10).fontColor(this.tk().stateAttention)
+          .width('100%').margin({ top: 6 })
       }
     }
     .width('100%').padding(16).margin({ top: 10 })

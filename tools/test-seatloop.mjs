@@ -50,4 +50,13 @@ ok(confirm.includes('res = await this.svc.confirmSeat'), '重放同一次 confir
 ok(!confirm.includes('loginWithCredentials'), '预约续期不碰账密直登（不发短信/不撞风控）');
 ok(!confirm.includes('sendSms'), '预约续期不发短信');
 
+// ── ④ 时段参数根因修复（2026-11-21 evidence/seat-unauth-rootcause-20261121.md）──
+// 空 segment → HTTP 500 被误判"未授权"；必须按区域 id 拉真实时段再查/约。
+const load = seat.slice(seat.indexOf('private async loadSeats'), seat.indexOf('private async loadSeats') + 1600);
+ok(load.includes('fetchSeatDates(ctx, user.jwt, this.selArea)'), 'loadSeats 先按区域 id 拉真实时段(build_id)');
+ok(load.includes('resolveSeatSegment(datesRes.dates, day)'), 'loadSeats 用 resolveSeatSegment 解析时段');
+ok(load.includes('this.segParams.segment, day, this.segParams.startTime'), 'fetchSeats 用真实时段/起讫参数（不再写死空串）');
+ok(!load.includes("fetchSeats(ctx, user.jwt, this.selArea, '', day"), 'loadSeats 不再传空 segment（500 根因）');
+ok(confirm.includes("confirmSeat(ctx, user.jwt, sid, this.segParams.segment)"), 'confirm 用与查询一致的真实 segment');
+
 console.log(`ALL PASS ${pass} assertions`);

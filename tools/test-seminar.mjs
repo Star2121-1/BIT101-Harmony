@@ -15,6 +15,7 @@ import {
   getSeminarStatusText,
   buildCancelSeminarBody,
   parseSeminarCancelResponse,
+  parseSeminarRecords,
 } from "../entry/src/main/ets/corelogic/SeminarLogic.ts";
 
 let passed = 0;
@@ -88,7 +89,30 @@ function makeRecord(overrides = {}) {
 {
   const record = makeRecord({ id: 'sem_123' });
   const body = buildCancelSeminarBody(record);
-  eq(body.seminar_id, 'sem_123', "seminar_id 正确");
+  eq(body.id, 'sem_123', "取消 body 用 {id: 记录id}（对齐 Android cancelReservation/契约 §3）");
+  ok(body.seminar_id === undefined, "不再用错误的 seminar_id 字段");
+}
+
+// ── 4.5 wire 解析 parseSeminarRecords ──────────────────────────────────────────
+{
+  const rows = [{
+    id: '3403607', nameMerge: '徐特立馆-研讨间A', day: '2026-11-22',
+    start: '14:00:00', end: '16:00:00', status: '2', statusname: '预约成功',
+  }];
+  const recs = parseSeminarRecords(rows);
+  eq(recs.length, 1, "解析一条研讨间记录");
+  eq(recs[0].id, '3403607', "id 直出");
+  eq(recs[0].nameMerge, '徐特立馆-研讨间A', "nameMerge 直出");
+  eq(recs[0].statusName, '预约成功', "statusname(小写) 映射到 statusName");
+  ok(isSeminarCancellable(recs[0]), "解析后 status=2 可取消");
+}
+{
+  const recs = parseSeminarRecords([
+    { id: '', nameMerge: '无id' },
+    { id: 'ok', nameMerge: '有效', statusName: '已结束' },
+  ]);
+  eq(recs.length, 1, "缺 id 的行跳过");
+  eq(recs[0].statusName, '已结束', "statusName 驼峰兜底");
 }
 
 // ── 5. 响应解析 ────────────────────────────────────────────────────────────────

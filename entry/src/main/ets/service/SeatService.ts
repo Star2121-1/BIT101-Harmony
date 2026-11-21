@@ -37,6 +37,7 @@ import {
   buildMapBody, buildRenegeBody, buildSeminarBody,
   bizResult, usableSegment,
 } from '../corelogic/SeatApiLogic.ts';
+import { parseSeminarRecords, type SeminarRecord } from '../corelogic/SeminarLogic.ts';
 import { info, warn, error as bitError } from '../core/log/BitLog.ts';
 
 const HLOG_DOMAIN: number = 0x00AB;
@@ -278,16 +279,19 @@ export class SeatService {
     }
   }
 
-  /** 我的研讨间预约（POST /api/Member/seminar，body {}）。 */
-  async seminarReservations(context: Context, jwt: string): Promise<{ ok: boolean; message: string | null; raw: string }> {
+  /** 我的研讨间预约（POST /api/Member/seminar，body {}）。
+   *  2026-11-22 真机探针证实接口可用（9 条真实数据），补齐 wire 解析供 UI 渲染。 */
+  async seminarReservations(context: Context, jwt: string): Promise<{ ok: boolean; message: string | null; records: SeminarRecord[] }> {
     try {
       const envelope = await this.postJson(context, Endpoint.SEMINAR, buildSeminarBody(), jwt);
       const biz = bizResult(envelope);
-      if (!biz.ok) return { ok: false, message: biz.message, raw: '' };
-      return { ok: true, message: null, raw: JSON.stringify(biz.data ?? []) };
+      if (!biz.ok) return { ok: false, message: biz.message, records: [] };
+      const data: Array<Record<string, Object>> = Array.isArray(biz.data)
+        ? (biz.data as Array<Record<string, Object>>) : [];
+      return { ok: true, message: null, records: parseSeminarRecords(data) };
     } catch (e) {
       bitError('seminarReservations fail: ' + JSON.stringify(e));
-      return { ok: false, message: (e as Error).message, raw: '' };
+      return { ok: false, message: (e as Error).message, records: [] };
     }
   }
 

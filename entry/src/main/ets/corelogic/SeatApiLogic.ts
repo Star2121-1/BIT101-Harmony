@@ -202,6 +202,52 @@ export function usableSegment(segmentId: string): string {
   return segmentId.length > 0 ? segmentId : DEFAULT_SEGMENT_ID;
 }
 
+// ── 时段解析（对齐 Android SeatViewModel.resolveSegmentParams）─────────────
+//
+// ⚠️ 根因修复（2026-11-21 evidence/seat-unauth-rootcause-20261121.md）：
+// `/api/Seat/seat` 的 segment 必须是**真实时段 id**（先按 build_id=区域 id 拉 /api/Seat/date
+// 才有非 null 的 times[].id）；传空串/非法 id → HTTP 500 空 body。
+// 鸿蒙旧代码写死 segment='' + 时间 00:00-24:00 ⇒ 500 被误判成"未授权"。
+// 本函数把"当天时段 → 查询参数"的解析收敛为纯逻辑，离线单测覆盖。
+
+/** 解析后的座位查询时段参数（直接喂给 fetchSeats / confirmSeat）。 */
+export interface SeatSegmentParams {
+  segment: string;
+  startTime: string;
+  endTime: string;
+}
+
+/** 时段字段是否可用（Android 的 `String?.usable()`：去空白、排除 "null"）。 */
+function usableField(v: string): string {
+  const t: string = v.trim();
+  return (t.length === 0 || t === 'null') ? '' : t;
+}
+
+/**
+ * 从时段列表里解析指定日期的查询参数。
+ * - 取 day===targetDay 的第一条时段（对齐 Android `firstOrNull { it.day == day }`）；
+ * - segmentId 回落 DEFAULT_SEGMENT_ID("1")，start/end 回落 "08:00"/"22:30"（Android 同值）；
+ * - 传空 dates / 无当天时段时不抛错，全部回落（正常路径，非边界）。
+ * 纯函数，不 import @kit，可离线单测。
+ */
+export function resolveSeatSegment(dates: WireSeatDate[], targetDay: string): SeatSegmentParams {
+  let matched: WireSeatDate | null = null;
+  for (let i = 0; i < dates.length; i++) {
+    if (dates[i].day === targetDay) {
+      matched = dates[i];
+      break;
+    }
+  }
+  const segment: string = usableField(matched === null ? '' : matched!.segmentId);
+  const startTime: string = usableField(matched === null ? '' : matched!.start);
+  const endTime: string = usableField(matched === null ? '' : matched!.end);
+  return {
+    segment: segment.length > 0 ? segment : DEFAULT_SEGMENT_ID,
+    startTime: startTime.length > 0 ? startTime : '08:00',
+    endTime: endTime.length > 0 ? endTime : '22:30',
+  };
+}
+
 // ── 我的预约 + 解析 ───────────────────────────────────────────────────────
 
 /** 「我的预约」记录（`/api/index/subscribe` type="1"）。 */
