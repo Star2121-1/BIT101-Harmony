@@ -92,6 +92,32 @@
 - 座位重登后判据未验（需用户本人输密码）。
 - 设备曾锁屏一次（hdc 无自动解锁），已请用户解锁后继续。
 
+## ✅ alpha.34 座位 500 真正根因 + 授权门禁（2026-11-21，用户提示查 BIT101-S）
+
+用户指出"BIT101-S 里研究很透彻"——查 `BIT101-seat/docs/seatlib-contract.md` 找到**权威根因**（实测非推测）：
+- **§1**：带失效/伪造 token 打 `/api/Seat/seat` → **HTTP 500 + 空 body**；不带 token → 200。认证失败是 200+code 10001，**不是 401** ⇒ 按 401 判失效永远不触发。
+- **§5**：seatlib **单会话互踢**——同账号别处登录（网页/script）旧会话立即失效。我们 prefs 里的 `PHPSESSID` 是 2026-11-18 的，早已失效。
+- **§6**：Android 靠 `SeatHttp.session` 单例常驻 phpCAS 会话 + `authenticateSeatlib()` 静默换 JWT；失败则**门禁 UI**「学校账号已登录，但座位系统尚未授权」+「授权座位系统」按钮（用户点击才 allowCredentials=true，可能弹短信验证码，框挂顶层）。
+- **鸿蒙缺口**：500 只报"响应解析失败（HTTP 500）"看不懂，**没有门禁 UI 和授权入口**——用户不知道要重新授权。
+
+### alpha.34 修复（对齐 Android SeatAuthGate）
+- SeatPage 识别 HTTP 500 → `seatAuthExpired=true`，文案改「座位系统授权已失效」。
+- 门禁 UI：文案「学校账号已登录，但座位系统尚未授权」+「授权座位系统」按钮 + 进行态「正在恢复座位系统授权…」（对齐 SeatAuthGate.kt 原文）。
+- 按钮 `authorizeSeat()`：先只读 `silentRenewJwt`（cookie，不发短信）；失败跳 LoginPage 请用户本人重登（重登重建 seatlib phpCAS 会话 + A′ 落新 PHPSESSID）。
+- ⚠️ 红线：授权只由用户点击触发；自动续期路径只做只读 cookie 续期，绝不走凭据直登（避免学校风控短信无人输入）。守卫 `test-seatauthgate` 12 条锁死。
+- `test-seatauthgate` 12 断言 + 全量 85/85 套件 3876 断言绿 + 编译 BUILD SUCCESSFUL；versionCode 34（bm dump 确认装机）。
+
+### ✅ alpha.34 真机验证（nv14Pro，已解锁）
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 座位 500 → 门禁 UI | ✅ 点「5层中厅」不再显示「响应解析失败（HTTP 500）」，改为「学校账号已登录，但座位系统尚未授权」+「授权座位系统」按钮；徐特立馆/五层/5层中厅正确选中 | a34-gate.jpeg |
+| 授权按钮行为 | ✅ 点击后 silentRenewJwt 失败（旧 PHPSESSID 已死）→ 正确跳登录页请本人重登；**未自动走凭据、未代输密码、未触发短信**（红线保持） | a34-authorize.jpeg |
+| 守卫有效性 | ✅ test-seatauthgate 故意拆红（把授权路径的 silentRenewJwt 去掉）→ 守卫 FAIL，恢复全绿 | — |
+
+### 座位 500 最终结论
+A′ 的"cookie 落盘/续期"链路是对的（落盘判据过），但服务端**单会话互踢**（seatlib-contract §5）——旧 PHPSESSID 早已失效，换不到新 JWT。alpha.34 补齐了 Android 同款**授权门禁 + 用户主动授权入口**，把"看不懂的 500"变成可操作的重新授权。
+**最终验证需用户本人**：在登录页输一次密码重登 → 产生新 seatlib 会话 → 再进座位页。若重登后仍 500 ⇒ 服务端侧问题，非 App 可修。
+
 ## 装机踩坑（已解决，记录）
 1. hdc 是 Windows 程序：不认 `/f/` 路径、`F:/` 绝对路径会拼到 cwd 后 ⇒ 必须 cd 到目标目录用相对文件名。
 2. `hdc kill` 后通道重建需 ~4s，期间所有命令报 "need connect-key" ⇒ 脚本内探活+重试。

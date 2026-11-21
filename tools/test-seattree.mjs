@@ -96,9 +96,14 @@ console.log('\n=== 座位树解析守卫（真机 fixture）===');
 {
   const page = readFileSync(new URL('../entry/src/main/ets/pages/SeatPage.ets', import.meta.url), 'utf8');
   ok(page.indexOf('allowRenew: boolean = true') >= 0, 'loadSeats 有防递归开关');
-  ok(page.indexOf('CasLoginService.silentRenewJwt(ctx)') >= 0, '失败时走只读取证续期（不输密码/不撞风控）');
-  ok(page.indexOf('this.loadSeats(false)') >= 0, '续期成功后重试一次且关闭 renew，杜绝无限递归');
-  ok(page.indexOf('!res.ok') < page.indexOf('CasLoginService.silentRenewJwt(ctx)'), '只在取数失败后才尝试续期');
+  // ⚠️ 只在 loadSeats 方法体内比对顺序：authorizeSeat（用户点授权按钮）也调 silentRenewJwt，
+  //    它在文件里出现在 loadSeats 之前，用全文件 indexOf 会假红（2026-11-21 alpha.34 踩过）。
+  const loadStart = page.indexOf('private async loadSeats');
+  const loadBody = page.substring(loadStart, page.indexOf('private async', loadStart + 10) > loadStart
+    ? page.indexOf('private async', loadStart + 10) : page.length);
+  ok(loadBody.indexOf('CasLoginService.silentRenewJwt(ctx)') >= 0, 'loadSeats 失败时走只读取证续期（不输密码/不撞风控）');
+  ok(loadBody.indexOf('this.loadSeats(false)') >= 0, '续期成功后重试一次且关闭 renew，杜绝无限递归');
+  ok(loadBody.indexOf('!res.ok') < loadBody.indexOf('CasLoginService.silentRenewJwt(ctx)'), 'loadSeats 只在取数失败后才尝试续期');
 }
 
 console.log('\nALL PASS pass=' + pass + ' fail=0');

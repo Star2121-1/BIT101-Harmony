@@ -59,6 +59,14 @@ export struct SeatPage {
   @State seatsLoading: boolean = false;
   @State seatsErr: string = '';
   @State seatsLoaded: boolean = false;
+  /**
+   * 座位会话失效门禁（对齐 Android SeatAuthGate）。
+   * seatlib 契约（docs/seatlib-contract.md §1）：带失效 token 打 /api/Seat/seat → HTTP 500 + 空 body；
+   * 不带 token 则 200。所以「响应解析失败（HTTP 500）」= token 死了，必须引导重新授权，
+   * 不能只显示一句看不懂的「加载失败」。
+   */
+  @State seatAuthExpired: boolean = false;
+  @State seatAuthorizing: boolean = false;
   /** 座位视图模式：'list' 列表（默认）/ 'map' 点位（M9-3，buildMapPoints 百分比定位 + 实测底图裁图）。 */
   @State viewMode: string = 'list';
 
@@ -192,9 +200,38 @@ export struct SeatPage {
     this.loadReneges();
   }
 
+  /**
+   * 门禁「授权座位系统」按钮（对齐 Android SeatViewModel.authorize）。
+   * ⚠️ 红线：只在用户主动点击时调；自动路径绝不走到这里（避免学校风控短信无人输入）。
+   * 第一步先做只读的 cookie 静默续期（安全、不发短信）；失败则跳登录页请用户本人重登——
+   * 重登会重建 seatlib 域 phpCAS 会话并落新 PHPSESSID（A′ 落盘链路），这才是换 JWT 的前提。
+   */
+  private async authorizeSeat(): Promise<void> {
+    if (this.seatAuthorizing) return;
+    this.seatAuthorizing = true;
+    this.seatsErr = '';
+    try {
+      const ctx: Context = getContext(this) as Context;
+      if (await CasLoginService.silentRenewJwt(ctx)) {
+        info('seat authorize: cookie silent renew ok');
+        this.seatAuthExpired = false;
+        await this.loadSeats(false);
+        return;
+      }
+      // cookie 换不到 token ⇒ 旧 phpCAS 会话已死（seatlib 单会话互踢），必须本人重登
+      this.seatsErr = '座位会话已过期，请重新登录学校账号后重试';
+      router.pushUrl({ url: 'pages/LoginPage' }).catch((e: Error) => {
+        warn('seat -> login fail: ' + JSON.stringify(e));
+      });
+    } finally {
+      this.seatAuthorizing = false;
+    }
+  }
+
   private async loadSeats(allowRenew: boolean = true): Promise<void> {
     this.seatsLoading = true;
     this.seatsErr = '';
+    this.seatAuthExpired = false;
     this.reserveTarget = null;
     this.reserveResult = '';
     try {
@@ -221,7 +258,11 @@ export struct SeatPage {
           await this.loadSeats(false);
           return;
         }
-        this.seatsErr = (res.message ?? '').length > 0 ? res.message! : '座位拉取失败';
+        // seatlib 500 + 空 body = 失效 token（不是网络故障，见 seatlib-contract §1）
+        this.seatAuthExpired = (res.message ?? '').indexOf('HTTP 500') >= 0;
+        this.seatsErr = this.seatAuthExpired
+          ? '座位系统授权已失效（服务端拒绝旧会话）'
+          : ((res.message ?? '').length > 0 ? res.message! : '座位拉取失败');
         this.seats = [];
       } else {
         this.seats = res.seats;
@@ -517,6 +558,28 @@ export struct SeatPage {
                 .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 16 })
               if (this.seatsLoading) {
                 Text('拉取座位状态…').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+              } else if (this.seatAuthExpired) {
+                // 座位授权门禁（对齐 Android SeatAuthGate）：500 = 失效 token，
+                // 给用户明确的「授权座位系统」入口，而不是一句看不懂的「加载失败」。
+                Column() {
+                  Text('学校账号已登录，但座位系统尚未授权')
+                    .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                    .width('100%').textAlign(TextAlign.Center)
+                  if (this.seatAuthorizing) {
+                    Text('正在恢复座位系统授权…')
+                      .fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                      .margin({ top: 6 })
+                  } else {
+                    Button('授权座位系统')
+                      .fontSize(13).height(34).margin({ top: 8 })
+                      .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+                      .onClick(() => {
+                        this.authorizeSeat();
+                      })
+                  }
+                }
+                .width('100%').padding(10).margin({ top: 6 })
+                .backgroundColor(this.tk().secondaryContainer).borderRadius(10)
               } else if (this.seatsErr.length > 0) {
                 Text(this.seatsErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 6 })
               } else if (this.seats.length === 0) {
