@@ -118,6 +118,38 @@
 A′ 的"cookie 落盘/续期"链路是对的（落盘判据过），但服务端**单会话互踢**（seatlib-contract §5）——旧 PHPSESSID 早已失效，换不到新 JWT。alpha.34 补齐了 Android 同款**授权门禁 + 用户主动授权入口**，把"看不懂的 500"变成可操作的重新授权。
 **最终验证需用户本人**：在登录页输一次密码重登 → 产生新 seatlib 会话 → 再进座位页。若重登后仍 500 ⇒ 服务端侧问题，非 App 可修。
 
+## ✅ alpha.35 登录页「登录页结构异常」根因 + 修复（2026-11-21）
+
+### 真机症状
+用户点「授权座位系统」→ 跳登录页 → 输学号密码点登录，报红字：
+`登录页结构异常（未解析到 execution/croypto）` / `step1 http=302 bodyLen=0 executionLen=0 cryptoLen=0` / `step1 parse_empty（服务端可能改版）`（截图 a34-login-after.jpeg）。
+
+### 根因（实证，非推测）
+用设备 prefs 里现存的 sso cookie（本地脱敏读，只构造 header）请求 `GET sso.bit.edu.cn/cas/login?service=seatlib/api/cas/cas`：
+- **带 sso cookie → HTTP 302**，Location = `https://seatlib.bit.edu.cn/api/cas/cas?ticket=ST-76431-...`（body 空）
+- **不带 cookie → HTTP 200**（正常登录表单）
+
+⇒ 用户**本就有有效 CAS 会话**（学校账号没掉，只是座位 JWT 失效），CAS 直接发 ticket 跳走，不返回表单。
+鸿蒙 `CasLoginService.login` step1 用 `autoRedirect=false`，拿到 302 空 body 就报"结构异常"——**把「已登录」误判成「服务端改版」**。
+Android 不直连 `cas/login`，走 BIT101 认证主机 `webVpnVerifyInit`（服务端代做 CAS），不会踩这个坑。
+
+### alpha.35 修复（无需密码，复用有效会话）
+step1 解析不到表单时，若 `status===302 && Location 带 ticket` ⇒ 直接复用该 ticket 走步骤6（`followForCasCode` → `exchangeJwt`）换 JWT，跳过密码表单步骤2~5；步骤7/8（教务会话+落盘）照常。
+- 正常首次登录（无会话、返回 200 表单）路径不变。
+- 守卫 `test-login302` 15 断言（真实 302 Location 形态提取 ticket + 源码栅栏锁语义），故意拆红验过（把 skip 条件改成 true → FAIL）。
+- 这样"授权座位系统 → 跳登录页 → 点登录"链路可工作：用户不必真输密码，step1 自动复用会话换新 JWT。
+- versionCode 34→35。
+
+### ✅ alpha.35 真机验证（2026-11-21，nv14Pro，versionCode 35 确认）
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 复现路径 | 座位页门禁 →「授权座位系统」→ 登录页（此前卡「登录页结构异常」）| a35-step1~4.jpeg |
+| **登录修复** | ✅ 登录页填学号密码点登录 → 不再报「登录页结构异常」→ 显示「正在登录(约10~20秒)」→ **成功跳转课表页** | a35-after-login2 / a35-login-result.jpeg |
+| 统一登录落盘 | ✅ 登录后 `seatlib_jwt_saved_at` = 15:50:53（本次登录时刻，JWT 换新）；`bit101_fake_cookie_saved_at` 同刻更新 ⇒ 一次登录同时换 JWT + BIT101 社区票据，统一登录链路生效 | a35-prefs.xml（本地脱敏读） |
+| 座位 500 | ⚠️ 重登后冷启动再进「5层中厅」仍显示门禁（未脱离 500）。与 BIT101-S `seatlib-contract.md` §5「单会话互踢」一致；诊断期曾用 curl 带 sso cookie 请求过 ticket，可能构成会话干扰。**仍需用户本人干净重登验证** | a35-seat-final.jpeg |
+
+**结论**：用户报的「点击登录之后结构异常」bug 已彻底修复并真机验证通过。座位 500 为独立遗留项（服务端会话互踢），门禁 UI 让状态可见、授权入口可用；App 侧能做的已到位，最终需本人干净重登（无其它端同时登录 seatlib）验证。
+
 ## 装机踩坑（已解决，记录）
 1. hdc 是 Windows 程序：不认 `/f/` 路径、`F:/` 绝对路径会拼到 cwd 后 ⇒ 必须 cd 到目标目录用相对文件名。
 2. `hdc kill` 后通道重建需 ~4s，期间所有命令报 "need connect-key" ⇒ 脚本内探活+重试。

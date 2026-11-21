@@ -105,6 +105,11 @@ export class CasLoginService {
     const sessionC: rcp.Session = await RcpFactory.createSession(context, JAR_CAS);
 
     // ── 步骤 1：GET 登录页 + 解析六锚点 ──
+    // 已登录态快捷路径：CAS 会话仍有效时 GET cas/login 直接 302 到 service 并带 ticket，
+    // 不返回登录表单（body 空、无 execution/croypto）。此时凭 ticket 直接走步骤6换 JWT，
+    // 无需用户重输密码（对齐 Android 复用有效 CAS 会话）。
+    let casLocation: string = '';
+    let location: string = '';
     let page: CasPage;
     try {
       const res = await RcpFactory.getText(session, CAS_LOGIN_URL, {
@@ -114,125 +119,140 @@ export class CasLoginService {
         'lang': 'zh'
       });
       page = parseCasPage(res.status, res.body);
+      const loc: string = res.headers['location'] ?? '';
       steps.push('step1 http=' + res.status + ' bodyLen=' + res.body.length +
-        ' executionLen=' + page.execution.length + ' croyptoLen=' + page.croypto.length);
+        ' executionLen=' + page.execution.length + ' croyptoLen=' + page.croypto.length +
+        ' loc=' + (loc.length > 0 ? mask(loc) : '(none)'));
+      if (page.execution.length === 0 || page.croypto.length === 0) {
+        const t: string = extractTicket(loc);
+        if (res.status === 302 && t.length > 0) {
+          // SSO 会话有效 ⇒ 302 的 Location 就是带 ticket 的 service URL，直接复用
+          casLocation = loc;
+          location = loc;
+          steps.push('step1 sso_reuse ticket=' + mask(t));
+        }
+      }
     } catch (e) {
       outcome.message = '取登录页失败（网络或证书）';
       steps.push('step1 fail ' + JSON.stringify(e));
       return outcome;
     }
-    if (page.execution.length === 0 || page.croypto.length === 0) {
+    if (casLocation.length === 0 && (page.execution.length === 0 || page.croypto.length === 0)) {
       outcome.message = '登录页结构异常（未解析到 execution/croypto）';
       steps.push('step1 parse_empty（服务端可能改版）');
       return outcome;
     }
 
-    // ── 步骤 2：要不要图形验证码 ──
-    try {
-      const cap = await CasLoginService.findCaptchaInvisible(session, username);
-      steps.push('step2 captchaInvisible=' + cap);
-      if (cap === 'true') {
-        outcome.status = LoginStatus.CAPTCHA_REQUIRED;
-        outcome.message = '学校要求图形验证码，当前版本不支持（已停手，请到浏览器登录一次后重试）';
-        return outcome;
-      }
-    } catch (e) {
-      // 查不到不等于要验证码，也不等于不要 —— 如实记，继续（风控兜底）
-      steps.push('step2 captcha_check_failed ' + JSON.stringify(e));
-    }
-
-    // ── 步骤 3：USTC 风控载荷 ──
-    let riskPayload: string;
-    try {
-      riskPayload = await CasLoginService.buildRiskPayload(session, repo, page);
-      steps.push('step3 risk=ok');
-    } catch (e) {
-      riskPayload = await CasCrypto.aesEcbEncrypt(page.croypto, '{"error":true}');
-      steps.push('step3 risk=fallback ' + JSON.stringify(e));
-    }
-
-    // ── 步骤 4：组装 13 字段表单 ──
-    let passwordEnc: string;
-    let captchaPayloadEnc: string;
-    try {
-      passwordEnc = await CasCrypto.aesEcbEncrypt(page.croypto, password);
-      captchaPayloadEnc = await CasCrypto.aesEcbEncrypt(page.croypto, '{}');
-    } catch (e) {
-      outcome.message = '密码加密失败（AES）';
-      steps.push('step4 encrypt_fail ' + JSON.stringify(e));
-      return outcome;
-    }
-    const form: Record<string, string> = {
-      'type': 'UsernamePassword',
-      '_eventId': 'submit',
-      'geolocation': '',
-      'execution': page.execution,
-      'username': username,
-      'croypto': page.croypto,
-      'captcha_code': '',
-      'password': passwordEnc,
-      'captcha_payload': captchaPayloadEnc,
-      'risk_payload': riskPayload,
-      'targetSystem': page.targetSystem.length > 0 ? page.targetSystem : 'sso',
-      'siteId': page.siteId.length > 0 ? page.siteId : 'sourceId',
-      'riskEngine': 'true'
-    };
-
-    // ── 步骤 5：POST 登录，判三态 ──
-    const postUrl: string = page.formAction.length > 0 ? page.formAction : CAS_LOGIN_URL;
-    let post;
-    try {
-      post = await RcpFactory.postForm(session, postUrl, {
-        'User-Agent': MAC_UA,
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'zh-CN,zh;q=0.9',
-        'lang': 'zh',
-        'Origin': SSO_BASE,
-        'Referer': CAS_LOGIN_URL,
-        'X-Requested-With': 'XMLHttpRequest'
-      }, form);
-    } catch (e) {
-      outcome.message = '登录请求发送失败（网络）';
-      steps.push('step5 transport_fail ' + JSON.stringify(e));
-      return outcome;
-    }
-    const location: string = post.headers['location'] ?? '';
-    steps.push('step5 http=' + post.status + ' location=' + (location.length > 0 ? mask(location) : '(none)'));
-
-    const ticket: string = extractTicket(location + '|' + post.body);
-    if (post.status === 302 && ticket.length > 0) {
-      steps.push('step5 ticket=' + mask(ticket));
-    } else if (isSmsSecondFactor(post.body)) {
-      // 短信二次验证：解析页面 → 发短信 → 停手等用户输码
-      const sf: SfPending | null = parseSecondFactorPage(post.body, postUrl);
-      if (sf === null) {
-        outcome.message = '学校要求短信验证，但页面解析失败（请到浏览器登录一次）';
-        steps.push('step5 sms_page_parse_failed');
-        return outcome;
-      }
-      if (sf.phone.length === 0) {
-        outcome.message = '学校要求短信验证，但页面未给出手机号（请到浏览器登录一次）';
-        steps.push('step5 sms_page_no_phone');
-        return outcome;
-      }
+    // 仅当 step1 没拿到可复用 ticket 时才走表单登录（步骤 2~5）
+    if (casLocation.length === 0) {
+      // ── 步骤 2：要不要图形验证码 ──
       try {
-        const sent = await CasLoginService.sendSmsCode(session, sf.phone);
-        steps.push('step5 sms_send http=' + sent.status + ' phone=' + mask(sf.phone));
-        pending = { jarLogin: session, repoLogin: repo, sf: sf, username: username };
-        outcome.status = LoginStatus.SMS_REQUIRED;
-        outcome.message = '已向 ' + mask(sf.phone) + ' 发送验证码，请输入后继续';
-        return outcome;
+        const cap = await CasLoginService.findCaptchaInvisible(session, username);
+        steps.push('step2 captchaInvisible=' + cap);
+        if (cap === 'true') {
+          outcome.status = LoginStatus.CAPTCHA_REQUIRED;
+          outcome.message = '学校要求图形验证码，当前版本不支持（已停手，请到浏览器登录一次后重试）';
+          return outcome;
+        }
       } catch (e) {
-        outcome.message = '短信验证码发送失败';
-        steps.push('step5 sms_send_fail ' + JSON.stringify(e));
+        // 查不到不等于要验证码，也不等于不要 —— 如实记，继续（风控兜底）
+        steps.push('step2 captcha_check_failed ' + JSON.stringify(e));
+      }
+
+      // ── 步骤 3：USTC 风控载荷 ──
+      let riskPayload: string;
+      try {
+        riskPayload = await CasLoginService.buildRiskPayload(session, repo, page);
+        steps.push('step3 risk=ok');
+      } catch (e) {
+        riskPayload = await CasCrypto.aesEcbEncrypt(page.croypto, '{"error":true}');
+        steps.push('step3 risk=fallback ' + JSON.stringify(e));
+      }
+
+      // ── 步骤 4：组装 13 字段表单 ──
+      let passwordEnc: string;
+      let captchaPayloadEnc: string;
+      try {
+        passwordEnc = await CasCrypto.aesEcbEncrypt(page.croypto, password);
+        captchaPayloadEnc = await CasCrypto.aesEcbEncrypt(page.croypto, '{}');
+      } catch (e) {
+        outcome.message = '密码加密失败（AES）';
+        steps.push('step4 encrypt_fail ' + JSON.stringify(e));
         return outcome;
       }
-    } else {
-      const errMsg: string = extractLoginError(post.body);
-      outcome.status = LoginStatus.BAD_CREDENTIALS;
-      outcome.message = errMsg.length > 0 ? errMsg : '登录被拒绝（账号或密码错误，或风控拦截）';
-      steps.push('step5 rejected bodyLen=' + post.body.length);
-      return outcome;
+      const form: Record<string, string> = {
+        'type': 'UsernamePassword',
+        '_eventId': 'submit',
+        'geolocation': '',
+        'execution': page.execution,
+        'username': username,
+        'croypto': page.croypto,
+        'captcha_code': '',
+        'password': passwordEnc,
+        'captcha_payload': captchaPayloadEnc,
+        'risk_payload': riskPayload,
+        'targetSystem': page.targetSystem.length > 0 ? page.targetSystem : 'sso',
+        'siteId': page.siteId.length > 0 ? page.siteId : 'sourceId',
+        'riskEngine': 'true'
+      };
+
+      // ── 步骤 5：POST 登录，判三态 ──
+      const postUrl: string = page.formAction.length > 0 ? page.formAction : CAS_LOGIN_URL;
+      let post;
+      try {
+        post = await RcpFactory.postForm(session, postUrl, {
+          'User-Agent': MAC_UA,
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'zh-CN,zh;q=0.9',
+          'lang': 'zh',
+          'Origin': SSO_BASE,
+          'Referer': CAS_LOGIN_URL,
+          'X-Requested-With': 'XMLHttpRequest'
+        }, form);
+      } catch (e) {
+        outcome.message = '登录请求发送失败（网络）';
+        steps.push('step5 transport_fail ' + JSON.stringify(e));
+        return outcome;
+      }
+      location = post.headers['location'] ?? '';
+      steps.push('step5 http=' + post.status + ' location=' + (location.length > 0 ? mask(location) : '(none)'));
+
+      const ticket: string = extractTicket(location + '|' + post.body);
+      if (post.status === 302 && ticket.length > 0) {
+        steps.push('step5 ticket=' + mask(ticket));
+      } else if (isSmsSecondFactor(post.body)) {
+        // 短信二次验证：解析页面 → 发短信 → 停手等用户输码
+        const sf: SfPending | null = parseSecondFactorPage(post.body, postUrl);
+        if (sf === null) {
+          outcome.message = '学校要求短信验证，但页面解析失败（请到浏览器登录一次）';
+          steps.push('step5 sms_page_parse_failed');
+          return outcome;
+        }
+        if (sf.phone.length === 0) {
+          outcome.message = '学校要求短信验证，但页面未给出手机号（请到浏览器登录一次）';
+          steps.push('step5 sms_page_no_phone');
+          return outcome;
+        }
+        try {
+          const sent = await CasLoginService.sendSmsCode(session, sf.phone);
+          steps.push('step5 sms_send http=' + sent.status + ' phone=' + mask(sf.phone));
+          pending = { jarLogin: session, repoLogin: repo, sf: sf, username: username };
+          outcome.status = LoginStatus.SMS_REQUIRED;
+          outcome.message = '已向 ' + mask(sf.phone) + ' 发送验证码，请输入后继续';
+          return outcome;
+        } catch (e) {
+          outcome.message = '短信验证码发送失败';
+          steps.push('step5 sms_send_fail ' + JSON.stringify(e));
+          return outcome;
+        }
+      } else {
+        const errMsg: string = extractLoginError(post.body);
+        outcome.status = LoginStatus.BAD_CREDENTIALS;
+        outcome.message = errMsg.length > 0 ? errMsg : '登录被拒绝（账号或密码错误，或风控拦截）';
+        steps.push('step5 rejected bodyLen=' + post.body.length);
+        return outcome;
+      }
+
     }
 
     // ── 步骤 6：phpCAS 链取 cas code → 换 JWT（隔离罐） ──
