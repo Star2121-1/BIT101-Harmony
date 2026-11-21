@@ -59,4 +59,11 @@ ok(load.includes('this.segParams.segment, day, this.segParams.startTime'), 'fetc
 ok(!load.includes("fetchSeats(ctx, user.jwt, this.selArea, '', day"), 'loadSeats 不再传空 segment（500 根因）');
 ok(confirm.includes("confirmSeat(ctx, user.jwt, sid, this.segParams.segment)"), 'confirm 用与查询一致的真实 segment');
 
+// ── ⑤ 签到提示文案（契约 §4：当日 60 分钟 / 次日 9:00）──
+ok(seat.includes("this.reserveResult = '预约成功！' + signInHintFor(this.queryDay, SeatTreeService.today())"),
+  '预约成功提示带准确签到文案（60分钟/次日9点）');
+ok(seat.includes("Text('确认预约该座位？' + signInHintFor(this.queryDay, SeatTreeService.today()))"),
+  '确认弹窗带准确签到文案');
+ok(!seat.includes("Text('确认预约该座位？预约后请在签到截止前刷卡"), '确认弹窗不再用笼统的"签到截止前"文案');
+
 console.log(`ALL PASS ${pass} assertions`);

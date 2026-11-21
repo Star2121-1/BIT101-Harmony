@@ -108,9 +108,24 @@ export function parseReserveError(statusCode: number, responseBody: string): str
 }
 
 /**
+ * 预约成功后的签到提示（对齐 Android SeatMapScreen.signInHintFor + seatlib-contract §4）：
+ * - 预约**当日**：开始后 60 分钟内刷卡签到；
+ * - 预约**次日**：次日 9:00 前刷卡签到。
+ * 纯函数（只比较 yyyy-MM-dd 字符串，字典序即时间序），可离线单测。
+ * @param reserveDay 预约日期 yyyy-MM-dd
+ * @param today 今天日期 yyyy-MM-dd
+ */
+export function signInHintFor(reserveDay: string, today: string): string {
+  return reserveDay === today
+    ? '请在 60 分钟内刷卡签到（当日预约，逾期记违约）'
+    : '请在次日 9:00 前刷卡签到（逾期记违约）';
+}
+
+/**
  * 计算预约的签到截止时间。
  *
- * 规则：签到截止 = 开始时间 - 15 分钟（默认提前量）。
+ * ⚠️ 旧逻辑：签到截止 = 开始时间 - 15 分钟（无调用点的死代码，与契约 §4 的
+ * "当日 60 分钟 / 次日 9:00" 不符）。展示用 signInHintFor，勿用本函数做用户文案。
  * 处理跨天边界：负分钟借位到前一天。
  */
 export function calcSignInDeadline(startTime: DateTime): DateTime {

@@ -15,6 +15,7 @@ import {
   extractReservationId,
   parseReserveError,
   calcSignInDeadline,
+  signInHintFor,
 } from "../entry/src/main/ets/corelogic/SeatReserveLogic.ts";
 
 let passed = 0;
@@ -166,6 +167,25 @@ function ok(cond, name) {
 {
   const msg = parseReserveError(400, 'plain error text');
   eq(msg, 'plain error text', "非 JSON 响应原样返回");
+}
+
+// ── 4.5 签到提示文案（契约 §4：当日 60 分钟 / 次日 9:00）─────────────────────
+{
+  const hint = signInHintFor('2026-11-22', '2026-11-22');
+  ok(hint.includes('60 分钟'), "当日预约提示含 '60 分钟'");
+  ok(hint.includes('刷卡签到'), "当日预约提示含 '刷卡签到'");
+  ok(!hint.includes('9:00'), "当日预约不写次日 9:00");
+}
+{
+  const hint = signInHintFor('2026-11-23', '2026-11-22');
+  ok(hint.includes('9:00'), "次日预约提示含 '9:00'");
+  ok(hint.includes('刷卡签到'), "次日预约提示含 '刷卡签到'");
+  ok(!hint.includes('60 分钟'), "次日预约不写 60 分钟");
+}
+{
+  // 备案日期格式：跨月（字典序比较仍正确判断"非当日"）
+  const hint = signInHintFor('2026-12-01', '2026-11-30');
+  ok(hint.includes('9:00'), "跨月次日仍提示 9:00");
 }
 
 // ── 5. 签到截止时间计算 ──────────────────────────────────────────────────────

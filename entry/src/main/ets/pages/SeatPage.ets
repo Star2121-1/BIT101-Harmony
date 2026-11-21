@@ -36,6 +36,7 @@ import { joinA11y } from '../corelogic/A11yText.ts';
 import {
   type SeminarRecord, formatSeminarTime, getSeminarStatusText, isSeminarCancellable,
 } from '../corelogic/SeminarLogic.ts';
+import { signInHintFor } from '../corelogic/SeatReserveLogic.ts';
 
 @Entry
 @Component
@@ -75,6 +76,8 @@ export struct SeatPage {
    * 普通私有字段（不驱动 UI），仅初始化一次。
    */
   private segParams: SeatSegmentParams = { segment: '1', startTime: '08:00', endTime: '22:30' };
+  /** 本次座位查询的日期（loadSeats 设置）；签到提示按"预约日 vs 今天"给准确文案。 */
+  private queryDay: string = '';
   /**
    * 座位会话失效门禁（对齐 Android SeatAuthGate）。
    * seatlib 契约（docs/seatlib-contract.md §1）：带失效 token 打 /api/Seat/seat → HTTP 500 + 空 body；
@@ -285,6 +288,7 @@ export struct SeatPage {
       // /api/Seat/date 才有非 null 的 times[].id；传空 segment → HTTP 500 空 body，
       // 旧代码写死 '' 被误判成"未授权"。对齐 Android SeatViewModel.resolveSegmentParams。
       const day: string = SeatTreeService.today();
+      this.queryDay = day;
       const datesRes = await this.svc.fetchSeatDates(ctx, user.jwt, this.selArea);
       this.segParams = datesRes.ok
         ? resolveSeatSegment(datesRes.dates, day)
@@ -460,7 +464,7 @@ export struct SeatPage {
       }
       this.reserveTarget = null;
       if (res.ok) {
-        this.reserveResult = '预约成功';
+        this.reserveResult = '预约成功！' + signInHintFor(this.queryDay, SeatTreeService.today());
         await this.loadSeats();
         await this.loadMyReservations();
       } else {
@@ -967,7 +971,7 @@ export struct SeatPage {
   reserveBlock() {
     Column() {
       if (this.reserveTarget !== null) {
-        Text('确认预约该座位？预约后请在签到截止前刷卡，否则记违约。')
+        Text('确认预约该座位？' + signInHintFor(this.queryDay, SeatTreeService.today()))
           .fontSize(11).fontColor(this.tk().stateAttention).width('100%')
         Button('确认预约')
           .height(26).fontSize(11).margin({ top: 6 })

@@ -5,7 +5,8 @@
 > - **修复**：新增 `resolveSeatSegment`（corelogic 纯逻辑，对齐 Android `SeatViewModel.resolveSegmentParams`，test-seatsegment 11 断言 + 拆红验过）；loadSeats 先 `fetchSeatDates(build_id=selArea)` 拿真实时段再查座位；confirm 用同一时段；500 判据收紧为"用正确参数仍 500 才算失效"。test-seatloop 加 5 条守卫锁死"不再传空 segment"（拆红验过）。
 > - **研讨间补齐**：真机探针证实 `/api/Member/seminar` 有 9 条真实数据，但旧代码只显示"接口未接通"占位。新增 `parseSeminarRecords`（wire→SeminarRecord，test-seminar 覆盖）；`SeatService.seminarReservations` 改返回 records；`seminarCard` 渲染真实列表（房间/时间/状态，status=2 才显取消，取消走二次确认 + cancelReservation `{id}`）。**顺带修正**：`buildCancelSeminarBody` 旧用 `{seminar_id}` 是错的（契约 §3 与座位共用 `/api/Space/cancel` body `{id}`），test-seminar 曾把错误字段锁成假守卫，已改对。
 > - 全量 **89/89 套件 3885 断言绿**；assembleHap BUILD SUCCESSFUL。**真机验证待设备重连**（alpha.37 未装机）。
-> - 未补（如实）：研讨间**发起预约**仍需网页（整间+时段+成员，与 Android 一致不在 App 内做）；签到提示精确文案（Android "60分钟内/次日9:00前"）鸿蒙仍笼统；`calcSignInDeadline` 死代码用 -15min 错误规则但无调用点，未动。
+> - **签到提示补齐（同批）**：新增 `signInHintFor(reserveDay, today)` 纯逻辑（契约 §4 + Android SeatMapScreen）——当日"60 分钟内刷卡签到"、次日"次日 9:00 前刷卡签到"。SeatPage 加 `queryDay` 字段（loadSeats 记录实际查询日期），确认弹窗 + 预约成功提示都带准确文案（不再笼统"签到截止前"）。`test-seatreserve` +7 断言、`test-seatloop` +3 守卫，均拆红验过。
+> - 未补（如实）：研讨间**发起预约**仍需网页（整间+时段+成员，与 Android 一致不在 App 内做）；`calcSignInDeadline` 死代码用 -15min 错误规则但无调用点，未动（展示统一走 signInHintFor）；监控任务的次日预约走独立链路（SeatServiceMonitorAdapter）不走 SeatPage 确认提示。
 
 > **2026-11-21 夜 alpha.36 修复座位授权死循环（用户反馈「授权→登录→回课表→预约→又授权」，先查安卓再改）**：
 > - **安卓闭环（BIT101-S 1.12.0 权威）**：① 登录页是座位流程内部状态开关（`showCasLogin` StateFlow，共用同一 ViewModel/SeatApi 单例，路由不变），成功写 token→`isLoggedIn` 从 `tokenFlow` 派生当场变真→回原座位页；② 三级续期 `renew(allowCredentials)` 第一步 cookie 静默、失败才凭据直登，`authed()` 对所有认证接口遇 TOKEN_EXPIRED 静默续期并自动重放；③ token 赋值即持久化（`seat_token` 加密存储），冷启动恢复。
