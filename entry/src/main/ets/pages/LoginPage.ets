@@ -12,7 +12,7 @@
 import { router } from '@kit.ArkUI';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
-import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, STORAGE_SEAT_RETRY, getPalette } from '../data/ThemeStore.ts';
 import { Context } from '@kit.AbilityKit';
 import { CasLoginService, LoginOutcome, hasPendingSms } from '../service/CasLoginService.ts';
 import { ProbeCreds, getProbeCreds, clearProbeCreds } from '../probe/CasProbe.ts';
@@ -46,8 +46,19 @@ struct LoginPage {
    * 页面出现时按「是否已存凭据」回填，已经是开启态就显示勾选（不撒谎）。
    */
   @State remember: boolean = false;
+  /**
+   * 来源页：'seat' = 从座位页「授权座位系统」跳来，登录成功后要回座位页并触发重试，
+   * 其余（含直接打开）回 Index 课表。对齐 BIT101-S：授权成功留在座位流程，不回课表。
+   */
+  @State fromSeat: boolean = false;
 
   aboutToAppear(): void {
+    try {
+      const params = router.getParams() as Record<string, string> | undefined;
+      this.fromSeat = params !== undefined && params !== null && params['from'] === 'seat';
+    } catch (e) {
+      this.fromSeat = false;
+    }
     this.needSms = hasPendingSms();
     const creds: ProbeCreds = getProbeCreds();
     this.hasInjectedCreds = creds.user.length > 0 && creds.pass.length > 0;
@@ -109,10 +120,7 @@ struct LoginPage {
         // 校园 CAS 成功后用同一学号密码 best-effort 连 BIT101 社区换 fake-cookie，
         // 让话廊/成绩等社区能力免二次登录。失败只提示，不影响校园功能。
         const communityNote: string = await this.autoConnectCommunity(ctx, u, p);
-        this.statusText = '登录成功，正在打开课表…' + credNote + communityNote;
-        router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
-          this.statusText = '跳转课表失败：' + JSON.stringify(e);
-        });
+        this.finishLogin(credNote + communityNote);
       } else if (out.status === 'sms_required') {
         this.needSms = true;
         this.errorTone = 'warn';
@@ -147,6 +155,26 @@ struct LoginPage {
     }
   }
 
+  /**
+   * 登录成功后的回跳（对齐 BIT101-S：授权成功留在原流程，不回课表）。
+   * - from=seat：写 seat_auth_retry 计数（SeatPage 的 @StorageLink+@Watch 会据此自动重试 loadSeats），
+   *   再 router.back() 回到栈底的座位页（pushUrl 压栈，座位页实例与三级选择态都还在）。
+   * - 其它：维持原行为回 Index 课表。
+   */
+  private finishLogin(note: string): void {
+    if (this.fromSeat) {
+      const n: number = Number(AppStorage.get<number>(STORAGE_SEAT_RETRY) ?? 0) + 1;
+      AppStorage.setOrCreate<number>(STORAGE_SEAT_RETRY, n);
+      this.statusText = '登录成功，正在返回座位页…' + note;
+      router.back();
+    } else {
+      this.statusText = '登录成功，正在打开课表…' + note;
+      router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
+        this.statusText = '跳转课表失败：' + JSON.stringify(e);
+      });
+    }
+  }
+
   private async doSubmitSms(): Promise<void> {
     const code: string = this.smsCode.trim();
     if (code.length === 0) {
@@ -171,9 +199,7 @@ struct LoginPage {
           communityNote = await this.autoConnectCommunity(ctx, cred.username, cred.password);
         }
         this.statusText = out.message + communityNote;
-        router.replaceUrl({ url: 'pages/Index' }).catch((e: Error) => {
-          this.statusText = '跳转课表失败：' + JSON.stringify(e);
-        });
+        this.finishLogin(communityNote);
       } else {
         this.errorTone = 'error';
       }

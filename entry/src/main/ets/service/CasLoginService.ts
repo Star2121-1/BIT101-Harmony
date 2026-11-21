@@ -102,7 +102,8 @@ export class CasLoginService {
 
     const session: rcp.Session = await RcpFactory.createSession(context, JAR_LOGIN);
     const repo: rcp.CookieRepository = RcpFactory.cookieRepo(JAR_LOGIN);
-    const sessionC: rcp.Session = await RcpFactory.createSession(context, JAR_CAS);
+    // 换票链用「每次全量干净」的罐（契约 §6）；开头尚未写 JAR_CAS，清一次安全。
+    const sessionC: rcp.Session = await CasLoginService.freshCasSession(context);
 
     // ── 步骤 1：GET 登录页 + 解析六锚点 ──
     // 已登录态快捷路径：CAS 会话仍有效时 GET cas/login 直接 302 到 service 并带 ticket，
@@ -377,9 +378,9 @@ export class CasLoginService {
       return outcome;
     }
 
-    // phpCAS 链 → JWT（新建隔离罐）
+    // phpCAS 链 → JWT（每次全量干净的隔离罐，契约 §6）
     try {
-      const sessionC: rcp.Session = await RcpFactory.createSession(context, JAR_CAS);
+      const sessionC: rcp.Session = await CasLoginService.freshCasSession(context);
       const casCode: string = await CasLoginService.followForCasCode(sessionC, location);
       steps.push('c3 cas_code=' + mask(casCode));
       if (casCode.length === 0) {
@@ -599,6 +600,20 @@ export class CasLoginService {
     info('risk: responsetoken len=' + token.length);
     const payload: string = JSON.stringify({ token: token, groupId: groupId });
     return await CasCrypto.aesEcbEncrypt(page.croypto, payload);
+  }
+
+  /**
+   * 建一个「每次全量干净」的 phpCAS 换票会话（对齐 Android IsolatedCookieJar）。
+   *
+   * ⚠️ BIT101-seat/docs/seatlib-contract.md §6 实锤：换票链必须用**每次全量干净**的罐；
+   * 共享罐里残留的陈旧 phpCAS 会话会让第 4 步走岔——302 到
+   * `login.bit.edu.cn/authserver/login` 而非下发 cas code，导致换不到 JWT / 换到的 JWT 服务端不认。
+   * JAR_CAS 是进程级单例罐（`CookieRepository.create` 语义），上次换票的 cookie 会残留，
+   * 所以每次换票前必须先清空（覆盖 maxAge:0），等价于 Android 每次 new 一个隔离 jar。
+   */
+  private static async freshCasSession(context: Context): Promise<rcp.Session> {
+    await RcpFactory.clearRepoCookies(JAR_CAS);
+    return RcpFactory.createSession(context, JAR_CAS);
   }
 
   /** 手工跟 phpCAS 链取 cas=code；code 常出现在 Location 的 hash 片段里。 */

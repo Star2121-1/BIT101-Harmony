@@ -13,7 +13,7 @@
 import { router } from '@kit.ArkUI';
 import { Context } from '@kit.AbilityKit';
 import { gridTokens } from '../core/theme/GridTokens.ts';
-import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
+import { STORAGE_DARK, STORAGE_PALETTE, STORAGE_SEAT_RETRY, getPalette } from '../data/ThemeStore.ts';
 import { SeatTreeNode } from '../model/SeatTreeModel.ts';
 import { SeatService } from '../service/SeatService.ts';
 import { SeatTreeService } from '../service/SeatTreeService.ts';
@@ -42,6 +42,12 @@ export struct SeatPage {
 
   @StorageLink(STORAGE_DARK) isDark: boolean = false;
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
+  /**
+   * 从 LoginPage 授权成功回跳时 +1（@Watch 触发自动重试）。
+   * 用 AppStorage 而非 @Prop：SeatPage 既是 @Entry 又被内嵌，@Entry 页加 @Prop 有警告；
+   * 且 router.back() 回来时本实例保留，三级选择态不丢，正好在此实例上重试。
+   */
+  @StorageLink(STORAGE_SEAT_RETRY) @Watch('onAuthRetry') seatRetry: number = 0;
 
   /** 座位页两个视图（对齐原版顶部「预约/列表」双 chip）：'book' 预约 / 'list' 列表。 */
   @State seatTab: string = 'book';
@@ -165,6 +171,19 @@ export struct SeatPage {
     this.loadTree();
   }
 
+  /**
+   * 从 LoginPage 授权成功回跳后自动重试座位取数（对齐 BIT101-S 授权闭环）。
+   * router.back() 回来时本实例保留、三级选择态不丢；新 JWT 已由登录写入 SessionStore，
+   * 所以直接 loadSeats(false)（不再走续期，避免二次换票）即可脱离门禁。
+   */
+  private onAuthRetry(): void {
+    if (this.seatRetry <= 0 || this.selArea.length === 0) {
+      return;
+    }
+    info('seat auth retry after login, area=' + this.selArea);
+    this.loadSeats(false);
+  }
+
   private async loadTree(): Promise<void> {
     this.treeLoading = true;
     this.treeErr = '';
@@ -220,7 +239,8 @@ export struct SeatPage {
       }
       // cookie 换不到 token ⇒ 旧 phpCAS 会话已死（seatlib 单会话互踢），必须本人重登
       this.seatsErr = '座位会话已过期，请重新登录学校账号后重试';
-      router.pushUrl({ url: 'pages/LoginPage' }).catch((e: Error) => {
+      // 带来源参数：登录成功要回座位页并自动重试（对齐 BIT101-S 授权闭环），不能回课表。
+      router.pushUrl({ url: 'pages/LoginPage', params: { from: 'seat' } }).catch((e: Error) => {
         warn('seat -> login fail: ' + JSON.stringify(e));
       });
     } finally {
@@ -404,7 +424,18 @@ export struct SeatPage {
         this.reserveTarget = null;
         return;
       }
-      const res = await this.svc.confirmSeat(ctx, user.jwt, sid, '');
+      let res = await this.svc.confirmSeat(ctx, user.jwt, sid, '');
+      // 对齐 Android SeatApi.authed(): token 失效先静默续期（只 cookie，不发短信），
+      // 成功则用新 JWT 重放**同一次**预约（仍是用户刚才点击的意图，不是自动预约）。
+      if (!res.ok && (res.message ?? '').indexOf('登录已失效') >= 0) {
+        info('seat confirm: token expired, try silent renew');
+        if (await CasLoginService.silentRenewJwt(ctx)) {
+          const fresh = await SeatService.getSession(ctx);
+          if (fresh !== null) {
+            res = await this.svc.confirmSeat(ctx, fresh.jwt, sid, '');
+          }
+        }
+      }
       this.reserveTarget = null;
       if (res.ok) {
         this.reserveResult = '预约成功';

@@ -41,6 +41,17 @@ export const STORAGE_PALETTE: string = 'ui_palette';
  */
 export const STORAGE_TOP_INSET: string = 'ui_top_inset';
 
+/**
+ * AppStorage 键：座位授权成功的重试计数器（从 LoginPage 回跳座位页时 +1）。
+ *
+ * 为什么用 AppStorage 而不是 SeatPage 的 @Prop/@State：
+ * - SeatPage 既是 @Entry 又被 Index 内嵌，@Entry 页加 @Prop 有运行时警告；
+ * - 从登录页 router.back() 回到座位页时，SeatPage 实例保留（选择态不丢），
+ *   用 @StorageLink + @Watch 监听这个计数即可在授权成功后自动 loadSeats 重试，
+ *   不必依赖 Index 的 onPageShow/epoch（内嵌子组件收不到页面生命周期）。
+ */
+export const STORAGE_SEAT_RETRY: string = 'seat_auth_retry';
+
 /** 持久化键：深浅模式。 */
 const KEY_MODE: string = 'ui_theme_mode';
 

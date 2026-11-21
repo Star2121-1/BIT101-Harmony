@@ -1,5 +1,11 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-21 夜 alpha.36 修复座位授权死循环（用户反馈「授权→登录→回课表→预约→又授权」，先查安卓再改）**：
+> - **安卓闭环（BIT101-S 1.12.0 权威）**：① 登录页是座位流程内部状态开关（`showCasLogin` StateFlow，共用同一 ViewModel/SeatApi 单例，路由不变），成功写 token→`isLoggedIn` 从 `tokenFlow` 派生当场变真→回原座位页；② 三级续期 `renew(allowCredentials)` 第一步 cookie 静默、失败才凭据直登，`authed()` 对所有认证接口遇 TOKEN_EXPIRED 静默续期并自动重放；③ token 赋值即持久化（`seat_token` 加密存储），冷启动恢复。
+> - **鸿蒙三处断裂**：① `authorizeSeat` pushUrl(LoginPage) 无来源参数、登录成功写死 `replaceUrl('pages/Index')` 回课表；② 三级选择是 SeatPage 组件内 @State，跳转后上下文丢失、无自动重试；③ **换票链用进程级单例 JAR_CAS 罐**（残留陈旧 phpCAS cookie），违反 `seatlib-contract.md §6「每次全量干净 jar」`——换到的 JWT 服务端不认 → 仍 500 → 门禁再现。
+> - **修复**：③ 新增 `freshCasSession()`（clearRepoCookies(JAR_CAS) + createSession），login step6 / 短信 c3 两处换票链改用它（test-casjar 11 断言，拆红验过）；① `pushUrl` 带 `from=seat`，LoginPage 读来源成功则写 `seat_auth_retry` 计数 + `router.back()` 回座位页（非座位来源仍回 Index）；② SeatPage `@StorageLink(STORAGE_SEAT_RETRY) @Watch('onAuthRetry')` 回跳后自动 `loadSeats(false)` 重试（test-seatloop 18 断言，拆红验过）；预约遇「登录已失效」先 silentRenewJwt 再重放同一意图（红线：自动路径不碰账密/不发短信）。
+> - 全量见下；versionCode 35→36。
+
 > **2026-11-21 傍晚 alpha.35 修复「点击登录报结构异常」（用户真机反馈，commit aa45b84）**：
 > - **症状**：点「授权座位系统」→ 登录页输学号密码 → 红字「登录页结构异常（未解析到 execution/croypto）」，step1 http=302 bodyLen=0，卡死无法登录。
 > - **根因（真机实证）**：用户已有有效 CAS 会话（只座位 JWT 失效），带 sso cookie GET `cas/login` → **302 空 body + ticket**（curl 复现 Location=`seatlib/api/cas/cas?ticket=ST-...`；不带 cookie 才 200 表单）。鸿蒙 `autoRedirect=false`，step1 拿到 302 解析不到六锚点误报「结构异常」——**把「已登录」误判成「服务端改版」**。Android 不直连 cas/login，走 BIT101 认证主机 webVpnVerifyInit，不踩坑。

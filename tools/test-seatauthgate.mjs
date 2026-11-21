@@ -36,8 +36,10 @@ ok(authorizeBody.indexOf('onClick') < 0, '授权方法体内无 onClick（由按
 ok(page.indexOf('.onClick(() => {\n                        this.authorizeSeat();') >= 0,
   '授权按钮 onClick 调 authorizeSeat（用户点击触发）');
 ok(page.indexOf('CasLoginService.silentRenewJwt(ctx)') >= 0, '授权先试只读 cookie 续期（不发短信）');
-ok(page.indexOf("router.pushUrl({ url: 'pages/LoginPage' })") >= 0,
-  'cookie 续期失败跳登录页由本人重登（不自动走凭据）');
+ok(page.indexOf("router.pushUrl({ url: 'pages/LoginPage'") >= 0,
+  'cookie 续期失败跳登录页由本人重登（不自动走凭据；alpha.36 带 from=seat 来源参数兼容）');
+ok(page.indexOf("params: { from: 'seat' }") >= 0,
+  '跳登录页带来源标记，成功回座位页闭环（破循环）');
 // 自动续期路径（loadSeats）只调 silentRenewJwt，绝不调 authorizeSeat
 const loadBody = page.substring(page.indexOf('private async loadSeats'),
   page.indexOf('private async loadSeats') + 2500);

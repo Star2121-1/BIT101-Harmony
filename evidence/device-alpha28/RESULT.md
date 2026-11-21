@@ -150,6 +150,27 @@ step1 解析不到表单时，若 `status===302 && Location 带 ticket` ⇒ 直�
 
 **结论**：用户报的「点击登录之后结构异常」bug 已彻底修复并真机验证通过。座位 500 为独立遗留项（服务端会话互踢），门禁 UI 让状态可见、授权入口可用；App 侧能做的已到位，最终需本人干净重登（无其它端同时登录 seatlib）验证。
 
+## ✅ alpha.36 座位授权死循环修复（2026-11-21 夜，用户反馈「授权→登录→回课表→预约→又授权」）
+
+### 安卓闭环（先查后改，BIT101-S 1.12.0 权威）
+- 登录页是座位流程**内部状态开关**（`showCasLogin` StateFlow，共用 ViewModel/SeatApi 单例，路由不变）；成功写 token → `isLoggedIn` 从 `tokenFlow` 派生当场变真 → 回原座位页。
+- 三级续期 `renew(allowCredentials)`：cookie 静默 → 凭据直登；`authed()` 对所有认证接口遇 TOKEN_EXPIRED 静默续期 + 自动重放。token 赋值即持久化，冷启动恢复。
+
+### 修复三处（全量 88/88 套件 3877 断言绿）
+- ③ **换票罐隔离**：新增 `freshCasSession()`（clearRepoCookies(JAR_CAS)+createSession），login step6 / 短信 c3 换票链改用它，对齐契约 §6「每次全量干净 jar」（test-casjar 11 断言，拆红验过）。
+- ① **回跳**：授权 `pushUrl` 带 `from=seat`；LoginPage 读来源，成功写 `seat_auth_retry`+`router.back()` 回座位页（非座位来源仍回 Index）。
+- ② **自动重试**：SeatPage `@StorageLink(STORAGE_SEAT_RETRY) @Watch('onAuthRetry')` 回跳后 `loadSeats(false)` 重试；预约遇「登录已失效」先 silentRenewJwt 再重放同一意图（test-seatloop 18 断言，拆红验过；红线：自动路径不碰账密/不发短信）。
+
+### ✅ alpha.36 真机验证（versionCode 36 确认）
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 授权跳登录 | ✅ 门禁 UI → 点「授权座位系统」→ 登录页（带 from=seat） | a36-gate/a36-login.jpeg |
+| **回跳（核心）** | ✅ 登录成功 → **回座位页（不是课表）**，底部「座」高亮，三级选择「徐特立馆/五层/5层中厅」**完整保留** ⇒ 循环①②打破 | a36-after-login-final.jpeg |
+| 换票罐 | ✅ JWT 时间戳更新为本次登录时刻；curl 只读带该 JWT 打 `/api/Seat/seat` → **HTTP 200 `{"code":0,"请选择日期"}`**（认证通过、JWT 有效）⇒ 隔离罐换到有效 token | a36-prefs.xml（脱敏读）+ curl |
+| 座位 500 | ⚠️ 冷启动重进仍门禁；但 curl 证 JWT 有效（200），空 body/500 出现在带具体 area=8+日期的查询——服务端对该组合响应异常/限流，非 App 授权链路问题。**门禁 UI 已让状态可见、授权入口可用，循环体验已消除** | a36-cold-s3.jpeg |
+
+**结论**：用户报的**授权死循环已修复**（不再回课表、上下文不丢、自动重试到位、换到有效 JWT，真机验证）。剩余座位取数 500 经 curl 证实为服务端对具体查询的响应问题（JWT 本身有效），非 App 可修。诊断期 curl 已停止，避免进一步互踢/限流。
+
 ## 装机踩坑（已解决，记录）
 1. hdc 是 Windows 程序：不认 `/f/` 路径、`F:/` 绝对路径会拼到 cwd 后 ⇒ 必须 cd 到目标目录用相对文件名。
 2. `hdc kill` 后通道重建需 ~4s，期间所有命令报 "need connect-key" ⇒ 脚本内探活+重试。
