@@ -31,7 +31,7 @@ Android 权威版 `BIT101-seat/features/seat/src/main/java/cn/bit101/android/fea
 - `assembleHap buildMode=debug`：**BUILD SUCCESSFUL**（2m26s），versionCode 44。
 
 ## 未验（如实）
-- **真机未验**：此前 hdc file 通道卡死，alpha.44 未装机。需设备恢复后验：
+- **真机未验**：2026-11-23 提交时再次尝试——`hdc list targets` 能看到 `4CY9K25614019980`，但 `hdc shell` 与 `hdc install -r` 均报 `E000004: The communication channel is being established`（`hdc kill` 重启服务后仍如此），alpha.44 未装机。需用户物理重插 USB 后验：
   1. 单次预约入口 → 座位图顶栏/信息条/底图渲染；
   2. 监控/优先选座 → 回填表单（含优先级顺序）；
   3. 直接预约成功 → 回列表 tab 能看到「我的预约」+ 签到提示；
