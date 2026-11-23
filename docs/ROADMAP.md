@@ -1,5 +1,12 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-23 alpha.46（versionCode 45→46）阶段4：列表 tab 补齐（座位迁移收尾）**：
+> - **规则弹窗**：「查看座位预约规则」从跳网页改为本地要点弹窗（6 条 + 免责声明，源自 `/api/index/booking_rules`，对齐 Android SeatRulesDialog）；研讨间的网页预约入口保留（两类资源不同）。
+> - **任务区**：进行中任务常显、终态收进可展开的「已结束」分组；每条显示模式/状态徽章/座位/日期时段/存活信息行（已等待·尝试次数·最近尝试），对齐 Android TaskCards + TaskListLogic。
+> - **下拉刷新**：列表 tab 用 `Refresh` 包住 Scroll，`refreshAll()` 串行刷我的预约/违约/研讨间/额度并推进更新时间（对齐 Android PullToRefreshContainer）。
+> - **取消额度明细**：新增 `CancelQuotaStore.ts`（Prefs 存 `day|used`），副标题显示「每天最多可取消 2 次 · 今天还剩 N 次 · 数据新鲜度」；取消成功后本地记账，跨天自动重置。⚠️ 与 Android 同口径：**只统计本 App 内取消，不冒充服务端权威额度**。
+> - 新增 `SeatListLogic.ts` 纯逻辑（规则/额度/排序/徽章/相对时间）+ `test-seatlist` 57 断言（拆红验过），登记 `tools/run-tests.sh`；test-seatloop 的 refreshAll 守卫同步升级。全量 **92/92 套件 4019 断言绿**，`assembleHap` BUILD SUCCESSFUL（首次编译抓到 `taskStatusBadge(t)` 传参类型错，修为 `t.status` 后通过）。**真机待验**。
+
 > **2026-11-23 alpha.45（versionCode 44→45）真机抓到并修复"进选座页要先选座"死结**：alpha.44 装机后真机验阶段3——单次预约入口→独立座位图页正常（信息条「中厅 / 2026-11-23 08:00-22:30 / 空闲 60/72」、72 个底图点位、点座位出现 ✓ + 底栏「已选 001」+ 当日 60 分钟签到提示 +「预约 001」）。但监控模式点「选择目标座位」**进不了图页**：`openSeatMap` 复用了 `validateForm(MONITOR,…)`，那条要求"先在图上点选目标座位"，而目标座位正是在图页里选的 ⇒ 自相矛盾。修复：新增 `validateMapEntry(hasArea)` 纯逻辑（进图页只要求选好区域），SeatPage 改用它；test-seatform +2 断言、test-seatmappage +1 源码守卫（改回旧写法拆红验过，退出码 1）。**未代点真实预约**（对外副作用，留用户本人）。
 
 > **2026-11-23 座位模块分阶段全量对齐 Android（用户拍板：分阶段全量对齐 + 保留复用存量）**：

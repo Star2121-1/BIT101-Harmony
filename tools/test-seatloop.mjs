@@ -102,8 +102,8 @@ ok(seat.includes("// 对齐 Android SeatMapScreen.onNavigateToTasks()"),
 ok(seat.includes("this.seatTab = 'list';"), '预约成功 seatTab 置 list');
 // 切列表 tab 时刷新账号级数据
 const listChip = seat.slice(seat.indexOf("label: '列表'"), seat.indexOf("label: '列表'") + 350);
-ok(listChip.includes('this.loadMyReservations()') && listChip.includes('this.loadReneges()') && listChip.includes('this.loadSeminars()'),
-  '切列表 tab 刷新我的预约/违约/研讨间（对齐 Android refreshAll）');
+ok(listChip.includes('this.refreshAll()'),
+  '切列表 tab 调 refreshAll（含我的预约/违约/研讨间/额度，对齐 Android）');
 
 // ── ⑨ 阶段2 预约tab = Android新建预约表单 ──
 ok(seat.includes('  newTaskForm() {'), '有 newTaskForm Builder');

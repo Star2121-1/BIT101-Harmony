@@ -37,6 +37,14 @@ import { info, warn } from '../core/log/BitLog.ts';
 import { CasLoginService } from '../service/CasLoginService.ts';
 import { getTaskRepository } from '../data/SeatTaskStore.ts';
 import { createTask, isTerminalStatus, TaskMode } from '../model/SeatTask.ts';
+import type { ReservationTask } from '../model/SeatTask.ts';
+import {
+  seatRules, RULES_DISCLAIMER, quotaSubtitle, updatedAgoText,
+  activeTasks, finishedTasks, taskStatusBadge, taskModeLabel,
+  taskSeatLabel, taskTimeRange, livenessText,
+} from '../corelogic/SeatListLogic.ts';
+import type { SeatRule } from '../corelogic/SeatListLogic.ts';
+import { CancelQuotaStore, CANCELS_PER_DAY } from '../data/CancelQuotaStore.ts';
 import { joinA11y } from '../corelogic/A11yText.ts';
 import {
   type SeminarRecord, formatSeminarTime, getSeminarStatusText, isSeminarCancellable,
@@ -159,7 +167,20 @@ export struct SeatPage {
   @State semCancelResult: string = '';
   /** 任务卡操作结果提示（清除终态任务的条数）。 */
   @State taskHint: string = '';
+  // ── 阶段4 列表 tab（对齐 Android TaskListScreen）──
+  @State refreshing: boolean = false;
+  @State showRules: boolean = false;
+  @State showFinished: boolean = false;
+  /** 本地记录的今日剩余取消次数（只统计本 App 内取消，非服务端权威额度）。 */
+  @State remainingCancelsLeft: number = CANCELS_PER_DAY;
+  /** 上次成功刷新时间；0 = 还没刷新过（UI 不显示"刚更新"，避免假新鲜）。 */
+  @State lastUpdatedAt: number = 0;
+  /** 相对时间文案基准（刷新时推进一次，不做每秒定时器）。 */
+  @State nowTick: number = 0;
+  /** 本地任务列表（仓库不是 @State，显式同步一份驱动 UI 重建）。 */
+  @State tasks: ReservationTask[] = [];
 
+  private readonly rules: SeatRule[] = seatRules();
   private svc: SeatService = new SeatService();
   private treeSvc: SeatTreeService = new SeatTreeService();
 
@@ -193,6 +214,7 @@ export struct SeatPage {
   /** 清除终态任务记录（本地存储删除，无对外副作用；返回删除数供文案用）。 */
   private clearFinishedTasks(): void {
     const removed: number = getTaskRepository().clearFinished();
+    this.syncTasks();
     this.taskHint = removed > 0 ? '已清除 ' + removed + ' 条结束的任务' : '没有可清除的任务';
   }
 
@@ -250,6 +272,37 @@ export struct SeatPage {
       this.availableDays = dateOptions([], todayStr, tomorrowOf(todayStr));
     }
     this.loadTree();
+    void this.loadQuota();
+    this.syncTasks();
+  }
+
+  /** 阶段4：本地任务仓库 → UI 状态（仓库本身不是 @State，必须显式同步）。 */
+  private syncTasks(): void {
+    this.tasks = getTaskRepository().getTasks();
+  }
+
+  /** 「我的预约」副标题：额度明细 + 签到提醒 + 数据新鲜度（未刷新过就隐藏新鲜度）。 */
+  private listSubtitle(): string {
+    const fresh: string = updatedAgoText(this.lastUpdatedAt, this.nowTick) ?? '';
+    const base: string = quotaSubtitle(this.remainingCancelsLeft, CANCELS_PER_DAY)
+      + ' · 座位需刷卡签到';
+    return fresh.length > 0 ? base + ' · ' + fresh : base;
+  }
+
+  /** 阶段4：读今天剩余取消次数（本地计数，跨天自动重置）。 */
+  private async loadQuota(): Promise<void> {
+    const state = await CancelQuotaStore.load(SeatTreeService.today());
+    this.remainingCancelsLeft = state.left;
+  }
+
+  /** 阶段4：对齐 Android refreshAll() —— 三个账号级接口 + 额度 + 更新时间。 */
+  private async refreshAll(): Promise<void> {
+    await this.loadMyReservations();
+    await this.loadReneges();
+    await this.loadSeminars();
+    await this.loadQuota();
+    this.lastUpdatedAt = Date.now();
+    this.nowTick = this.lastUpdatedAt;
   }
 
   /**
@@ -286,9 +339,7 @@ export struct SeatPage {
   private onSeatReserveDone(): void {
     if (this.seatReserveDone <= 0) return;
     this.seatTab = 'list';
-    this.loadMyReservations();
-    this.loadReneges();
-    this.loadSeminars();
+    void this.refreshAll();
   }
 
   /** 阶段3：从新建预约表单跳独立座位图页（三种用途共用一页，mode 决定标题/底栏/可点语义）。 */
@@ -323,6 +374,7 @@ export struct SeatPage {
       this.formMode === FormMode.PREFER ? this.pickedSeatNos : [],
     );
     getTaskRepository().addTask(task);
+    this.syncTasks();
     this.pickedSeatNos = [];
     this.pickHint = '';
     this.seatTab = 'list';
@@ -542,6 +594,9 @@ export struct SeatPage {
       this.cancelTarget = null;
       if (res.ok) {
         this.cancelResult = '已取消';
+        // 阶段4：本地额度只记本 App 内成功取消（服务端额度不可见，不冒充权威）。
+        const q = await CancelQuotaStore.markUsed(SeatTreeService.today());
+        this.remainingCancelsLeft = q.left;
         await this.loadMyReservations();
       } else {
         this.cancelResult = res.message ?? '取消失败';
@@ -724,57 +779,67 @@ export struct SeatPage {
           selected: this.seatTab === 'list',
           onTap: () => {
             this.seatTab = 'list';
-            // 对齐 Android TaskListScreen：切到列表 tab  refreshAll()
+            // 对齐 Android TaskListScreen：切到列表 tab refreshAll()
             // （账号级数据，不依赖选区域；用户主动切换=明确刷新意图）
-            this.loadMyReservations();
-            this.loadReneges();
-            this.loadSeminars();
+            void this.refreshAll();
           },
         })
           .margin({ left: 8 })
       }
       .width('100%').padding({ left: 12, right: 12, bottom: 4 })
 
-      Scroll() {
-        Column() {
-          if (this.seatTab === 'book') {
+      if (this.seatTab === 'book') {
+        Scroll() {
+          Column() {
             // 预约 tab = 新建预约表单（对齐 Android NewTaskScreen，阶段2）
             this.newTaskForm()
-
             // ── 取消确认条 ──（我的预约取消走二次确认，铁律 0.6）
             if (this.cancelTarget !== null || this.cancelResult.length > 0) {
               this.cancelBlock()
             }
-          } else {
-            // ── 列表视图（对齐 Android TaskListScreen）──
-            // 阶段3：从独立座位图页预约成功后回传的提示（含签到时限），与结果同屏可见。
-            if (this.seatReserveMsg.length > 0) {
-              Text(this.seatReserveMsg)
-                .fontSize(12).fontColor(this.tk().stateAttention).width('100%')
-                .padding(10).margin({ bottom: 8 })
-                .backgroundColor(this.tk().secondaryContainer).borderRadius(8)
-            }
-            // 我的预约置顶：预约成功后自动切到本 tab，用户立刻看到结果。
-            this.myReservationSection()
-            this.renCard()
-            this.seminarCard()
-            this.taskCard()
-            Text('查看座位预约规则')
-              .fontSize(12).fontColor(this.tk().primary).width('100%')
-              .textAlign(TextAlign.Center).margin({ top: 16 })
-              .onClick(() => {
-                router.pushUrl({
-                  url: 'pages/WebShellPage',
-                  params: { url: 'https://seatlib.bit.edu.cn' },
-                });
-              })
           }
+          .width('100%').padding({ left: 12, right: 12, bottom: 24 })
         }
-        .width('100%').padding({ left: 12, right: 12, bottom: 24 })
+        .layoutWeight(1)
+        // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
+        .align(Alignment.Top)
+      } else {
+        // 阶段4：下拉刷新（对齐 Android PullToRefreshContainer）
+        Refresh({ refreshing: this.refreshing }) {
+          Scroll() {
+            Column() {
+              // 阶段3：从独立座位图页预约成功后回传的提示（含签到时限），与结果同屏可见。
+              if (this.seatReserveMsg.length > 0) {
+                Text(this.seatReserveMsg)
+                  .fontSize(12).fontColor(this.tk().stateAttention).width('100%')
+                  .padding(10).margin({ bottom: 8 })
+                  .backgroundColor(this.tk().secondaryContainer).borderRadius(8)
+              }
+              this.myReservationSection()
+              this.renCard()
+              this.seminarCard()
+              this.taskCard()
+              Text('查看座位预约规则')
+                .fontSize(12).fontColor(this.tk().primary).width('100%')
+                .textAlign(TextAlign.Center).margin({ top: 16 })
+                .onClick(() => { this.showRules = true; })
+            }
+            .width('100%').padding({ left: 12, right: 12, bottom: 24 })
+          }
+          .align(Alignment.Top)
+        }
+        // ⚠️ onRefreshing 必须排在 layoutWeight 前面（test-uiconventions 规则 1）
+        .onRefreshing(() => {
+          this.refreshing = true;
+          this.refreshAll().then(() => { this.refreshing = false; });
+        })
+        .layoutWeight(1)
       }
-      .layoutWeight(1)
-      // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
-      .align(Alignment.Top)
+
+      // 阶段4：规则弹窗（对齐 Android SeatRulesDialog，点外部/「知道了」关闭）
+      if (this.showRules) {
+        this.rulesDialog()
+      }
 
       // 底部固定预约操作栏（对齐 Android SeatMapScreen.ReserveBottomBar）：
       // 阶段2 预约 tab 改为纯表单（无座位选择），此栏暂不显示；
@@ -1202,7 +1267,7 @@ export struct SeatPage {
           })
       }
       .width('100%')
-      Text('每天最多可取消 2 次 · 座位需刷卡签到')
+      Text(this.listSubtitle())
         .fontSize(10).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 2 })
       if (this.mineLoading) {
         Text('拉取我的预约…').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
@@ -1404,8 +1469,8 @@ export struct SeatPage {
     .alignItems(HorizontalAlign.Start)
   }
 
-  /** 预约任务卡（列表视图；对齐原版 ref-05：「抢到座位后会自动出现在『我的预约』里」）。
-   *  点击进监控面板（M9-8）；「清除」删本地终态任务记录（本地存储，无对外副作用）。 */
+  /** 预约任务区（阶段4，对齐 Android TaskListScreen）：
+   *  进行中任务默认浮前常显，终态收进可展开分组；「清除」只删本地终态记录（无对外副作用）。 */
   @Builder
   taskCard() {
     Column() {
@@ -1414,30 +1479,108 @@ export struct SeatPage {
           .fontSize(14).fontWeight(FontWeight.Bold)
           .fontColor(this.tk().onSurface).layoutWeight(1)
         Text('已结束 ' + this.finishedTaskCount())
-          .fontSize(11).fontColor(this.tk().onSurfaceVariant).margin({ right: 12 })
+          .fontSize(11).fontColor(this.tk().onSurfaceVariant).margin({ right: 10 })
+        Text(this.showFinished ? '收起' : '展开')
+          .fontSize(11).fontColor(this.tk().primary).margin({ right: 10 })
+          .onClick(() => { this.showFinished = !this.showFinished; })
         Text('清除')
           .fontSize(12).fontColor(this.tk().primary)
-          .onClick(() => {
-            this.clearFinishedTasks();
-          })
-        Text('∨').fontSize(12).fontColor(this.tk().textPlaceholder).margin({ left: 4 })
+          .onClick(() => { this.clearFinishedTasks(); })
       }
       .width('100%')
+
+      ForEach(activeTasks(this.tasks), (t: ReservationTask) => {
+        this.taskRow(t)
+      }, (t: ReservationTask) => 'active-' + t.id)
+
+      if (this.showFinished) {
+        ForEach(finishedTasks(this.tasks), (t: ReservationTask) => {
+          this.taskRow(t)
+        }, (t: ReservationTask) => 'finished-' + t.id)
+      }
+
       Text('抢到座位后会自动出现在「我的预约」里')
         .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
       if (this.taskHint.length > 0) {
         Text(this.taskHint)
           .fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 6 })
       }
+      Text('打开监控面板 ›')
+        .fontSize(11).fontColor(this.tk().primary).width('100%').margin({ top: 8 })
+        .onClick(() => { router.pushUrl({ url: 'pages/SeatMonitorPage' }); })
     }
     .width('100%').padding(16).margin({ top: 10 })
     .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
     .alignItems(HorizontalAlign.Start)
-    // M11-6：整卡可点，读屏至少要说清点进去看什么
-    .accessibilityText('预约任务，点按打开座位监控面板')
-    .onClick(() => {
-      router.pushUrl({ url: 'pages/SeatMonitorPage' });
-    })
+  }
+
+  /** 单条任务卡（对齐 Android TaskCards）：模式/状态/座位/日期时段/存活信息。 */
+  @Builder
+  taskRow(t: ReservationTask) {
+    Column() {
+      Row() {
+        Text(taskModeLabel(t)).fontSize(11).fontColor(this.tk().onPrimary)
+          .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+          .backgroundColor(this.tk().primary).borderRadius(8)
+        Text(taskStatusBadge(t.status)).fontSize(11)
+          .fontColor(isTerminalStatus(t.status) ? this.tk().onSurfaceVariant : this.tk().stateAttention)
+          .margin({ left: 8 })
+        if (taskSeatLabel(t).length > 0) {
+          Text(taskSeatLabel(t)).fontSize(12).fontColor(this.tk().onSurface)
+            .margin({ left: 8 }).layoutWeight(1).textAlign(TextAlign.End)
+        }
+      }
+      .width('100%').margin({ top: 8 }).alignItems(VerticalAlign.Center)
+      Text(t.areaName.length > 0 ? t.areaName : t.areaId)
+        .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
+      Text(t.reserveDate + ' ' + taskTimeRange(t))
+        .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 2 })
+      if (!isTerminalStatus(t.status)) {
+        Text(livenessText(t.createdAt, t.attempts, t.lastAttemptAt, this.nowTick))
+          .fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 4 })
+      }
+    }
+    .width('100%').padding(10).margin({ top: 6 })
+    .backgroundColor(this.tk().surface).borderRadius(10)
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  /** 规则弹窗（对齐 Android SeatRulesDialog：要点列表 + 免责声明 +「知道了」）。 */
+  @Builder
+  rulesDialog() {
+    Column() {
+      Column() {
+        Text('座位预约规则')
+          .fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).width('100%')
+        Scroll() {
+          Column() {
+            ForEach(this.rules, (r: SeatRule) => {
+              Column() {
+                Text(r.title).fontSize(13).fontWeight(FontWeight.Medium)
+                  .fontColor(this.tk().onSurface).width('100%')
+                Text(r.body).fontSize(11).fontColor(this.tk().onSurfaceVariant)
+                  .width('100%').margin({ top: 3 })
+              }
+              .width('100%').margin({ bottom: 10 })
+            }, (r: SeatRule) => 'rule-' + r.title)
+            Text(RULES_DISCLAIMER)
+              .fontSize(10).fontColor(this.tk().textPlaceholder).width('100%')
+          }
+          .width('100%').padding({ right: 4 })
+        }
+        .width('100%').layoutWeight(1).align(Alignment.Top)
+        Button('知道了')
+          .width('100%').height(36).fontSize(13).margin({ top: 12 })
+          .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+          .onClick(() => { this.showRules = false; })
+      }
+      .width('86%').height('62%').padding(16)
+      .backgroundColor(this.tk().surface).borderRadius(12)
+    }
+    .width('100%').height('100%')
+    .backgroundColor('#99000000')
+    .justifyContent(FlexAlign.Center)
+    .onClick(() => { this.showRules = false; })
   }
 
   /** 单条违约行（文案走 renegeText，wire 字段直出）。 */
