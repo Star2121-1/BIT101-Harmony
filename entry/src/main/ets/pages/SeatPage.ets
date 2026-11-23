@@ -37,6 +37,10 @@ import {
   type SeminarRecord, formatSeminarTime, getSeminarStatusText, isSeminarCancellable,
 } from '../corelogic/SeminarLogic.ts';
 import { signInHintFor } from '../corelogic/SeatReserveLogic.ts';
+import {
+  FormMode, modeLabel, dateLabel, tomorrowOf, primaryButtonLabel, pickedSeatTitle,
+  pickedSeatHint, pickButtonLabel, dateOptions, validateForm,
+} from '../corelogic/SeatFormLogic.ts';
 
 @Entry
 @Component
@@ -55,6 +59,22 @@ export struct SeatPage {
 
   /** 座位页两个视图（对齐原版顶部「预约/列表」双 chip）：'book' 预约 / 'list' 列表。 */
   @State seatTab: string = 'book';
+
+  // ── 新建预约表单（对齐 Android NewTaskScreen，阶段2）──
+  /** 表单模式：单次预约 / 监控预约 / 优先预约。 */
+  @State formMode: FormMode = FormMode.SINGLE;
+  /** 模式 chip 数据源（不用数组字面量直接进 ForEach，避免 ArkUI 类型推断问题）。 */
+  private readonly modeList: FormMode[] = [FormMode.SINGLE, FormMode.MONITOR, FormMode.PREFER];
+  /** 预约日期（yyyy-MM-dd，默认设备本地今天）。 */
+  @State reserveDate: string = '';
+  /** 可选日期（服务端 availableDays，空则回落今天/明天）。 */
+  @State availableDays: string[] = [];
+  /** 已选座位号（监控/优先模式的选座结果；阶段3独立座位图页会回填）。 */
+  @State pickedSeatNos: string[] = [];
+  /** 表单校验/操作错误文案。 */
+  @State formErr: string = '';
+  /** 选座入口提示（阶段3未接前的诚实说明，不假装能用）。 */
+  @State pickHint: string = '';
 
   @State camps: CampusGroup[] = [];
   // ⚠️ 三级选择各用独立扁平 @State：ArkUI 里嵌套对象属性修改不触发刷新（除非 class+@Observed）
@@ -186,8 +206,38 @@ export struct SeatPage {
     return [];
   }
 
+  /** 已选区域卡片的名称（按 id 从树里查，对齐 Android selectedCampus/Floor/Area.name）。 */
+  private campusNameOf(id: string): string {
+    for (let i = 0; i < this.camps.length; i++) {
+      if (this.camps[i].id === id) return this.camps[i].name;
+    }
+    return id;
+  }
+
+  private floorNameOf(id: string): string {
+    const floors: FloorGroup[] = this.floorsOf(this.selCampus);
+    for (let i = 0; i < floors.length; i++) {
+      if (floors[i].id === id) return floors[i].name;
+    }
+    return id;
+  }
+
+  private areaNameOf(id: string): string {
+    const areas: AreaGroup[] = this.areasOf(this.selFloor);
+    for (let i = 0; i < areas.length; i++) {
+      if (areas[i].id === id) return areas[i].name;
+    }
+    return id;
+  }
+
   aboutToAppear(): void {
     this.nowText = fmtMinutes(this.nowDt().minutes);
+    // 表单日期默认设备本地今天（对齐 Android reserveDate=LocalDate.now()）
+    const todayStr: string = SeatTreeService.today();
+    if (this.reserveDate.length === 0) {
+      this.reserveDate = todayStr;
+      this.availableDays = dateOptions([], todayStr, tomorrowOf(todayStr));
+    }
     this.loadTree();
   }
 
@@ -613,150 +663,13 @@ export struct SeatPage {
       Scroll() {
         Column() {
           if (this.seatTab === 'book') {
-            // ── 三级选择 ──
-            Text('选择场地（校区 / 楼层 / 区域）')
-              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%')
-            if (this.treeLoading) {
-              Text('加载座位树…').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
-            } else if (this.treeErr.length > 0) {
-              Text(this.treeErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 6 })
-            } else if (this.camps.length === 0) {
-              Text('没有可用的座位树').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
-            } else {
-              // 校区
-              Text('校区').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 8 })
-              Flex({ wrap: FlexWrap.Wrap }) {
-                ForEach(this.camps, (c: CampusGroup) => {
-                  SeatChip({
-                    label: c.name,
-                    selected: this.selCampus === c.id,
-                    onTap: () => {
-                      this.selCampus = c.id;
-                      this.selFloor = '';
-                      this.selArea = '';
-                    },
-                  })
-                }, (c: CampusGroup) => 'camp' + c.id)
-              }
-              .width('100%')
+            // 预约 tab = 新建预约表单（对齐 Android NewTaskScreen，阶段2）
+            this.newTaskForm()
 
-              // 楼层
-              Text('楼层').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 10 })
-              Flex({ wrap: FlexWrap.Wrap }) {
-                ForEach(this.floorsOf(this.selCampus), (f: FloorGroup) => {
-                  SeatChip({
-                    label: f.name,
-                    selected: this.selFloor === f.id,
-                    onTap: () => {
-                      this.selFloor = f.id;
-                      this.selArea = '';
-                    },
-                  })
-                }, (f: FloorGroup) => 'floor' + f.id)
-              }
-              .width('100%')
-
-              // 区域：没选楼层就不出现（2026-10-30 真机：未选楼层时留着光秃秃的「区域」一行）
-              if (this.selFloor.length > 0) {
-                Text('区域').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 10 })
-                if (this.areasOf(this.selFloor).length === 0) {
-                  Text('该楼层暂无区域')
-                    .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
-                } else {
-                  Flex({ wrap: FlexWrap.Wrap }) {
-                    ForEach(this.areasOf(this.selFloor), (a: AreaGroup) => {
-                      SeatChip({
-                        label: a.name,
-                        selected: this.selArea === a.id,
-                        onTap: () => {
-                          this.selectArea(a.id);
-                        },
-                      })
-                    }, (a: AreaGroup) => 'area' + a.id)
-                  }
-                  .width('100%')
-                }
-              }
-            }
-
-            // ── 座位状态（当前区域）：只在选了区域后出现，未选时整段不渲染（免得空标题）──
-            if (this.selArea.length > 0) {
-              Text('座位状态（' + this.selArea + '）')
-                .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 16 })
-              if (this.seatsLoading) {
-                Text('拉取座位状态…').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
-              } else if (this.seatAuthExpired) {
-                // 座位授权门禁（对齐 Android SeatAuthGate）：500 = 失效 token，
-                // 给用户明确的「授权座位系统」入口，而不是一句看不懂的「加载失败」。
-                Column() {
-                  Text('学校账号已登录，但座位系统尚未授权')
-                    .fontSize(12).fontColor(this.tk().onSurfaceVariant)
-                    .width('100%').textAlign(TextAlign.Center)
-                  if (this.seatAuthorizing) {
-                    Text('正在恢复座位系统授权…')
-                      .fontSize(11).fontColor(this.tk().onSurfaceVariant)
-                      .margin({ top: 6 })
-                  } else {
-                    Button('授权座位系统')
-                      .fontSize(13).height(34).margin({ top: 8 })
-                      .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
-                      .onClick(() => {
-                        this.authorizeSeat();
-                      })
-                  }
-                }
-                .width('100%').padding(10).margin({ top: 6 })
-                .backgroundColor(this.tk().secondaryContainer).borderRadius(10)
-              } else if (this.seatsErr.length > 0) {
-                Text(this.seatsErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 6 })
-              } else if (this.seats.length === 0) {
-                Text('该区域暂未查到座位').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
-              } else {
-                Text(this.freeText())
-                  .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
-                // 视图切换（列表 / 点位）
-                Row() {
-                  SeatChip({
-                    label: '列表',
-                    selected: this.viewMode === 'list',
-                    onTap: () => {
-                      this.viewMode = 'list';
-                    },
-                  })
-                  SeatChip({
-                    label: '点位',
-                    selected: this.viewMode === 'map',
-                    onTap: () => {
-                      this.viewMode = 'map';
-                      this.loadMapImages();
-                    },
-                  })
-                    .margin({ left: 8 })
-                }
-                .width('100%').margin({ top: 6 })
-                if (this.viewMode === 'list') {
-                  ForEach(this.seats, (s: WireSeat) => {
-                    this.seatRow(s)
-                  }, (s: WireSeat) => 'seat' + s.id)
-                } else {
-                  this.mapView()
-                }
-              }
-            } else if (this.selFloor.length > 0) {
-              Text('选择区域后显示座位状态')
-                .fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 14 })
-            }
-
-            // 「我的预约」已搬到「列表」tab 顶部（对齐 Android TaskListScreen）：
-            // 预约成功后自动切到列表 tab，用户立刻看到结果，不用滚 184 条座位。
-
-            // ── 取消确认条 ──（预约确认已搬到 Scroll 外的底部固定栏，对齐 Android）
+            // ── 取消确认条 ──（我的预约取消走二次确认，铁律 0.6）
             if (this.cancelTarget !== null || this.cancelResult.length > 0) {
               this.cancelBlock()
             }
-
-            Text('取消 / 预约为敏感操作，需设备端真机回归（当前离线未验）')
-              .fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 12 })
           } else {
             // ── 列表视图（对齐 Android TaskListScreen）──
             // 我的预约置顶：预约成功后自动切到本 tab，用户立刻看到结果。
@@ -782,10 +695,8 @@ export struct SeatPage {
       .align(Alignment.Top)
 
       // 底部固定预约操作栏（对齐 Android SeatMapScreen.ReserveBottomBar）：
-      // 放在 Scroll 外、主 Column 尾部 ⇒ 不随长列表滚动，选中座位后始终可见。
-      if (this.seatTab === 'book') {
-        this.reserveBottomBar()
-      }
+      // 阶段2 预约 tab 改为纯表单（无座位选择），此栏暂不显示；
+      // reserveBottomBar()/confirmReserve 完整保留，阶段3 独立座位图页复用。
     }
     .width('100%').height('100%')
     .backgroundColor(this.tk().background)
@@ -846,6 +757,205 @@ export struct SeatPage {
     .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 10 })
     .backgroundColor(this.tk().surfaceVariant)
     .borderRadius({ topLeft: 12, topRight: 12 })
+    .alignItems(HorizontalAlign.Start)
+  }
+
+
+  /** 新建预约表单（对齐 Android NewTaskScreen，阶段2）：
+   *  标题 → 模式(单次/监控/优先) → 选择日期 → 三级选址 → 已选区域卡片 →
+   *  选座区(非单次) → 底部主按钮。纯表单，选座/座位图阶段3接。 */
+  @Builder
+  newTaskForm() {
+    Column() {
+      Text('新建预约')
+        .fontSize(20).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).width('100%')
+
+      // ── 座位授权门禁（对齐 Android SeatAuthGate；阶段3座位图查座位时置 seatAuthExpired）──
+      if (this.seatAuthExpired) {
+        Column() {
+          Text('学校账号已登录，但座位系统尚未授权')
+            .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').textAlign(TextAlign.Center)
+          if (this.seatAuthorizing) {
+            Text('正在恢复座位系统授权…')
+              .fontSize(11).fontColor(this.tk().onSurfaceVariant).margin({ top: 6 })
+          } else {
+            Button('授权座位系统')
+              .fontSize(13).height(34).margin({ top: 8 })
+              .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+              .onClick(() => {
+                this.authorizeSeat();
+              })
+          }
+        }
+        .width('100%').padding(10).margin({ top: 10 })
+        .backgroundColor(this.tk().secondaryContainer).borderRadius(10)
+      }
+
+      // ── 模式选择（对齐 Android ModeSelector）──
+      Row() {
+        ForEach(this.modeList, (m: FormMode) => {
+          SeatChip({
+            label: modeLabel(m),
+            selected: this.formMode === m,
+            onTap: () => {
+              this.formMode = m;
+              this.formErr = '';
+              this.pickHint = '';
+            },
+          })
+            .margin({ right: 8 })
+        }, (m: FormMode) => 'mode' + m)
+      }
+      .width('100%').margin({ top: 4 })
+
+      // ── 选择日期（对齐 Android 选择日期 chip）──
+      Text('选择日期')
+        .fontSize(15).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
+        .width('100%').margin({ top: 16 })
+      Row() {
+        ForEach(dateOptions(this.availableDays, SeatTreeService.today(),
+          tomorrowOf(SeatTreeService.today())), (day: string) => {
+          SeatChip({
+            label: dateLabel(day, SeatTreeService.today(), tomorrowOf(SeatTreeService.today())),
+            selected: this.reserveDate === day,
+            onTap: () => {
+              this.reserveDate = day;
+              this.selCampus = '';
+              this.selFloor = '';
+              this.selArea = '';
+            },
+          })
+            .margin({ right: 8 })
+        }, (day: string) => 'day' + day)
+      }
+      .width('100%').margin({ top: 6 })
+      Text('预约日期: ' + this.reserveDate)
+        .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
+
+      // ── 三级选址（复用已真机验过的校区/楼层/区域 chip）──
+      if (this.treeLoading) {
+        Text('加载校区信息…').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 12 })
+      } else if (this.treeErr.length > 0) {
+        Text('加载校区信息失败：' + this.treeErr)
+          .fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 12 })
+      } else if (this.camps.length === 0) {
+        Text('没有可用的座位树').fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 12 })
+      } else {
+        Text('校区').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 12 })
+        Flex({ wrap: FlexWrap.Wrap }) {
+          ForEach(this.camps, (c: CampusGroup) => {
+            SeatChip({
+              label: c.name,
+              selected: this.selCampus === c.id,
+              onTap: () => {
+                this.selCampus = c.id;
+                this.selFloor = '';
+                this.selArea = '';
+              },
+            })
+          }, (c: CampusGroup) => 'camp' + c.id)
+        }
+        .width('100%')
+
+        Text('楼层').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 10 })
+        Flex({ wrap: FlexWrap.Wrap }) {
+          ForEach(this.floorsOf(this.selCampus), (f: FloorGroup) => {
+            SeatChip({
+              label: f.name,
+              selected: this.selFloor === f.id,
+              onTap: () => {
+                this.selFloor = f.id;
+                this.selArea = '';
+              },
+            })
+          }, (f: FloorGroup) => 'floor' + f.id)
+        }
+        .width('100%')
+
+        if (this.selFloor.length > 0) {
+          Text('区域').fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 10 })
+          if (this.areasOf(this.selFloor).length === 0) {
+            Text('该楼层暂无区域').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+          } else {
+            Flex({ wrap: FlexWrap.Wrap }) {
+              ForEach(this.areasOf(this.selFloor), (a: AreaGroup) => {
+                SeatChip({
+                  label: a.name,
+                  selected: this.selArea === a.id,
+                  onTap: () => {
+                    this.selArea = a.id;
+                    this.formErr = '';
+                  },
+                })
+              }, (a: AreaGroup) => 'area' + a.id)
+            }
+            .width('100%')
+          }
+        }
+      }
+
+      // ── 已选区域卡片（对齐 Android）──
+      if (this.selArea.length > 0) {
+        Column() {
+          Text('已选区域').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%')
+          Text(this.campusNameOf(this.selCampus) + ' - ' + this.floorNameOf(this.selFloor) + ' - ' + this.areaNameOf(this.selArea))
+            .fontSize(14).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).width('100%').margin({ top: 4 })
+        }
+        .width('100%').padding(12).margin({ top: 14 })
+        .backgroundColor(this.tk().secondaryContainer).borderRadius(12)
+      }
+
+      // ── 目标/偏好座位区（非单次模式，对齐 Android PickedSeatRow）──
+      if (this.formMode !== FormMode.SINGLE) {
+        Column() {
+          Text(pickedSeatTitle(this.formMode))
+            .fontSize(13).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).width('100%')
+          Text(pickedSeatHint(this.formMode))
+            .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
+          if (this.pickedSeatNos.length > 0) {
+            Text('已选：' + this.pickedSeatNos.join('、'))
+              .fontSize(12).fontColor(this.tk().primary).width('100%').margin({ top: 6 })
+          }
+          Button(pickButtonLabel(this.formMode))
+            .height(34).fontSize(12).margin({ top: 8 })
+            .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+            .onClick(() => {
+              // validateForm 返回 string|null；@State formErr 是 string，null 归一为空串
+              this.formErr = validateForm(this.formMode, this.selArea.length > 0, this.pickedSeatNos.length) ?? '';
+              if (this.formErr.length === 0) {
+                this.pickHint = '选座页将在下一阶段接入（阶段3）；当前版本暂不能在此选座。';
+              }
+            })
+        }
+        .width('100%').padding(12).margin({ top: 14 })
+        .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
+        .alignItems(HorizontalAlign.Start)
+      }
+
+      // ── 错误/提示 ──
+      if (this.formErr.length > 0) {
+        Text(this.formErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 8 })
+      }
+      if (this.pickHint.length > 0) {
+        Text(this.pickHint).fontSize(11).fontColor(this.tk().stateAttention).width('100%').margin({ top: 6 })
+      }
+
+      // ── 底部主按钮（对齐 Android：选择座位 / 创建任务）──
+      Button(primaryButtonLabel(this.formMode))
+        .width('100%').height(44).fontSize(14).fontWeight(FontWeight.Bold)
+        .margin({ top: 16 })
+        .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+        .onClick(() => {
+          this.pickHint = '';
+          this.formErr = validateForm(this.formMode, this.selArea.length > 0, this.pickedSeatNos.length) ?? '';
+          if (this.formErr.length > 0) {
+            return;
+          }
+          // 阶段2：选座页（阶段3）尚未接入，给诚实提示，不假装能用。
+          this.pickHint = '选座页将在下一阶段接入（阶段3）；当前版本暂不能完成预约。';
+        })
+    }
+    .width('100%').padding({ bottom: 24 })
     .alignItems(HorizontalAlign.Start)
   }
 

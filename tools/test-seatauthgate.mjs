@@ -33,7 +33,8 @@ ok(page.indexOf('正在恢复座位系统授权…') >= 0, '授权中有进行�
 const authorizeBody = page.substring(page.indexOf('private async authorizeSeat'),
   page.indexOf('private async loadSeats'));
 ok(authorizeBody.indexOf('onClick') < 0, '授权方法体内无 onClick（由按钮 onClick 调用，职责清晰）');
-ok(page.indexOf('.onClick(() => {\n                        this.authorizeSeat();') >= 0,
+// 不锁死缩进（阶段2表单门禁与阶段3座位图门禁缩进不同），只校验授权入口由点击触发
+ok(/onClick\(\(\) => \{\s*this\.authorizeSeat\(\);/.test(page),
   '授权按钮 onClick 调 authorizeSeat（用户点击触发）');
 ok(page.indexOf('CasLoginService.silentRenewJwt(ctx)') >= 0, '授权先试只读 cookie 续期（不发短信）');
 ok(page.indexOf("router.pushUrl({ url: 'pages/LoginPage'") >= 0,

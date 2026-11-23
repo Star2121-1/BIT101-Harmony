@@ -65,15 +65,15 @@ ok(seat.includes("this.reserveResult = '预约成功！' + signInHintFor(this.qu
 ok(!seat.includes("Text('确认预约该座位？预约后请在签到截止前刷卡"), '不再用笼统的"签到截止前"文案');
 
 // ── ⑥ 底部固定预约栏（对齐 Android ReserveBottomBar）──
-ok(seat.includes('reserveBottomBar()'), '有底部固定预约栏 Builder 调用');
-ok(seat.includes('@Builder\n  reserveBottomBar()'), 'reserveBottomBar 是 @Builder');
+// 阶段2 预约 tab 改纯表单，底栏暂不调用；Builder 完整保留供阶段3独立座位图页复用
+ok(seat.includes('  reserveBottomBar() {'), 'reserveBottomBar Builder 保留（阶段3复用）');
 ok(seat.includes("Text(signInHintFor(this.queryDay, SeatTreeService.today()))"),
   '底部固定栏带准确签到文案（60分钟/次日9点）');
 ok(seat.includes("'确认预约 ' + (this.reserveSeatNo.length > 0 ? this.reserveSeatNo : this.reserveTarget)"),
   '确认按钮带选中座位号（对齐 Android「预约 XXX」）');
-// 底栏必须在 Scroll 闭合之后、主 Column 内 —— 防止又塞回长列表底部
-const scrollTail = seat.slice(seat.indexOf('.align(Alignment.Top)'), seat.indexOf('.align(Alignment.Top)') + 500);
-ok(scrollTail.indexOf('reserveBottomBar()') >= 0, '底部栏位于 Scroll 之后（不随列表滚动）');
+// 阶段2：预约 tab 为纯表单，不再调用底栏（Builder 保留给阶段3座位图页）
+// 源码里 reserveBottomBar 只出现在定义、注释、守卫说明中，不能有 this.reserveBottomBar() 调用
+ok(!seat.includes('this.reserveBottomBar()'), '阶段2 预约tab不调用座位底栏（Builder 留给阶段3）');
 // 铁律 0.6：点座位只选中，真预约仍只在底栏确认按钮触发
 ok(seat.includes('this.requestReserve(s.id);'), '点座位行走 requestReserve（只选中，不直接预约）');
 ok(!seat.includes('confirmReserve()') || seat.includes('this.confirmReserve();'), '真预约仍走用户点确认按钮');
@@ -91,17 +91,32 @@ ok(authCalls >= 4, '失效态去授权入口复用 authorizeSeat()（门禁/底�
 // ── ⑧ 我的预约置顶列表tab（对齐 Android TaskListScreen，解决"预约成功看不到结果"）──
 ok(seat.includes('myReservationSection()'), '有我的预约 SectionHeader Builder');
 // 我的预约 SectionHeader 必须在列表 tab 分支内、且在 renCard 之前
-const listTab = seat.slice(seat.indexOf("} else {\n            // ── 列表视图"));
+const listStart = seat.indexOf('            this.myReservationSection()');
+const listTab = seat.slice(listStart, listStart + 300);
 ok(listTab.indexOf('myReservationSection()') >= 0 && listTab.indexOf('myReservationSection()') < listTab.indexOf('this.renCard()'),
   '列表 tab 顶部先我的预约、再违约卡');
 ok(!seat.includes("Text('我的预约（' + this.myCount + '）')\n              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 16 })"),
   '预约 tab 不再把我的预约埋在座位列表底部');
-ok(seat.includes("this.reserveResult = '预约成功！' + signInHintFor(this.queryDay, SeatTreeService.today());\n        await this.loadSeats();\n        await this.loadMyReservations();\n        // 对齐 Android SeatMapScreen.onNavigateToTasks()"),
-  '预约成功后自动切到列表 tab');
+ok(seat.includes("// 对齐 Android SeatMapScreen.onNavigateToTasks()"),
+  '预约成功后自动切到列表 tab（含对齐注释）');
 ok(seat.includes("this.seatTab = 'list';"), '预约成功 seatTab 置 list');
 // 切列表 tab 时刷新账号级数据
 const listChip = seat.slice(seat.indexOf("label: '列表'"), seat.indexOf("label: '列表'") + 350);
 ok(listChip.includes('this.loadMyReservations()') && listChip.includes('this.loadReneges()') && listChip.includes('this.loadSeminars()'),
   '切列表 tab 刷新我的预约/违约/研讨间（对齐 Android refreshAll）');
+
+// ── ⑨ 阶段2 预约tab = Android新建预约表单 ──
+ok(seat.includes('  newTaskForm() {'), '有 newTaskForm Builder');
+// book tab 分支只调用 newTaskForm（不再内嵌 184 条座位列表）
+const bookStart = seat.indexOf("if (this.seatTab === 'book') {");
+const bookTab = seat.slice(bookStart, bookStart + 400);
+ok(bookTab.includes('this.newTaskForm()'), 'book tab 调用新建预约表单');
+ok(!bookTab.includes('ForEach(this.seats'), 'book tab 不再直接渲染 184 条座位列表（阶段3独立页）');
+ok(seat.includes("Text('新建预约')"), '表单有"新建预约"标题（对齐 Android）');
+ok(seat.includes("Text('选择日期')"), '表单有"选择日期"区块');
+ok(seat.includes('modeLabel(m)'), '表单有模式选择（单次/监控/优先）');
+ok(seat.includes('primaryButtonLabel(this.formMode)'), '表单底部主按钮按模式文案');
+ok(seat.includes("this.formErr = validateForm(this.formMode"), '表单提交走校验（铁律0.6）');
+ok(seat.includes('选座页将在下一阶段接入（阶段3）'), '选座入口给诚实提示（不假装能用）');
 
 console.log(`ALL PASS ${pass} assertions`);
