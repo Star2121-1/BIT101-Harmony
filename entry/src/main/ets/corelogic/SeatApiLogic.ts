@@ -48,6 +48,8 @@ export const DEFAULT_SEGMENT_ID: string = '1';
 export enum WireSeatStatus {
   AVAILABLE = 'AVAILABLE',   // 1 空闲可约
   RESERVED = 'RESERVED',    // 2/10/11 已预约（不区分是不是本人）
+  /** 服务端不会下发；由「我的预约」覆盖 RESERVED 得到（对齐 Android Seat.asMine()）。 */
+  MINE = 'MINE',
   IN_USE = 'IN_USE',      // 6/8/9 在用
   LEAVE = 'LEAVE',       // 7 临时离开
   UNAVAILABLE = 'UNAVAILABLE', // 3/4/5/未知 暂停/不可用（宁可不让点）
@@ -81,6 +83,7 @@ export function wireStatusText(status: WireSeatStatus): string {
   switch (status) {
     case WireSeatStatus.AVAILABLE: return '空闲';
     case WireSeatStatus.RESERVED: return '已预约';
+    case WireSeatStatus.MINE: return '我已预约';
     case WireSeatStatus.IN_USE: return '在用';
     case WireSeatStatus.LEAVE: return '暂离';
     case WireSeatStatus.UNAVAILABLE: return '停用';
@@ -94,13 +97,15 @@ export function wireStatusText(status: WireSeatStatus): string {
  * - AVAILABLE `#4CAF50`：原版注释明示「与服务端底图里『可用座位』的绿色一致（实测）」——
  *   底图是服务端图片、不随 App 主题变，所以这个色也**不分明暗两档**；
  *   曾经这里自造过一套（蓝预约/棕在用/灰蓝停用），与原版不符，已按原版纠正。
+ * - MINE `#2E7D32`：原版「我已预约」专用色（服务端不下发，由我的预约列表交叉标记）。
  * - RESERVED `#FF9800` / IN_USE `#9E9E9E` / LEAVE `#9E9E9E` / UNAVAILABLE `#FDD835`
- *   同为原版常量（原版另有 MINE `#2E7D32`，鸿蒙枚举无 MINE 态——「我的」走预约列表交叉，不设色）。
+ *   同为原版常量。
  */
 export function wireStatusColor(status: WireSeatStatus): string {
   switch (status) {
     case WireSeatStatus.AVAILABLE: return '#4CAF50';
     case WireSeatStatus.RESERVED: return '#FF9800';
+    case WireSeatStatus.MINE: return '#2E7D32';
     case WireSeatStatus.IN_USE: return '#9E9E9E';
     case WireSeatStatus.LEAVE: return '#9E9E9E';
     case WireSeatStatus.UNAVAILABLE: return '#FDD835';
@@ -582,6 +587,7 @@ export function mapImageForStatus(status: WireSeatStatus, images: SeatMapImages)
   switch (status) {
     case WireSeatStatus.AVAILABLE: return images.free;
     case WireSeatStatus.RESERVED: return images.book;
+    case WireSeatStatus.MINE: return images.book;
     case WireSeatStatus.IN_USE: return images.use;
     case WireSeatStatus.LEAVE: return images.leave;
     case WireSeatStatus.UNAVAILABLE: return images.close;

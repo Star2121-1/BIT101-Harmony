@@ -13,7 +13,12 @@
 import { router } from '@kit.ArkUI';
 import { Context } from '@kit.AbilityKit';
 import { gridTokens } from '../core/theme/GridTokens.ts';
-import { STORAGE_DARK, STORAGE_PALETTE, STORAGE_SEAT_RETRY, getPalette } from '../data/ThemeStore.ts';
+import {
+  STORAGE_DARK, STORAGE_PALETTE, STORAGE_SEAT_RETRY,
+  STORAGE_SEAT_PICK_RESULT, STORAGE_SEAT_PICK_DONE,
+  STORAGE_SEAT_RESERVE_DONE, STORAGE_SEAT_RESERVE_MSG,
+  getPalette,
+} from '../data/ThemeStore.ts';
 import { SeatTreeNode } from '../model/SeatTreeModel.ts';
 import { SeatService } from '../service/SeatService.ts';
 import { SeatTreeService } from '../service/SeatTreeService.ts';
@@ -31,7 +36,7 @@ import {
 import { info, warn } from '../core/log/BitLog.ts';
 import { CasLoginService } from '../service/CasLoginService.ts';
 import { getTaskRepository } from '../data/SeatTaskStore.ts';
-import { isTerminalStatus } from '../model/SeatTask.ts';
+import { createTask, isTerminalStatus, TaskMode } from '../model/SeatTask.ts';
 import { joinA11y } from '../corelogic/A11yText.ts';
 import {
   type SeminarRecord, formatSeminarTime, getSeminarStatusText, isSeminarCancellable,
@@ -56,6 +61,12 @@ export struct SeatPage {
    * 且 router.back() 回来时本实例保留，三级选择态不丢，正好在此实例上重试。
    */
   @StorageLink(STORAGE_SEAT_RETRY) @Watch('onAuthRetry') seatRetry: number = 0;
+  /** 阶段3：从独立座位图页选座回传（@Watch 回填 pickedSeatNos）。 */
+  @StorageLink(STORAGE_SEAT_PICK_DONE) @Watch('onSeatPickBack') seatPickDone: number = 0;
+  /** 阶段3：座位图页直接预约成功（@Watch 切列表 tab + 刷新）。 */
+  @StorageLink(STORAGE_SEAT_RESERVE_DONE) @Watch('onSeatReserveDone') seatReserveDone: number = 0;
+  /** 阶段3：座位图预约成功提示（含签到时限文案），列表 tab 顶部直出。 */
+  @StorageLink(STORAGE_SEAT_RESERVE_MSG) seatReserveMsg: string = '';
 
   /** 座位页两个视图（对齐原版顶部「预约/列表」双 chip）：'book' 预约 / 'list' 列表。 */
   @State seatTab: string = 'book';
@@ -252,6 +263,70 @@ export struct SeatPage {
     }
     info('seat auth retry after login, area=' + this.selArea);
     this.loadSeats(false);
+  }
+
+  /** 阶段3：从独立座位图页选座返回，回填 pickedSeatNos（串格式 id|座位号;…，保序=优先级）。 */
+  private onSeatPickBack(): void {
+    if (this.seatPickDone <= 0) return;
+    const raw: string = String(AppStorage.get<string>(STORAGE_SEAT_PICK_RESULT) ?? '');
+    if (raw.length === 0) return;
+    const nos: string[] = [];
+    const items: string[] = raw.split(';');
+    for (let i = 0; i < items.length; i++) {
+      const kv: string[] = items[i].split('|');
+      if (kv.length >= 2 && kv[1].length > 0) nos.push(kv[1]);
+    }
+    this.pickedSeatNos = nos;
+    this.formErr = '';
+    this.pickHint = '';
+    info('seat pick back: ' + nos.join(','));
+  }
+
+  /** 阶段3：座位图页直接预约成功 → 对齐 Android onNavigateToTasks：切列表 tab 立即可见。 */
+  private onSeatReserveDone(): void {
+    if (this.seatReserveDone <= 0) return;
+    this.seatTab = 'list';
+    this.loadMyReservations();
+    this.loadReneges();
+    this.loadSeminars();
+  }
+
+  /** 阶段3：从新建预约表单跳独立座位图页（三种用途共用一页，mode 决定标题/底栏/可点语义）。 */
+  private openSeatMap(mode: FormMode): void {
+    this.formErr = validateForm(mode, this.selArea.length > 0, this.pickedSeatNos.length) ?? '';
+    if (this.formErr.length > 0) return;
+    this.pickHint = '';
+    router.pushUrl({
+      url: 'pages/SeatMapPage',
+      params: {
+        areaId: this.selArea,
+        areaName: this.areaNameOf(this.selArea),
+        day: this.reserveDate.length > 0 ? this.reserveDate : SeatTreeService.today(),
+        mode: String(mode),
+      },
+    }).catch((e: Error) => {
+      warn('open seat map fail: ' + JSON.stringify(e));
+    });
+  }
+
+  /** 阶段3闭环：监控/优先模式选座回填后创建本地任务（对齐 Android addTask）。 */
+  private createTaskFromForm(): void {
+    this.formErr = validateForm(this.formMode, this.selArea.length > 0, this.pickedSeatNos.length) ?? '';
+    if (this.formErr.length > 0) return;
+    const mode: TaskMode = this.formMode === FormMode.MONITOR ? TaskMode.MONITOR : TaskMode.PREFER;
+    const day: string = this.reserveDate.length > 0 ? this.reserveDate : SeatTreeService.today();
+    const task = createTask(
+      mode, this.selArea, this.segParams.segment,
+      this.pickedSeatNos.length > 0 ? this.pickedSeatNos[0] : '',
+      day, this.segParams.startTime, this.segParams.endTime,
+      this.campusNameOf(this.selCampus), this.floorNameOf(this.selFloor), this.areaNameOf(this.selArea),
+      this.formMode === FormMode.PREFER ? this.pickedSeatNos : [],
+    );
+    getTaskRepository().addTask(task);
+    this.pickedSeatNos = [];
+    this.pickHint = '';
+    this.seatTab = 'list';
+    this.taskHint = '已创建' + modeLabel(this.formMode) + '任务';
   }
 
   private async loadTree(): Promise<void> {
@@ -672,6 +747,13 @@ export struct SeatPage {
             }
           } else {
             // ── 列表视图（对齐 Android TaskListScreen）──
+            // 阶段3：从独立座位图页预约成功后回传的提示（含签到时限），与结果同屏可见。
+            if (this.seatReserveMsg.length > 0) {
+              Text(this.seatReserveMsg)
+                .fontSize(12).fontColor(this.tk().stateAttention).width('100%')
+                .padding(10).margin({ bottom: 8 })
+                .backgroundColor(this.tk().secondaryContainer).borderRadius(8)
+            }
             // 我的预约置顶：预约成功后自动切到本 tab，用户立刻看到结果。
             this.myReservationSection()
             this.renCard()
@@ -912,19 +994,20 @@ export struct SeatPage {
             .fontSize(13).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).width('100%')
           Text(pickedSeatHint(this.formMode))
             .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
-          if (this.pickedSeatNos.length > 0) {
-            Text('已选：' + this.pickedSeatNos.join('、'))
-              .fontSize(12).fontColor(this.tk().primary).width('100%').margin({ top: 6 })
+          Row() {
+            if (this.pickedSeatNos.length > 0) {
+              Text('已选：' + this.pickedSeatNos.join('、'))
+                .fontSize(12).fontColor(this.tk().primary).layoutWeight(1).margin({ top: 6 })
+              Text('清空').fontSize(12).fontColor(this.tk().primary).margin({ top: 6 })
+                .onClick(() => { this.pickedSeatNos = []; })
+            }
           }
+          .width('100%')
           Button(pickButtonLabel(this.formMode))
             .height(34).fontSize(12).margin({ top: 8 })
             .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
             .onClick(() => {
-              // validateForm 返回 string|null；@State formErr 是 string，null 归一为空串
-              this.formErr = validateForm(this.formMode, this.selArea.length > 0, this.pickedSeatNos.length) ?? '';
-              if (this.formErr.length === 0) {
-                this.pickHint = '选座页将在下一阶段接入（阶段3）；当前版本暂不能在此选座。';
-              }
+              this.openSeatMap(this.formMode);
             })
         }
         .width('100%').padding(12).margin({ top: 14 })
@@ -951,8 +1034,12 @@ export struct SeatPage {
           if (this.formErr.length > 0) {
             return;
           }
-          // 阶段2：选座页（阶段3）尚未接入，给诚实提示，不假装能用。
-          this.pickHint = '选座页将在下一阶段接入（阶段3）；当前版本暂不能完成预约。';
+          // 阶段3：单次=进独立座位图页直接预约；监控/优先=选座回填后建本地任务。
+          if (this.formMode === FormMode.SINGLE) {
+            this.openSeatMap(FormMode.SINGLE);
+          } else {
+            this.createTaskFromForm();
+          }
         })
     }
     .width('100%').padding({ bottom: 24 })

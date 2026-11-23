@@ -26,6 +26,7 @@
     "pages/NotifyListPage",
     "pages/NotifySettingsPage",
     "pages/SeatPage",
+    "pages/SeatMapPage",
     "pages/SeatProbePage",
     "pages/SeatMonitorPage",
     "pages/ScorePage",

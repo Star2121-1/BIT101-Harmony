@@ -52,6 +52,17 @@ export const STORAGE_TOP_INSET: string = 'ui_top_inset';
  */
 export const STORAGE_SEAT_RETRY: string = 'seat_auth_retry';
 
+/**
+ * AppStorage 键（阶段3 独立座位图页 → 新建预约表单回传）：
+ * - PICK_RESULT：选座结果串「id|座位号;id|座位号」（ArkTS 禁动态对象进 AppStorage，split 可还原且保序）；
+ * - PICK_DONE：回传计数器（SeatPage @Watch 监听后读 PICK_RESULT 回填表单）；
+ * - RESERVE_DONE / RESERVE_MSG：直接预约成功计数 + 签到提示文案（SeatPage 切列表 tab 刷新）。
+ */
+export const STORAGE_SEAT_PICK_RESULT: string = 'seat_pick_result';
+export const STORAGE_SEAT_PICK_DONE: string = 'seat_pick_done';
+export const STORAGE_SEAT_RESERVE_DONE: string = 'seat_reserve_done';
+export const STORAGE_SEAT_RESERVE_MSG: string = 'seat_reserve_msg';
+
 /** 持久化键：深浅模式。 */
 const KEY_MODE: string = 'ui_theme_mode';
 

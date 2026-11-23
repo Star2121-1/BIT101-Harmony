@@ -117,6 +117,11 @@ ok(seat.includes("Text('选择日期')"), '表单有"选择日期"区块');
 ok(seat.includes('modeLabel(m)'), '表单有模式选择（单次/监控/优先）');
 ok(seat.includes('primaryButtonLabel(this.formMode)'), '表单底部主按钮按模式文案');
 ok(seat.includes("this.formErr = validateForm(this.formMode"), '表单提交走校验（铁律0.6）');
-ok(seat.includes('选座页将在下一阶段接入（阶段3）'), '选座入口给诚实提示（不假装能用）');
+// 阶段3已接入独立座位图页：旧「下一阶段」占位提示必须消失，入口要真跳页。
+ok(seat.includes('this.openSeatMap(this.formMode)') && seat.includes("url: 'pages/SeatMapPage'"),
+  '选座入口跳独立座位图页（阶段3）');
+ok(!seat.includes('选座页将在下一阶段接入'), '阶段2占位提示已移除（不再假装不能用）');
+ok(seat.includes('STORAGE_SEAT_PICK_DONE') && seat.includes('onSeatPickBack'),
+  '选座结果经 AppStorage 回传表单并回填');
 
 console.log(`ALL PASS ${pass} assertions`);

@@ -4,7 +4,8 @@
 > - **差距盘点**（`evidence/seat-ui-parity-gap-20261123.md`）：鸿蒙座位页与 Android 是架构级差异，非小修。根因之一是照旧平板 ref-05 基准做，比 Android 1.12.0 落后（该基准连"我的预约"区块都没有）。用户"预约成功看不到结果"= 我的预约埋在 184 条座位底部（滚 20+ 次才见），数据其实正常。
 > - **阶段1（alpha.42）我的预约置顶列表 tab**：对齐 Android TaskListScreen——① 从预约 tab 移除埋在座位列表底部的我的预约；② 列表 tab 顶部加 `myReservationSection()`（标题+条数+刷新+取消额度文案+卡片，失效态给去授权）；③ 预约成功后 `seatTab='list'` 自动跳过去（对齐 Android onNavigateToTasks）；④ 切列表 tab 刷新账号级数据（对齐 refreshAll）。test-seatloop +6 守卫拆红验过。
 > - **阶段2（alpha.43）预约 tab 改 Android 新建预约表单**：预约 tab 从"三级选址+184条座位列表"改为纯表单：标题「新建预约」→ 模式 chip(单次/监控/优先) → 「选择日期」chip(今天/明天/服务端availableDays) → 三级选址(复用已验 chip) → 已选区域卡片 → 非单次的目标/偏好座位区 → 底部主按钮(选择座位/创建任务)。新增 `SeatFormLogic.ts` 纯逻辑(模式/日期/校验文案，test-seatform 31断言+拆红)、test-seatloop +9守卫(拆红验过)。原座位列表/底栏/confirmReserve 完整保留为 Builder，阶段3独立座位图页复用。选座入口当前给诚实提示"阶段3接入"，不假装能用。
-> - 后续阶段：③ 座位图独立详情页+选座模式；④ 列表 tab 补齐（任务区/规则弹窗/下拉刷新/取消额度）。
+> - **阶段3（alpha.44）独立座位图页 + 选座模式**：新增 `pages/SeatMapPage.ets`（已注册路由），把阶段2「选座页下一阶段接入」占位换成真页面。① 对齐 Android SeatMapScreen：40vp 蓝顶栏（标题随用途变）、信息条自动换行（区域/日期时段/空闲数/我的/换区域）、底图叠图 + 无底图方格兜底（按座位号数值排序）、贴底操作栏；② 三用途复用 FormMode（SINGLE=直接预约 / MONITOR=选目标座位，单选可反选 / PREFER=选偏好座位，按点选顺序=优先级），新增 `SeatMapPageLogic.ts` 纯逻辑 + `test-seatmappage` 67 断言（拆红验过）；③ `WireSeatStatus.MINE` 补上 Android `Seat.asMine()` 语义（`#2E7D32` + book 底图），「我的预约」交叉标记，图上可点用于取消（二次确认，铁律 0.6）；④ 选座结果以 `id|座位号;…` 串经 AppStorage 回传，SeatPage @Watch 回填表单；直接预约成功写 RESERVE_DONE/MSG → SeatPage 切列表 tab 并刷新；监控/优先主按钮补齐本地 `createTask` 闭环；⑤ 时段仍与查询同源（`resolveSeatSegment`），不扩大副作用。全量 **91/91 套件 3961 断言绿**，assembleHap 成功。**真机未验**（此前 hdc file 通道卡死，设备恢复后需验三用途入口/选座回填/预约成功跳列表）。
+> - 后续阶段：④ 列表 tab 补齐（规则弹窗/任务区/下拉刷新/取消额度明细）。
 
 > **2026-11-23 alpha.41 会话失效给重登入口**（versionCode 40→41）：
 > - **问题（真机）**：alpha.40 底栏改造后，用户点座位→确认预约，seatlib 会话已死返回 10001，底栏只显示死文字「登录已失效，请重新登录」，**无重登入口，用户被卡住**。根因：唯一「授权座位系统」按钮绑在 `seatAuthExpired`，而该标志只在座位**查询**(免认证)返回 500 时置真；authed 接口 10001 不触发门禁。
