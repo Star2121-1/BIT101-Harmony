@@ -823,6 +823,22 @@ export struct SeatPage {
       if (this.reserveResult.length > 0) {
         Text(this.reserveResult).fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
       }
+      // 会话失效（10001）时给重新授权入口，避免用户卡在一句死提示上。
+      // 复用 authorizeSeat()（对齐 Android ensureSeatlibSession：静默续期失败→本人重登）。
+      if (this.reserveResult.indexOf('登录已失效') >= 0) {
+        Row() {
+          Text('座位会话已过期，需要你本人重新授权')
+            .fontSize(11).fontColor(this.tk().stateAttention).layoutWeight(1)
+          Button(this.seatAuthorizing ? '恢复中…' : '去授权')
+            .height(28).fontSize(11)
+            .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+            .enabled(!this.seatAuthorizing)
+            .onClick(() => {
+              this.authorizeSeat();
+            })
+        }
+        .width('100%').margin({ top: 8 }).alignItems(VerticalAlign.Center)
+      }
     }
     .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 10 })
     .backgroundColor(this.tk().surfaceVariant)
@@ -1081,6 +1097,15 @@ export struct SeatPage {
       } else if (this.semErr.length > 0) {
         Text(this.semErr).fontSize(11).fontColor(this.tk().stateAttention)
           .width('100%').margin({ top: 6 })
+        if (this.semErr.indexOf('登录已失效') >= 0) {
+          Button(this.seatAuthorizing ? '恢复中…' : '去授权座位系统')
+            .height(30).fontSize(11).margin({ top: 8 })
+            .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+            .enabled(!this.seatAuthorizing)
+            .onClick(() => {
+              this.authorizeSeat();
+            })
+        }
       } else if (this.seminars.length > 0) {
         ForEach(this.seminars, (r: SeminarRecord) => {
           Column() {

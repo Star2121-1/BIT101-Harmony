@@ -79,4 +79,13 @@ ok(seat.includes('this.requestReserve(s.id);'), '点座位行走 requestReserve�
 ok(!seat.includes('confirmReserve()') || seat.includes('this.confirmReserve();'), '真预约仍走用户点确认按钮');
 ok(!seat.includes('reserveBlock()'), '旧的列表内确认条已移除');
 
+// ── ⑦ 会话失效(10001)给重新授权入口（避免用户卡在死提示上）──
+ok(seat.includes("this.reserveResult.indexOf('登录已失效') >= 0"), '底部栏识别会话失效态');
+ok(seat.includes("this.seatAuthorizing ? '恢复中…' : '去授权'"), '底部栏失效态有去授权按钮');
+ok(seat.includes("this.semErr.indexOf('登录已失效') >= 0"), '研讨间卡识别会话失效态');
+ok(seat.includes("this.seatAuthorizing ? '恢复中…' : '去授权座位系统'"), '研讨间卡失效态有去授权按钮');
+// 两个入口都必须复用 authorizeSeat()（跳登录带 from=seat + 回跳重试），不能新造绕过风控的路径
+const authCalls = (seat.match(/this\.authorizeSeat\(\)/g) || []).length;
+ok(authCalls >= 3, '失效态去授权入口复用 authorizeSeat()（门禁/底栏/研讨间共3处）');
+
 console.log(`ALL PASS ${pass} assertions`);
