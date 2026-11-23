@@ -273,7 +273,9 @@ export struct SeatPage {
     }
     this.loadTree();
     void this.loadQuota();
-    this.syncTasks();
+    // ⚠️ 仓库 init() 负责从 Prefs 读回持久化任务（幂等）；不调它则冷启动后 getTasks() 恒空。
+    // 之前没有任何地方调用过 init —— 任务只在同进程内存里活着，重启即"消失"。
+    getTaskRepository().init().then(() => { this.syncTasks(); });
   }
 
   /** 阶段4：本地任务仓库 → UI 状态（仓库本身不是 @State，必须显式同步）。 */

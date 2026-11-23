@@ -1,5 +1,7 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-23 alpha.47（versionCode 46→47）真机又抓到一个冷启动 bug**：alpha.46 装机后列表 tab 的额度副标题「每天最多可取消 2 次 · 今天还剩 2 次 · 座位需刷卡签到 · 刚刚更新」、任务区骨架（已结束/展开/清除/打开监控面板）都正常，但**之前创建的监控任务不显示**。根因：`SeatTaskRepository.init()`（从 Prefs 读回持久化任务）在 SeatPage 从未调用——任务只在同进程内存里活着，重启即"消失"（SeatMonitorPage 有调，但用户没先进那个页）。修复：`SeatPage.aboutToAppear` 里 `getTaskRepository().init().then(() => this.syncTasks())`；test-seatlist +1 守卫拆红验过。全量 **92/92 套件 4020 断言绿**，`assembleHap` 成功。
+
 > **2026-11-23 alpha.46（versionCode 45→46）阶段4：列表 tab 补齐（座位迁移收尾）**：
 > - **规则弹窗**：「查看座位预约规则」从跳网页改为本地要点弹窗（6 条 + 免责声明，源自 `/api/index/booking_rules`，对齐 Android SeatRulesDialog）；研讨间的网页预约入口保留（两类资源不同）。
 > - **任务区**：进行中任务常显、终态收进可展开的「已结束」分组；每条显示模式/状态徽章/座位/日期时段/存活信息行（已等待·尝试次数·最近尝试），对齐 Android TaskCards + TaskListLogic。

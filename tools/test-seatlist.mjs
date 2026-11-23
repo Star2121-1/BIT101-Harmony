@@ -119,6 +119,8 @@ ok(seat.includes('quotaSubtitle(this.remainingCancelsLeft') && seat.includes('Ca
 ok(seat.includes('activeTasks(this.tasks)') && seat.includes('finishedTasks(this.tasks)')
   && seat.includes('this.showFinished'), '任务区进行中常显/终态可展开');
 ok(seat.includes('livenessText(t.createdAt'), '任务卡显示存活信息（唯一"后台还活着"证据）');
+ok(seat.includes('getTaskRepository().init().then'),
+  '列表 tab 冷启动先 init 仓库再同步（否则重启后持久化任务看不见）');
 ok(quotaStore.includes('encodeQuota') && quotaStore.includes('decodeQuota'),
   '额度存储用可解析串（ArkTS 禁动态对象）');
 
