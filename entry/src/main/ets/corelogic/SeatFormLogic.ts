@@ -82,6 +82,15 @@ export function dateOptions(days: string[], today: string, tomorrow: string): st
   return out;
 }
 
+/**
+ * 进入座位图页的校验：只要求选好区域。
+ * ⚠️ 不能用 validateForm(MONITOR, …)：那条要求「先选目标座位」，而目标座位正是在图页里选的，
+ * 用它当入口校验会形成"要进选座页必须先选座"的死结（真机 2026-11-23 抓到）。
+ */
+export function validateMapEntry(hasArea: boolean): string | null {
+  return hasArea ? null : '请完整选择校区、楼层和区域';
+}
+
 /** 表单校验（对齐 Android 底部按钮的校验）：返回错误文案，null = 通过。 */
 export function validateForm(
   mode: FormMode,

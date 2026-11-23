@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   FormMode, modeLabel, dateLabel, tomorrowOf, primaryButtonLabel, pickedSeatTitle,
-  pickedSeatHint, pickButtonLabel, dateOptions, validateForm,
+  pickedSeatHint, pickButtonLabel, dateOptions, validateForm, validateMapEntry,
 } from "../entry/src/main/ets/corelogic/SeatFormLogic.ts";
 
 let pass = 0;
@@ -58,5 +58,9 @@ eq(validateForm(FormMode.MONITOR, true, 0), "监控预约需要先在座位图�
 eq(validateForm(FormMode.MONITOR, true, 1), null, "监控选了座通过");
 eq(validateForm(FormMode.PREFER, true, 0), null, "优先不选座也通过（不限座位）");
 eq(validateForm(FormMode.PREFER, true, 3), null, "优先选多座通过");
+
+// ── 进图页校验（不能拿 validateForm(MONITOR) 当前置条件，否则"进选座页要先选座"死结）──
+eq(validateMapEntry(false), "请完整选择校区、楼层和区域", "进图页未选区域报错");
+eq(validateMapEntry(true), null, "选了区域就能进图页（监控/优先在图页里选座）");
 
 console.log(`ALL PASS ${pass} assertions`);

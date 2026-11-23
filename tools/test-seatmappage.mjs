@@ -147,5 +147,7 @@ ok(page.includes('cancelTarget = s.id') && page.includes('doCancel()'), '取消�
 ok(page.includes('router.pushUrl({ url: \'pages/LoginPage\', params: { from: \'seat\' } })'), '授权失败回登录保留来源');
 ok(page.includes("parts.join(';')") && seat.includes("raw.split(';')"),
   '回传串用 split 还原（ArkTS 禁动态对象进 AppStorage）');
+ok(seat.includes('validateMapEntry(') && seat.includes('this.formErr = validateMapEntry('),
+  '进图页只校验区域（不拿 MONITOR 的「先选座」校验当前置，防死结）');
 
 console.log(`ALL PASS pass=${pass} fail=0`);

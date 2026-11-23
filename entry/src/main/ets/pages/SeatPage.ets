@@ -44,7 +44,7 @@ import {
 import { signInHintFor } from '../corelogic/SeatReserveLogic.ts';
 import {
   FormMode, modeLabel, dateLabel, tomorrowOf, primaryButtonLabel, pickedSeatTitle,
-  pickedSeatHint, pickButtonLabel, dateOptions, validateForm,
+  pickedSeatHint, pickButtonLabel, dateOptions, validateForm, validateMapEntry,
 } from '../corelogic/SeatFormLogic.ts';
 
 @Entry
@@ -293,7 +293,7 @@ export struct SeatPage {
 
   /** 阶段3：从新建预约表单跳独立座位图页（三种用途共用一页，mode 决定标题/底栏/可点语义）。 */
   private openSeatMap(mode: FormMode): void {
-    this.formErr = validateForm(mode, this.selArea.length > 0, this.pickedSeatNos.length) ?? '';
+    this.formErr = validateMapEntry(this.selArea.length > 0) ?? '';
     if (this.formErr.length > 0) return;
     this.pickHint = '';
     router.pushUrl({
