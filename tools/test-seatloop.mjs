@@ -86,6 +86,22 @@ ok(seat.includes("this.semErr.indexOf('登录已失效') >= 0"), '研讨间卡�
 ok(seat.includes("this.seatAuthorizing ? '恢复中…' : '去授权座位系统'"), '研讨间卡失效态有去授权按钮');
 // 两个入口都必须复用 authorizeSeat()（跳登录带 from=seat + 回跳重试），不能新造绕过风控的路径
 const authCalls = (seat.match(/this\.authorizeSeat\(\)/g) || []).length;
-ok(authCalls >= 3, '失效态去授权入口复用 authorizeSeat()（门禁/底栏/研讨间共3处）');
+ok(authCalls >= 4, '失效态去授权入口复用 authorizeSeat()（门禁/底栏/研讨间/我的预约共4处）');
+
+// ── ⑧ 我的预约置顶列表tab（对齐 Android TaskListScreen，解决"预约成功看不到结果"）──
+ok(seat.includes('myReservationSection()'), '有我的预约 SectionHeader Builder');
+// 我的预约 SectionHeader 必须在列表 tab 分支内、且在 renCard 之前
+const listTab = seat.slice(seat.indexOf("} else {\n            // ── 列表视图"));
+ok(listTab.indexOf('myReservationSection()') >= 0 && listTab.indexOf('myReservationSection()') < listTab.indexOf('this.renCard()'),
+  '列表 tab 顶部先我的预约、再违约卡');
+ok(!seat.includes("Text('我的预约（' + this.myCount + '）')\n              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 16 })"),
+  '预约 tab 不再把我的预约埋在座位列表底部');
+ok(seat.includes("this.reserveResult = '预约成功！' + signInHintFor(this.queryDay, SeatTreeService.today());\n        await this.loadSeats();\n        await this.loadMyReservations();\n        // 对齐 Android SeatMapScreen.onNavigateToTasks()"),
+  '预约成功后自动切到列表 tab');
+ok(seat.includes("this.seatTab = 'list';"), '预约成功 seatTab 置 list');
+// 切列表 tab 时刷新账号级数据
+const listChip = seat.slice(seat.indexOf("label: '列表'"), seat.indexOf("label: '列表'") + 350);
+ok(listChip.includes('this.loadMyReservations()') && listChip.includes('this.loadReneges()') && listChip.includes('this.loadSeminars()'),
+  '切列表 tab 刷新我的预约/违约/研讨间（对齐 Android refreshAll）');
 
 console.log(`ALL PASS ${pass} assertions`);

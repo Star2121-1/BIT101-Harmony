@@ -479,6 +479,9 @@ export struct SeatPage {
         this.reserveResult = '预约成功！' + signInHintFor(this.queryDay, SeatTreeService.today());
         await this.loadSeats();
         await this.loadMyReservations();
+        // 对齐 Android SeatMapScreen.onNavigateToTasks()：预约成功直接跳列表 tab，
+        // 「我的预约」在最顶部——用户立刻看到结果，不用滚 184 条座位。
+        this.seatTab = 'list';
       } else {
         this.reserveResult = res.message ?? '预约失败';
       }
@@ -596,6 +599,11 @@ export struct SeatPage {
           selected: this.seatTab === 'list',
           onTap: () => {
             this.seatTab = 'list';
+            // 对齐 Android TaskListScreen：切到列表 tab  refreshAll()
+            // （账号级数据，不依赖选区域；用户主动切换=明确刷新意图）
+            this.loadMyReservations();
+            this.loadReneges();
+            this.loadSeminars();
           },
         })
           .margin({ left: 8 })
@@ -739,15 +747,8 @@ export struct SeatPage {
                 .fontSize(11).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 14 })
             }
 
-            // ── 我的预约（权威列表 /api/index/subscribe）──
-            Text('我的预约（' + this.myCount + '）')
-              .fontSize(12).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 16 })
-            if (this.mineLoading) {
-              Text('拉取我的预约…').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
-            } else if (this.mineErr.length > 0) {
-              Text(this.mineErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 4 })
-            }
-            this.myBlock()
+            // 「我的预约」已搬到「列表」tab 顶部（对齐 Android TaskListScreen）：
+            // 预约成功后自动切到列表 tab，用户立刻看到结果，不用滚 184 条座位。
 
             // ── 取消确认条 ──（预约确认已搬到 Scroll 外的底部固定栏，对齐 Android）
             if (this.cancelTarget !== null || this.cancelResult.length > 0) {
@@ -757,7 +758,9 @@ export struct SeatPage {
             Text('取消 / 预约为敏感操作，需设备端真机回归（当前离线未验）')
               .fontSize(10).fontColor(this.tk().textPlaceholder).width('100%').margin({ top: 12 })
           } else {
-            // ── 列表视图（对齐原版 ref-05：违约卡 + 研讨间卡 + 预约任务卡 + 规则链接）──
+            // ── 列表视图（对齐 Android TaskListScreen）──
+            // 我的预约置顶：预约成功后自动切到本 tab，用户立刻看到结果。
+            this.myReservationSection()
             this.renCard()
             this.seminarCard()
             this.taskCard()
@@ -985,6 +988,48 @@ export struct SeatPage {
       }, (m: MyReservation) => 'myres' + m.id)
     }
     .width('100%')
+  }
+
+  /** 我的预约区块（列表 tab 顶部，对齐 Android TaskListScreen 的「我的预约」SectionHeader）。
+   *  含标题+条数、刷新按钮、规则文案、卡片列表；预约成功后自动切到本 tab 立即可见。 */
+  @Builder
+  myReservationSection() {
+    Column() {
+      Row() {
+        Text('我的预约（' + this.myCount + '）')
+          .fontSize(13).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).layoutWeight(1)
+        Text('刷新')
+          .fontSize(11).fontColor(this.tk().primary)
+          .onClick(() => {
+            this.loadMyReservations();
+          })
+      }
+      .width('100%')
+      Text('每天最多可取消 2 次 · 座位需刷卡签到')
+        .fontSize(10).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 2 })
+      if (this.mineLoading) {
+        Text('拉取我的预约…').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+      } else if (this.mineErr.length > 0) {
+        Text(this.mineErr).fontSize(11).fontColor(this.tk().error).width('100%').margin({ top: 6 })
+        if (this.mineErr.indexOf('登录已失效') >= 0) {
+          Button(this.seatAuthorizing ? '恢复中…' : '去授权')
+            .height(28).fontSize(11).margin({ top: 6 })
+            .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+            .enabled(!this.seatAuthorizing)
+            .onClick(() => {
+              this.authorizeSeat();
+            })
+        }
+      } else if (this.mine.length === 0) {
+        Text('还没有座位预约').fontSize(11).fontColor(this.tk().onSurfaceVariant)
+          .width('100%').margin({ top: 6 })
+      } else {
+        this.myBlock()
+      }
+    }
+    .width('100%').padding(12).margin({ bottom: 10 })
+    .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
+    .alignItems(HorizontalAlign.Start)
   }
 
   /** 单条我的预约行。 */
