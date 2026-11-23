@@ -1,5 +1,10 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-23 alpha.40 预约确认交互对齐 Android**（versionCode 39→40）：
+> - **问题（用户真机反馈）**：alpha.39 装机后手点座位「点我预约」，确认条不在附近弹出，而是塞在 Scroll 长列表**最底部**（"我的预约"之后），要滚到底才看得到——交互差。（此前自动化点击"没触发"的判断被推翻：点击其实生效了，只是确认条在视图外，dump 看不到 ⇒ 误判为 onClick 未调用；代码探针的"未触发"结论实为同一视图外原因，已纠正。）
+> - **改造（对齐 Android SeatMapScreen.ReserveBottomBar）**：把预约确认从 Scroll 内搬到 **Scroll 外的底部固定操作栏** `reserveBottomBar()`：未选座位显示"点选空闲座位后在此确认"；选中后显示"已选座位 XXX + 签到提示（60分钟/次日9:00）+ 确认预约 XXX 按钮 + 取消选择"；点按钮才真调 confirmReserve（铁律 0.6 不变：点座位只选中、不自动预约）。新增 `reserveSeatNo` 字段反查座位展示号。删除旧 `reserveBlock()`。
+> - 守卫：test-seatloop +9 断言锁死"底栏在 Scroll 之后 / 带签到文案 / 按钮带座位号 / 旧确认条已移除"，拆红验过。全量 + 编译见当批提交。真机待验。
+
 > **2026-11-22 alpha.37 座位"未授权"根因修复 + 研讨间补齐**（versionCode 36→37）：
 > - **根因重判（真机探针铁证，evidence/seat-unauth-rootcause-20261121.md）**：用户本人重登后仍"未授权"。应用内座位 wire 探针对同一把 JWT（len=513）实测：subscribe/reneges/seminar **全 200 code=1**（seminar 返回真实 booker=1120241355 的 9 条）⇒ JWT 有效、认证正常，**"未授权"是误判**。（renew 失败=PHPSESSID 死，但不影响 authed 端点。）真因：`SeatPage.loadSeats` 从不调 `fetchSeatDates`，segment 写死 `''`、时间写死 `00:00-24:00` ⇒ 契约 §2 空/非法 segment → HTTP 500 空 body，前端又把 500 一律判成"授权失效"。**此前 alpha.34/36 归因为"单会话互踢/token 失效"对此场景是错的**（单会话机制真实存在但非本次根因）。
 > - **修复**：新增 `resolveSeatSegment`（corelogic 纯逻辑，对齐 Android `SeatViewModel.resolveSegmentParams`，test-seatsegment 11 断言 + 拆红验过）；loadSeats 先 `fetchSeatDates(build_id=selArea)` 拿真实时段再查座位；confirm 用同一时段；500 判据收紧为"用正确参数仍 500 才算失效"。test-seatloop 加 5 条守卫锁死"不再传空 segment"（拆红验过）。

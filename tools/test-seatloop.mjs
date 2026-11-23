@@ -62,8 +62,21 @@ ok(confirm.includes("confirmSeat(ctx, user.jwt, sid, this.segParams.segment)"), 
 // ── ⑤ 签到提示文案（契约 §4：当日 60 分钟 / 次日 9:00）──
 ok(seat.includes("this.reserveResult = '预约成功！' + signInHintFor(this.queryDay, SeatTreeService.today())"),
   '预约成功提示带准确签到文案（60分钟/次日9点）');
-ok(seat.includes("Text('确认预约该座位？' + signInHintFor(this.queryDay, SeatTreeService.today()))"),
-  '确认弹窗带准确签到文案');
-ok(!seat.includes("Text('确认预约该座位？预约后请在签到截止前刷卡"), '确认弹窗不再用笼统的"签到截止前"文案');
+ok(!seat.includes("Text('确认预约该座位？预约后请在签到截止前刷卡"), '不再用笼统的"签到截止前"文案');
+
+// ── ⑥ 底部固定预约栏（对齐 Android ReserveBottomBar）──
+ok(seat.includes('reserveBottomBar()'), '有底部固定预约栏 Builder 调用');
+ok(seat.includes('@Builder\n  reserveBottomBar()'), 'reserveBottomBar 是 @Builder');
+ok(seat.includes("Text(signInHintFor(this.queryDay, SeatTreeService.today()))"),
+  '底部固定栏带准确签到文案（60分钟/次日9点）');
+ok(seat.includes("'确认预约 ' + (this.reserveSeatNo.length > 0 ? this.reserveSeatNo : this.reserveTarget)"),
+  '确认按钮带选中座位号（对齐 Android「预约 XXX」）');
+// 底栏必须在 Scroll 闭合之后、主 Column 内 —— 防止又塞回长列表底部
+const scrollTail = seat.slice(seat.indexOf('.align(Alignment.Top)'), seat.indexOf('.align(Alignment.Top)') + 500);
+ok(scrollTail.indexOf('reserveBottomBar()') >= 0, '底部栏位于 Scroll 之后（不随列表滚动）');
+// 铁律 0.6：点座位只选中，真预约仍只在底栏确认按钮触发
+ok(seat.includes('this.requestReserve(s.id);'), '点座位行走 requestReserve（只选中，不直接预约）');
+ok(!seat.includes('confirmReserve()') || seat.includes('this.confirmReserve();'), '真预约仍走用户点确认按钮');
+ok(!seat.includes('reserveBlock()'), '旧的列表内确认条已移除');
 
 console.log(`ALL PASS ${pass} assertions`);

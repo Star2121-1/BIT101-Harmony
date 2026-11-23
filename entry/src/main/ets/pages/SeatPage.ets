@@ -110,6 +110,8 @@ export struct SeatPage {
 
   // 预约确认态（铁律 0.6 对称：点空闲座位 → 二次确认 → 才真调 confirm）
   @State reserveTarget: string | null = null;
+  /** 选中座位的展示号（对齐 Android ReserveBottomBar「预约 ${seat.no}」）。 */
+  @State reserveSeatNo: string = '';
   @State reserveBusy: boolean = false;
   @State reserveResult: string = '';
 
@@ -272,6 +274,7 @@ export struct SeatPage {
     this.seatsErr = '';
     this.seatAuthExpired = false;
     this.reserveTarget = null;
+    this.reserveSeatNo = '';
     this.reserveResult = '';
     try {
       const ctx: Context = getContext(this) as Context;
@@ -425,10 +428,19 @@ export struct SeatPage {
     this.cancelBusy = false;
   }
 
-  /** 点空闲座位行：先进预约确认态，不直接调接口（铁律 0.6）。 */
+  /** 点空闲座位行：先进预约确认态，不直接调接口（铁律 0.6）。
+   *  同时反查座位展示号，供底部固定栏显示「预约 XXX」（对齐 Android ReserveBottomBar）。 */
   private requestReserve(seatId: string): void {
     this.reserveTarget = seatId;
     this.reserveResult = '';
+    let no: string = '';
+    for (let i = 0; i < this.seats.length; i++) {
+      if (this.seats[i].id === seatId) {
+        no = this.seats[i].no.length > 0 ? this.seats[i].no : this.seats[i].id;
+        break;
+      }
+    }
+    this.reserveSeatNo = no;
   }
 
   /** 二次确认后才真正预约（有对外副作用，铁律 0.6）。
@@ -737,14 +749,9 @@ export struct SeatPage {
             }
             this.myBlock()
 
-            // ── 取消确认条 ──
+            // ── 取消确认条 ──（预约确认已搬到 Scroll 外的底部固定栏，对齐 Android）
             if (this.cancelTarget !== null || this.cancelResult.length > 0) {
               this.cancelBlock()
-            }
-
-            // ── 预约确认条 ──
-            if (this.reserveTarget !== null || this.reserveResult.length > 0) {
-              this.reserveBlock()
             }
 
             Text('取消 / 预约为敏感操作，需设备端真机回归（当前离线未验）')
@@ -770,9 +777,57 @@ export struct SeatPage {
       .layoutWeight(1)
       // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
       .align(Alignment.Top)
+
+      // 底部固定预约操作栏（对齐 Android SeatMapScreen.ReserveBottomBar）：
+      // 放在 Scroll 外、主 Column 尾部 ⇒ 不随长列表滚动，选中座位后始终可见。
+      if (this.seatTab === 'book') {
+        this.reserveBottomBar()
+      }
     }
     .width('100%').height('100%')
     .backgroundColor(this.tk().background)
+  }
+
+  /** 底部固定预约栏（对齐 Android ReserveBottomBar，铁律 0.6）：
+   *  未选座位 → 提示"先点选空闲座位"；已选 → 显示座位号 + 签到提示 + 确认按钮；
+   *  点按钮才真调 confirmReserve（点座位本身只是选中，绝不自动预约）。 */
+  @Builder
+  reserveBottomBar() {
+    Column() {
+      if (this.reserveTarget !== null) {
+        Row() {
+          Text('已选座位 ' + (this.reserveSeatNo.length > 0 ? this.reserveSeatNo : this.reserveTarget))
+            .fontSize(13).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface).layoutWeight(1)
+          Text('取消选择')
+            .fontSize(11).fontColor(this.tk().primary)
+            .onClick(() => {
+              this.reserveTarget = null;
+              this.reserveSeatNo = '';
+              this.reserveResult = '';
+            })
+        }
+        .width('100%')
+        Text(signInHintFor(this.queryDay, SeatTreeService.today()))
+          .fontSize(11).fontColor(this.tk().stateAttention).width('100%').margin({ top: 4 })
+        Button(this.reserveBusy ? '预约中…' : '确认预约 ' + (this.reserveSeatNo.length > 0 ? this.reserveSeatNo : this.reserveTarget))
+          .width('100%').height(36).fontSize(13).margin({ top: 8 })
+          .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
+          .enabled(!this.reserveBusy)
+          .onClick(() => {
+            this.confirmReserve();
+          })
+      } else {
+        Text('点选上方空闲座位后在此确认预约')
+          .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').textAlign(TextAlign.Center)
+      }
+      if (this.reserveResult.length > 0) {
+        Text(this.reserveResult).fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 6 })
+      }
+    }
+    .width('100%').padding({ left: 12, right: 12, top: 10, bottom: 10 })
+    .backgroundColor(this.tk().surfaceVariant)
+    .borderRadius({ topLeft: 12, topRight: 12 })
+    .alignItems(HorizontalAlign.Start)
   }
 
   /** 单个座位行（纯渲染，无局部变量；状态色/文案走 SeatApiLogic）。
@@ -960,29 +1015,6 @@ export struct SeatPage {
       }
       if (this.cancelResult.length > 0) {
         Text(this.cancelResult).fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
-      }
-    }
-    .width('100%').padding(10).margin({ top: 8 })
-    .backgroundColor(this.tk().surfaceVariant).borderRadius(12)
-  }
-
-  /** 预约结果 / 确认提示条。 */
-  @Builder
-  reserveBlock() {
-    Column() {
-      if (this.reserveTarget !== null) {
-        Text('确认预约该座位？' + signInHintFor(this.queryDay, SeatTreeService.today()))
-          .fontSize(11).fontColor(this.tk().stateAttention).width('100%')
-        Button('确认预约')
-          .height(26).fontSize(11).margin({ top: 6 })
-          .backgroundColor(this.tk().primary).fontColor(this.tk().onPrimary)
-          .enabled(!this.reserveBusy)
-          .onClick(() => {
-            this.confirmReserve();
-          })
-      }
-      if (this.reserveResult.length > 0) {
-        Text(this.reserveResult).fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
       }
     }
     .width('100%').padding(10).margin({ top: 8 })
