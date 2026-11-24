@@ -1,0 +1,71 @@
+=== 拆红反证 · 红日志（RED）===
+守卫名: cancelTarget
+批次目录: evidence/s4-sidecheck-20261124/
+工作目录: F:/Agent_Work/BIT-102/harmony/BIT101-harmony
+仓库/分支: BIT101-harmony / main
+执行命令: node --experimental-transform-types tools/test-seatsideeffect.mjs
+Node 版本: v22.22.2
+执行时间戳: 2026-11-24 11:55:40 +0800
+执行结束时间戳: 2026-11-24 11:55:42 +0800
+
+--- ① 拆红改动定位（须可核验「真移除」，非注释 / 非 if(false) / 非改变量名）---
+文件: entry/src/main/ets/pages/SeatMapPage.ets
+行号: 324（git diff hunk @@ -321,7 +321,6 @@ struct SeatMapPage）
+改前原文（逐字）:       this.cancelTarget = s.id;
+改后原文: （该整行删除，语句从源码中消失，不再可执行）
+拆红手段: 整行删除（DELETE LINE），不是 // 注释、不是 /* */ 注释、不是 if(false) 包裹、不是改无关变量名
+
+git diff 真实输出:
+diff --git a/entry/src/main/ets/pages/SeatMapPage.ets b/entry/src/main/ets/pages/SeatMapPage.ets
+index ee33137..7aa55f7 100644
+--- a/entry/src/main/ets/pages/SeatMapPage.ets
++++ b/entry/src/main/ets/pages/SeatMapPage.ets
+@@ -321,7 +321,6 @@ struct SeatMapPage {
+       return;
+     }
+     if (isCancelInstead(s.status)) {
+-      this.cancelTarget = s.id;
+       this.hint = '再次点击「取消预约」确认取消 ' + (s.no.length > 0 ? s.no : s.id);
+       return;
+     }
+
+--- ② 失败断言定位（套件名 + 断言原文 + 行号 + 期望/实际）---
+套件名: tools/test-seatsideeffect.mjs（用例头: === 座位预约/取消副作用边界用例 ===）
+断言原文（源码 L71-72）:
+  ok(map.includes('this.cancelTarget = s.id') && map.includes('isCancelInstead(s.status)'),
+    '只有「我已预约」座位才进取消确认态');
+断言消息: 只有「我已预约」座位才进取消确认态
+失败行号: tools/test-seatsideeffect.mjs:71:1（ok 定义于 :25:31）
+错误类型: AssertionError [ERR_ASSERTION]
+期望 expected: true
+实际 actual: false
+触发因果: 守卫检查 map.includes('this.cancelTarget = s.id')；该语句被整行删除后 includes 返回 false，断言失败
+
+测试原始输出（真实捕获）:
+=== 座位预约/取消副作用边界用例 ===
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: 只有「我已预约」座位才进取消确认态
+    at ok (file:///F:/Agent_Work/BIT-102/harmony/BIT101-harmony/tools/test-seatsideeffect.mjs:25:31)
+    at file:///F:/Agent_Work/BIT-102/harmony/BIT101-harmony/tools/test-seatsideeffect.mjs:71:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v22.22.2
+
+--- ③ 进程退出码（必需：非 0）---
+EXITCODE=1
+说明: 进程退出码非 0（=1），满足 §2.4-A 红日志退出码必需条件。本套件 ok() 基于 assert.ok，断言失败直接抛错中断，故无 ALL PASS / fail=N 行，退出码以进程为准。
+
+--- ④ 执行时间戳 ---
+2026-11-24 11:55:40 +0800

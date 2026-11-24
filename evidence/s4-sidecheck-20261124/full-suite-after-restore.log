@@ -1,0 +1,1968 @@
+
+──────── test-splash ────────
+图标底色（background.png 中心）= #FF9A57
+PASS entry/src/main/resources/base/element/color.json 有 start_window_background
+PASS entry/src/main/resources/base/element/color.json 的启动窗底色 = #FF9A57 与图标底色 #FF9A57 一致
+PASS entry/src/main/resources/dark/element/color.json 有 start_window_background
+PASS entry/src/main/resources/dark/element/color.json 的启动窗底色 = #FF9A57 与图标底色 #FF9A57 一致
+PASS startIcon 边长 512x512 ≥ 64
+PASS startIcon 是带 alpha 的 PNG（colorType=6）—— 不透明就会在橙底上留一个方块
+PASS startIcon 四角全透明（最大 alpha=0）
+PASS startIcon 中心区域有实体内容（采样到 1486 个不透明点）
+PASS module.json5 的 startWindowIcon 指向 $media:startIcon
+PASS module.json5 的 startWindowBackground 指向 $color:start_window_background
+
+ALL PASS  pass=10 fail=0
+→ 通过（10 条）
+
+──────── test-uiconventions ────────
+PASS 扫到 53 个 .ets 文件
+PASS 扫到 32 处 Scroll() 声明
+PASS 所有 Scroll 的顶对齐都挂在 Scroll 自身（违规 0 处）
+PASS 页面不再引用旧 AppColors（违规 0 个）
+
+ALL PASS  pass=4 fail=0
+→ 通过（4 条）
+
+──────── test-termstore ────────
+PASS 扫到 234 个 .ets/.ts 文件
+PASS 学期偏好只有 TermStore.ts 一个来源（别处不出现 ui_term_override）
+PASS SchoolService.getCurrentTerm 存在
+PASS getCurrentTerm 先问 TermStore、再联网（顺序反了等于没生效）
+PASS 空字符串按「跟随教务」处理（走 isTermOverride，不靠 length 手写）
+PASS 课表页学期 chips 只在独立页渲染（嵌外壳时原版没有这行）
+PASS 设置页有「学期」分组
+PASS 设置页切学期走 TermStore.set（落盘 + 广播）
+PASS 设置页订阅学期覆盖值（选中态才跟手）
+PASS 课表页用 @StorageLink + @Watch 接住学期变化（壳里保活，aboutToAppear 不会再跑）
+PASS split(3年) 近期=6 旧=2
+PASS 近期按原序（新→旧）
+PASS 旧学期含 2022 与 2010
+PASS 空列表拆分不崩
+PASS 列表比阈值短 → 全近期
+PASS 脏值串归旧学期，不污染近期
+PASS 设置页学期拆分走 splitTermsByRecentYears 纯函数
+
+ALL PASS  pass=17 fail=0
+→ 通过（17 条）
+
+──────── test-gridcontrast ────────
+=== 算法自检 ===
+PASS 黑/白 ≈ 21 = 21.00 (需 ≥20.9)
+PASS 同色对比度 = 1
+
+=== brand/light ===
+PASS brand/light onBackground on background —— 页面正文 / 页面底 = 16.20 (需 ≥4.5)
+PASS brand/light onSurface on surface —— 卡片正文 / 卡片底 = 17.08 (需 ≥4.5)
+PASS brand/light onSurface on background —— 卡片正文 / 页面底（未铺卡的区块） = 16.20 (需 ≥4.5)
+PASS brand/light onSurfaceVariant on surface —— 副标题·次要信息·未选 chip / 卡片底 = 8.65 (需 ≥4.5)
+PASS brand/light onSurfaceVariant on background —— 副标题 / 页面底 = 8.20 (需 ≥4.5)
+PASS brand/light onSurfaceVariant on surface2 —— 未选中的 chip/tab 文字 / 次级面 = 7.09 (需 ≥4.5)
+PASS brand/light textPlaceholder on surface —— 装饰性三级文字 / 卡片底 = 6.16 (需 ≥4.5)
+PASS brand/light textPlaceholder on background —— 装饰性三级文字 / 页面底 = 5.84 (需 ≥4.5)
+PASS brand/light textPlaceholder on surface2 —— 装饰性三级文字 / 次级面（装饰档） = 5.06 (需 ≥3)
+PASS brand/light primary on surface —— 主色文字（链接/可点）/ 卡片底 = 7.94 (需 ≥4.5)
+PASS brand/light primary on background —— 主色文字 / 页面底 = 7.53 (需 ≥4.5)
+PASS brand/light onPrimary on primary —— 实底按钮字 / 按钮底 = 7.94 (需 ≥4.5)
+PASS brand/light accentText on surface —— 警示文字（旧 warn 的去处）/ 卡片底 = 5.93 (需 ≥4.5)
+PASS brand/light accentText on background —— 警示文字 / 页面底 = 5.62 (需 ≥4.5)
+PASS brand/light error on surface —— 错误文字 / 卡片底 = 6.54 (需 ≥4.5)
+PASS brand/light error on background —— 错误文字 / 页面底 = 6.20 (需 ≥4.5)
+PASS brand/light onSecondaryContainer on secondaryContainer —— 薄荷卡上的字 / 薄荷卡底 = 8.98 (需 ≥4.5)
+PASS brand/light onPrimaryContainer on primaryContainer —— 桃色卡上的字 / 桃色卡底 = 9.89 (需 ≥4.5)
+PASS brand/light success on surface —— 成功文字 / 卡片底 = 5.00 (需 ≥4.5)
+PASS brand/light onSurfaceVariant on surfaceElevated —— 底栏未选中项文字 / 底栏底 = 7.57 (需 ≥4.5)
+PASS brand/light onSecondaryContainer on surfaceElevated —— 底栏选中项文字 / 底栏底 = 10.03 (需 ≥4.5)
+PASS brand/light onSurface on surfaceElevated —— 正文 / 抬高一层的面 = 14.95 (需 ≥4.5)
+
+=== brand/dark ===
+PASS brand/dark onBackground on background —— 页面正文 / 页面底 = 14.77 (需 ≥4.5)
+PASS brand/dark onSurface on surface —— 卡片正文 / 卡片底 = 13.82 (需 ≥4.5)
+PASS brand/dark onSurface on background —— 卡片正文 / 页面底（未铺卡的区块） = 14.77 (需 ≥4.5)
+PASS brand/dark onSurfaceVariant on surface —— 副标题·次要信息·未选 chip / 卡片底 = 9.97 (需 ≥4.5)
+PASS brand/dark onSurfaceVariant on background —— 副标题 / 页面底 = 10.65 (需 ≥4.5)
+PASS brand/dark onSurfaceVariant on surface2 —— 未选中的 chip/tab 文字 / 次级面 = 7.99 (需 ≥4.5)
+PASS brand/dark textPlaceholder on surface —— 装饰性三级文字 / 卡片底 = 7.74 (需 ≥4.5)
+PASS brand/dark textPlaceholder on background —— 装饰性三级文字 / 页面底 = 8.27 (需 ≥4.5)
+PASS brand/dark textPlaceholder on surface2 —— 装饰性三级文字 / 次级面（装饰档） = 6.20 (需 ≥3)
+PASS brand/dark primary on surface —— 主色文字（链接/可点）/ 卡片底 = 9.94 (需 ≥4.5)
+PASS brand/dark primary on background —— 主色文字 / 页面底 = 10.62 (需 ≥4.5)
+PASS brand/dark onPrimary on primary —— 实底按钮字 / 按钮底 = 7.43 (需 ≥4.5)
+PASS brand/dark accentText on surface —— 警示文字（旧 warn 的去处）/ 卡片底 = 10.12 (需 ≥4.5)
+PASS brand/dark accentText on background —— 警示文字 / 页面底 = 10.81 (需 ≥4.5)
+PASS brand/dark error on surface —— 错误文字 / 卡片底 = 10.11 (需 ≥4.5)
+PASS brand/dark error on background —— 错误文字 / 页面底 = 10.80 (需 ≥4.5)
+PASS brand/dark onSecondaryContainer on secondaryContainer —— 薄荷卡上的字 / 薄荷卡底 = 6.33 (需 ≥4.5)
+PASS brand/dark onPrimaryContainer on primaryContainer —— 桃色卡上的字 / 桃色卡底 = 6.45 (需 ≥4.5)
+PASS brand/dark success on surface —— 成功文字 / 卡片底 = 10.55 (需 ≥4.5)
+PASS brand/dark onSurfaceVariant on surfaceElevated —— 底栏未选中项文字 / 底栏底 = 8.44 (需 ≥4.5)
+PASS brand/dark onSecondaryContainer on surfaceElevated —— 底栏选中项文字 / 底栏底 = 9.70 (需 ≥4.5)
+PASS brand/dark onSurface on surfaceElevated —— 正文 / 抬高一层的面 = 11.71 (需 ≥4.5)
+
+=== classic/light ===
+PASS classic/light onBackground on background —— 页面正文 / 页面底 = 16.30 (需 ≥4.5)
+PASS classic/light onSurface on surface —— 卡片正文 / 卡片底 = 16.30 (需 ≥4.5)
+PASS classic/light onSurface on background —— 卡片正文 / 页面底（未铺卡的区块） = 16.30 (需 ≥4.5)
+PASS classic/light onSurfaceVariant on surface —— 副标题·次要信息·未选 chip / 卡片底 = 8.88 (需 ≥4.5)
+PASS classic/light onSurfaceVariant on background —— 副标题 / 页面底 = 8.88 (需 ≥4.5)
+PASS classic/light onSurfaceVariant on surface2 —— 未选中的 chip/tab 文字 / 次级面 = 7.21 (需 ≥4.5)
+PASS classic/light textPlaceholder on surface —— 装饰性三级文字 / 卡片底 = 7.11 (需 ≥4.5)
+PASS classic/light textPlaceholder on background —— 装饰性三级文字 / 页面底 = 7.11 (需 ≥4.5)
+PASS classic/light textPlaceholder on surface2 —— 装饰性三级文字 / 次级面（装饰档） = 5.77 (需 ≥3)
+PASS classic/light primary on surface —— 主色文字（链接/可点）/ 卡片底 = 6.16 (需 ≥4.5)
+PASS classic/light primary on background —— 主色文字 / 页面底 = 6.16 (需 ≥4.5)
+PASS classic/light onPrimary on primary —— 实底按钮字 / 按钮底 = 6.47 (需 ≥4.5)
+PASS classic/light accentText on surface —— 警示文字（旧 warn 的去处）/ 卡片底 = 5.64 (需 ≥4.5)
+PASS classic/light accentText on background —— 警示文字 / 页面底 = 5.64 (需 ≥4.5)
+PASS classic/light error on surface —— 错误文字 / 卡片底 = 6.22 (需 ≥4.5)
+PASS classic/light error on background —— 错误文字 / 页面底 = 6.22 (需 ≥4.5)
+PASS classic/light onSecondaryContainer on secondaryContainer —— 薄荷卡上的字 / 薄荷卡底 = 7.19 (需 ≥4.5)
+PASS classic/light onPrimaryContainer on primaryContainer —— 桃色卡上的字 / 桃色卡底 = 7.21 (需 ≥4.5)
+PASS classic/light success on surface —— 成功文字 / 卡片底 = 4.76 (需 ≥4.5)
+PASS classic/light onSurfaceVariant on surfaceElevated —— 底栏未选中项文字 / 底栏底 = 7.90 (需 ≥4.5)
+PASS classic/light onSecondaryContainer on surfaceElevated —— 底栏选中项文字 / 底栏底 = 7.88 (需 ≥4.5)
+PASS classic/light onSurface on surfaceElevated —— 正文 / 抬高一层的面 = 14.49 (需 ≥4.5)
+
+=== classic/dark ===
+PASS classic/dark onBackground on background —— 页面正文 / 页面底 = 14.29 (需 ≥4.5)
+PASS classic/dark onSurface on surface —— 卡片正文 / 卡片底 = 14.29 (需 ≥4.5)
+PASS classic/dark onSurface on background —— 卡片正文 / 页面底（未铺卡的区块） = 14.29 (需 ≥4.5)
+PASS classic/dark onSurfaceVariant on surface —— 副标题·次要信息·未选 chip / 卡片底 = 10.82 (需 ≥4.5)
+PASS classic/dark onSurfaceVariant on background —— 副标题 / 页面底 = 10.82 (需 ≥4.5)
+PASS classic/dark onSurfaceVariant on surface2 —— 未选中的 chip/tab 文字 / 次级面 = 5.46 (需 ≥4.5)
+PASS classic/dark textPlaceholder on surface —— 装饰性三级文字 / 卡片底 = 8.61 (需 ≥4.5)
+PASS classic/dark textPlaceholder on background —— 装饰性三级文字 / 页面底 = 8.61 (需 ≥4.5)
+PASS classic/dark textPlaceholder on surface2 —— 装饰性三级文字 / 次级面（装饰档） = 4.35 (需 ≥3)
+PASS classic/dark primary on surface —— 主色文字（链接/可点）/ 卡片底 = 10.83 (需 ≥4.5)
+PASS classic/dark primary on background —— 主色文字 / 页面底 = 10.83 (需 ≥4.5)
+PASS classic/dark onPrimary on primary —— 实底按钮字 / 按钮底 = 7.70 (需 ≥4.5)
+PASS classic/dark accentText on surface —— 警示文字（旧 warn 的去处）/ 卡片底 = 10.80 (需 ≥4.5)
+PASS classic/dark accentText on background —— 警示文字 / 页面底 = 10.80 (需 ≥4.5)
+PASS classic/dark error on surface —— 错误文字 / 卡片底 = 10.79 (需 ≥4.5)
+PASS classic/dark error on background —— 错误文字 / 页面底 = 10.79 (需 ≥4.5)
+PASS classic/dark onSecondaryContainer on secondaryContainer —— 薄荷卡上的字 / 薄荷卡底 = 7.19 (需 ≥4.5)
+PASS classic/dark onPrimaryContainer on primaryContainer —— 桃色卡上的字 / 桃色卡底 = 7.21 (需 ≥4.5)
+PASS classic/dark success on surface —— 成功文字 / 卡片底 = 11.26 (需 ≥4.5)
+PASS classic/dark onSurfaceVariant on surfaceElevated —— 底栏未选中项文字 / 底栏底 = 9.24 (需 ≥4.5)
+PASS classic/dark onSecondaryContainer on surfaceElevated —— 底栏选中项文字 / 底栏底 = 12.19 (需 ≥4.5)
+PASS classic/dark onSurface on surfaceElevated —— 正文 / 抬高一层的面 = 12.21 (需 ≥4.5)
+
+=== warm/light ===
+PASS warm/light onBackground on background —— 页面正文 / 页面底 = 16.33 (需 ≥4.5)
+PASS warm/light onSurface on surface —— 卡片正文 / 卡片底 = 17.29 (需 ≥4.5)
+PASS warm/light onSurface on background —— 卡片正文 / 页面底（未铺卡的区块） = 16.33 (需 ≥4.5)
+PASS warm/light onSurfaceVariant on surface —— 副标题·次要信息·未选 chip / 卡片底 = 7.17 (需 ≥4.5)
+PASS warm/light onSurfaceVariant on background —— 副标题 / 页面底 = 6.77 (需 ≥4.5)
+PASS warm/light onSurfaceVariant on surface2 —— 未选中的 chip/tab 文字 / 次级面 = 6.27 (需 ≥4.5)
+PASS warm/light textPlaceholder on surface —— 装饰性三级文字 / 卡片底 = 5.53 (需 ≥4.5)
+PASS warm/light textPlaceholder on background —— 装饰性三级文字 / 页面底 = 5.22 (需 ≥4.5)
+PASS warm/light textPlaceholder on surface2 —— 装饰性三级文字 / 次级面（装饰档） = 4.83 (需 ≥3)
+PASS warm/light primary on surface —— 主色文字（链接/可点）/ 卡片底 = 6.57 (需 ≥4.5)
+PASS warm/light primary on background —— 主色文字 / 页面底 = 6.20 (需 ≥4.5)
+PASS warm/light onPrimary on primary —— 实底按钮字 / 按钮底 = 6.57 (需 ≥4.5)
+PASS warm/light accentText on surface —— 警示文字（旧 warn 的去处）/ 卡片底 = 5.93 (需 ≥4.5)
+PASS warm/light accentText on background —— 警示文字 / 页面底 = 5.60 (需 ≥4.5)
+PASS warm/light error on surface —— 错误文字 / 卡片底 = 6.54 (需 ≥4.5)
+PASS warm/light error on background —— 错误文字 / 页面底 = 6.17 (需 ≥4.5)
+PASS warm/light onSecondaryContainer on secondaryContainer —— 薄荷卡上的字 / 薄荷卡底 = 8.05 (需 ≥4.5)
+PASS warm/light onPrimaryContainer on primaryContainer —— 桃色卡上的字 / 桃色卡底 = 8.50 (需 ≥4.5)
+PASS warm/light success on surface —— 成功文字 / 卡片底 = 5.00 (需 ≥4.5)
+PASS warm/light onSurfaceVariant on surfaceElevated —— 底栏未选中项文字 / 底栏底 = 6.34 (需 ≥4.5)
+PASS warm/light onSecondaryContainer on surfaceElevated —— 底栏选中项文字 / 底栏底 = 9.03 (需 ≥4.5)
+PASS warm/light onSurface on surfaceElevated —— 正文 / 抬高一层的面 = 15.29 (需 ≥4.5)
+
+=== warm/dark ===
+PASS warm/dark onBackground on background —— 页面正文 / 页面底 = 15.93 (需 ≥4.5)
+PASS warm/dark onSurface on surface —— 卡片正文 / 卡片底 = 14.88 (需 ≥4.5)
+PASS warm/dark onSurface on background —— 卡片正文 / 页面底（未铺卡的区块） = 15.93 (需 ≥4.5)
+PASS warm/dark onSurfaceVariant on surface —— 副标题·次要信息·未选 chip / 卡片底 = 8.88 (需 ≥4.5)
+PASS warm/dark onSurfaceVariant on background —— 副标题 / 页面底 = 9.51 (需 ≥4.5)
+PASS warm/dark onSurfaceVariant on surface2 —— 未选中的 chip/tab 文字 / 次级面 = 8.11 (需 ≥4.5)
+PASS warm/dark textPlaceholder on surface —— 装饰性三级文字 / 卡片底 = 6.29 (需 ≥4.5)
+PASS warm/dark textPlaceholder on background —— 装饰性三级文字 / 页面底 = 6.74 (需 ≥4.5)
+PASS warm/dark textPlaceholder on surface2 —— 装饰性三级文字 / 次级面（装饰档） = 5.75 (需 ≥3)
+PASS warm/dark primary on surface —— 主色文字（链接/可点）/ 卡片底 = 9.50 (需 ≥4.5)
+PASS warm/dark primary on background —— 主色文字 / 页面底 = 10.17 (需 ≥4.5)
+PASS warm/dark onPrimary on primary —— 实底按钮字 / 按钮底 = 8.25 (需 ≥4.5)
+PASS warm/dark accentText on surface —— 警示文字（旧 warn 的去处）/ 卡片底 = 10.10 (需 ≥4.5)
+PASS warm/dark accentText on background —— 警示文字 / 页面底 = 10.82 (需 ≥4.5)
+PASS warm/dark error on surface —— 错误文字 / 卡片底 = 10.09 (需 ≥4.5)
+PASS warm/dark error on background —— 错误文字 / 页面底 = 10.81 (需 ≥4.5)
+PASS warm/dark onSecondaryContainer on secondaryContainer —— 薄荷卡上的字 / 薄荷卡底 = 7.36 (需 ≥4.5)
+PASS warm/dark onPrimaryContainer on primaryContainer —— 桃色卡上的字 / 桃色卡底 = 7.07 (需 ≥4.5)
+PASS warm/dark success on surface —— 成功文字 / 卡片底 = 10.54 (需 ≥4.5)
+PASS warm/dark onSurfaceVariant on surfaceElevated —— 底栏未选中项文字 / 底栏底 = 7.53 (需 ≥4.5)
+PASS warm/dark onSecondaryContainer on surfaceElevated —— 底栏选中项文字 / 底栏底 = 10.82 (需 ≥4.5)
+PASS warm/dark onSurface on surfaceElevated —— 正文 / 抬高一层的面 = 12.62 (需 ≥4.5)
+PASS warm/light surfaceElevated = #F5F0ED（= ref-01 底栏实测）
+PASS brand/light surfaceElevated 与 surface 有区分
+PASS brand/light 抬高方向正确（浅色压暗）
+PASS brand/dark surfaceElevated 与 surface 有区分
+PASS brand/dark 抬高方向正确（深色提亮）
+PASS classic/light surfaceElevated 与 surface 有区分
+PASS classic/light 抬高方向正确（浅色压暗）
+PASS classic/dark surfaceElevated 与 surface 有区分
+PASS classic/dark 抬高方向正确（深色提亮）
+PASS warm/light surfaceElevated 与 surface 有区分
+PASS warm/light 抬高方向正确（浅色压暗）
+PASS warm/dark surfaceElevated 与 surface 有区分
+PASS warm/dark 抬高方向正确（深色提亮）
+
+共量 132 对（3 palette × 2 档 × 22 组）
+ALL PASS  pass=147 fail=0
+→ 通过（147 条）
+
+──────── test-pairstyle ────────
+PASS 扫到 132 对「文字色 / 底色」
+PASS 所有文字/底色配对对比度达标（违规 0 处）
+
+ALL PASS  pass=2 fail=0
+→ 通过（2 条）
+
+──────── test-shell ────────
+
+shell: 66 passed, 0 failed
+pass=66
+(node:11240) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（66 条）
+
+──────── test-parser ────────
+--- fixture: tools/fixtures/cas/login-page.html, len=30530 ---
+PASS status => 200
+PASS execution 长度（对齐 M1 真机 hilog） => 12465
+PASS execution 不是空/半截
+PASS croypto 实际解码字节数 => 16
+PASS riskSystemSwitch => "USTC"
+PASS targetSystem => "sso"
+PASS siteId => "sourceId"
+PASS 真机页面 form 无 action（空串是正常态） => ""
+PASS 原始 HTML 里确实是 <form method="post">
+PASS 有 action 时能取到 => "/cas/login"
+PASS 无 action 时返回空串 => ""
+PASS 普通登录页 isSmsSecondFactor=false => false
+PASS 原始 HTML 里 smsLoginForm 出现 0 次 => -1
+PASS ticket 从 query => "ST-123456-abc"
+PASS ticket 带 hash => "ST-1-2"
+PASS ticket 缺失返回空串 => ""
+PASS cas code 从 hash 路由 => "abc123.def"
+PASS cas code 从 query => "Zz9"
+PASS cas code 缺失返回空串 => ""
+PASS 绝对路径 => "https://a.bit.edu.cn/z"
+PASS 相对路径 => "https://a.bit.edu.cn/x/z"
+PASS 协议相对 => "https://b.bit.edu.cn/c"
+PASS 已是绝对 URL => "https://c.bit.edu.cn/d"
+PASS 普通页不算二验页 => null
+PASS 二验页解析非空
+PASS sf.execution => "EXEC-1"
+PASS sf.userObjectId => "U-9"
+PASS sf.phone => "13800001111"
+PASS sf.formAction（相对 action 解析） => "https://sso.bit.edu.cn/cas/login"
+PASS login-error 提取 => "用户名或密码错误"
+PASS 无错误时返回空串 => ""
+
+ALL PASS
+→ 通过（31 条）
+
+──────── test-teaching ────────
+
+ALL PASS  pass=50 fail=0
+(node:50740) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（50 条）
+
+──────── test-edges ────────
+
+ALL PASS  pass=40 fail=0
+(node:5048) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（40 条）
+
+──────── test-shuttle ────────
+
+ALL PASS  pass=41 fail=0
+(node:19912) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（41 条）
+
+──────── test-colors ────────
+=== 对比度基线自检（算法本身可信吗）===
+PASS 黑/白 应为 21 左右 = 21.00 (需 ≥20.9)
+PASS #777 对白 ≈ 4.48（参考值校验） = 4.48 (需 ≥4.4)
+
+=== light ===
+PASS light textPrimary on bgPage = 17.40 (需 ≥4.5)
+PASS light textSecondary on bgPage = 8.19 (需 ≥4.5)
+PASS light textMuted on bgPage = 5.74 (需 ≥4.5)
+PASS light textPrimary on bgCard = 17.40 (需 ≥4.5)
+PASS light textSecondary on bgCard = 8.19 (需 ≥4.5)
+PASS light textMuted on bgCard = 5.74 (需 ≥4.5)
+PASS light textPrimary on bgSubtle = 15.85 (需 ≥4.5)
+PASS light textSecondary on bgSubtle = 7.46 (需 ≥4.5)
+PASS light textMuted on bgSubtle = 5.23 (需 ≥4.5)
+PASS light textFaint(仅装饰) on bgPage = 4.54 (需 ≥3)
+PASS light textFaint(仅装饰) on bgCard = 4.54 (需 ≥3)
+PASS light textOnAccent on accent = 6.60 (需 ≥4.5)
+PASS light warn on bgPage = 6.39 (需 ≥4.5)
+PASS light warn on bgCard = 6.39 (需 ≥4.5)
+PASS light error on bgPage = 6.54 (需 ≥4.5)
+PASS light error on bgCard = 6.54 (需 ≥4.5)
+PASS light accent on bgPage = 6.60 (需 ≥4)
+PASS light success on bgPage = 6.58 (需 ≥4.5)
+PASS light success on bgCard = 6.58 (需 ≥4.5)
+PASS light textPrimary on bgAlt = 15.84 (需 ≥4.5)
+PASS light textSecondary on bgAlt = 7.46 (需 ≥4.5)
+PASS light textMuted on bgAlt = 5.23 (需 ≥4.5)
+PASS light textPrimary on bgWarnSubtle = 15.76 (需 ≥4.5)
+PASS light textSecondary on bgWarnSubtle = 7.42 (需 ≥4.5)
+PASS light textMuted on bgWarnSubtle = 5.20 (需 ≥4.5)
+
+=== dark ===
+PASS dark textPrimary on bgPage = 15.86 (需 ≥4.5)
+PASS dark textSecondary on bgPage = 10.52 (需 ≥4.5)
+PASS dark textMuted on bgPage = 7.16 (需 ≥4.5)
+PASS dark textPrimary on bgCard = 14.11 (需 ≥4.5)
+PASS dark textSecondary on bgCard = 9.36 (需 ≥4.5)
+PASS dark textMuted on bgCard = 6.38 (需 ≥4.5)
+PASS dark textPrimary on bgSubtle = 13.32 (需 ≥4.5)
+PASS dark textSecondary on bgSubtle = 8.83 (需 ≥4.5)
+PASS dark textMuted on bgSubtle = 6.02 (需 ≥4.5)
+PASS dark textFaint(仅装饰) on bgPage = 5.43 (需 ≥3)
+PASS dark textFaint(仅装饰) on bgCard = 4.83 (需 ≥3)
+PASS dark textOnAccent on accent = 8.70 (需 ≥4.5)
+PASS dark warn on bgPage = 10.02 (需 ≥4.5)
+PASS dark warn on bgCard = 8.92 (需 ≥4.5)
+PASS dark error on bgPage = 8.21 (需 ≥4.5)
+PASS dark error on bgCard = 7.30 (需 ≥4.5)
+PASS dark accent on bgPage = 8.62 (需 ≥4)
+PASS dark success on bgPage = 9.88 (需 ≥4.5)
+PASS dark success on bgCard = 8.79 (需 ≥4.5)
+PASS dark textPrimary on bgAlt = 13.14 (需 ≥4.5)
+PASS dark textSecondary on bgAlt = 8.71 (需 ≥4.5)
+PASS dark textMuted on bgAlt = 5.94 (需 ≥4.5)
+PASS dark textPrimary on bgWarnSubtle = 12.98 (需 ≥4.5)
+PASS dark textSecondary on bgWarnSubtle = 8.61 (需 ≥4.5)
+PASS dark textMuted on bgWarnSubtle = 5.87 (需 ≥4.5)
+
+=== course-light ===
+PASS course-light[0] ink on fill = 5.93 (需 ≥4.5)
+PASS course-light[1] ink on fill = 6.26 (需 ≥4.5)
+PASS course-light[2] ink on fill = 5.51 (需 ≥4.5)
+PASS course-light[3] ink on fill = 7.42 (需 ≥4.5)
+PASS course-light[4] ink on fill = 6.66 (需 ≥4.5)
+PASS course-light[5] ink on fill = 5.07 (需 ≥4.5)
+PASS course-light[6] ink on fill = 7.92 (需 ≥4.5)
+PASS course-light[7] ink on fill = 5.39 (需 ≥4.5)
+PASS course-light[8] ink on fill = 5.47 (需 ≥4.5)
+PASS course-light[9] ink on fill = 5.07 (需 ≥4.5)
+PASS course-light[10] ink on fill = 5.12 (需 ≥4.5)
+PASS course-light[11] ink on fill = 5.41 (需 ≥4.5)
+
+=== course-dark ===
+PASS course-dark[0] ink on fill = 6.78 (需 ≥4.5)
+PASS course-dark[1] ink on fill = 5.75 (需 ≥4.5)
+PASS course-dark[2] ink on fill = 5.14 (需 ≥4.5)
+PASS course-dark[3] ink on fill = 9.35 (需 ≥4.5)
+PASS course-dark[4] ink on fill = 6.32 (需 ≥4.5)
+PASS course-dark[5] ink on fill = 7.60 (需 ≥4.5)
+PASS course-dark[6] ink on fill = 8.86 (需 ≥4.5)
+PASS course-dark[7] ink on fill = 5.46 (需 ≥4.5)
+PASS course-dark[8] ink on fill = 7.14 (需 ≥4.5)
+PASS course-dark[9] ink on fill = 6.78 (需 ≥4.5)
+PASS course-dark[10] ink on fill = 6.54 (需 ≥4.5)
+PASS course-dark[11] ink on fill = 7.42 (需 ≥4.5)
+
+ALL PASS  pass=83 fail=0
+→ 通过（83 条）
+
+──────── test-gridtokens ────────
+=== 与原版逐值比对（light）===
+
+=== 与原版逐值比对（dark）===
+
+=== 数字排版档（num*）===
+
+=== 容器对比度自检（容器底 vs 容器上文字，应 ≥4.5）===
+PASS light onSuccessContainer on successContainer = 6.65 (需 ≥4.5)
+PASS light onErrorContainer on errorContainer = 7.29 (需 ≥4.5)
+PASS light onAccentContainer on accentContainer = 11.67 (需 ≥4.5)
+PASS light onInfoContainer on infoContainer = 6.76 (需 ≥4.5)
+PASS dark onSuccessContainer on successContainer = 7.72 (需 ≥4.5)
+PASS dark onErrorContainer on errorContainer = 8.14 (需 ≥4.5)
+PASS dark onAccentContainer on accentContainer = 7.77 (需 ≥4.5)
+PASS dark onInfoContainer on infoContainer = 8.34 (需 ≥4.5)
+
+=== 状态三档彼此区分（同一档明暗不同，跨档也不同）===
+
+=== Classic 档逐值比对（Android ClassicColor.kt）===
+
+=== Brand 档逐值比对（Android BrandColor.kt，占位表）===
+
+=== 分层正确性：共享字段跨 palette 恒定（§5.2 语义色不随品牌变）===
+
+=== 分层正确性：随 palette 字段跨 palette 必不同（否则等于没分层）===
+
+=== 容器对比度自检（classic/brand，Android 侧同款 WCAG 项）===
+PASS classic.light onSecondaryContainer = 7.19 (需 ≥4.5)
+PASS brand.light onSecondaryContainer = 8.98 (需 ≥4.5)
+PASS classic.dark onSecondaryContainer = 7.19 (需 ≥4.5)
+PASS brand.dark onSecondaryContainer = 6.33 (需 ≥4.5)
+
+=== palette 名收敛（getPaletteName：脏值回落显式默认 brand）===
+
+=== 缺档 fail-fast（对齐 Android Palettes.error()，不许静默回退）===
+
+=== 访问器契约 ===
+
+ALL PASS  pass=330 fail=0
+→ 通过（330 条）
+
+──────── test-gridcomponents ────────
+
+✅ ALL PASS · Grid 组件状态矩阵 pass=95 fail=0
+(node:45608) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（95 条）
+
+──────── test-scheduletint ────────
+=== 真机锚点（平板实测采样值）===
+
+=== mixHex 与独立参照实现交叉验证（明暗 × 多档 ratio）===
+
+=== withAlpha（8 位 hex，ArkUI 口径）===
+
+=== 空教室页卡片色（#85，源码 FreeClassroomSearch.kt）===
+
+=== tint 档位语义（2026-10-31 改口：课块统一容器色）===
+
+=== palette 轴（#89：tint 容器色随 palette 变）===
+
+=== 非法输入必须抛错（不猜）===
+
+ALL PASS  pass=113 fail=0
+→ 通过（113 条）
+
+──────── test-campusgrouping ────────
+=== 照搬 Kotlin：按校区分组并保持服务端顺序 ===
+
+=== 照搬 Kotlin：当前校区排最前 ===
+
+=== 照搬 Kotlin：代码为空时按名字判定当前校区 ===
+
+=== 照搬 Kotlin：未设置校区时无当前校区 ===
+
+=== 照搬 Kotlin：校区代码缺失时退化成校区名 ===
+
+=== 照搬 Kotlin（实机 bug）：校区名字面量 null 当作没有 ===
+
+=== 照搬 Kotlin：空输入得到空分组 ===
+
+=== 鸿蒙侧补充边界 ===
+
+ALL PASS  pass=28 fail=0
+→ 通过（28 条）
+
+──────── test-classroomfree ────────
+=== currentSection：节内 / 边界 / 课间 / 课外 ===
+
+=== isFreeNow：对齐原版 nextBusyTime>=now 语义 ===
+
+=== 自定义作息表（用户改过时间表）===
+
+ALL PASS  pass=24 fail=0
+→ 通过（24 条）
+
+──────── test-timetable ────────
+=== 1. 官方表必须合法 ===
+
+=== 2. 各种非法输入都要被拦下（并说明原因）===
+
+=== 3. 深拷贝：改副本不能污染常量 ===
+
+=== 4. 时间格式化往返 ===
+
+=== 5. 自定义作息真的影响课表时间文案 ===
+
+ALL PASS  pass=28 fail=0
+(node:36428) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（28 条）
+
+──────── test-eclass ────────
+=== 1. 课程解析（visited_courses[] 一项）===
+
+=== 2. 课程解析的证伪点 ===
+
+=== 3. 课程列表整体解析 ===
+
+=== 4. 动态解析 + 作业判定（字段存在性，不枚举 type）===
+
+=== 5. 动态列表整体解析 + uid 稳定性 ===
+
+ALL PASS  pass=40 fail=0
+→ 通过（40 条）
+
+──────── test-ddl ────────
+=== 1. 新作业插入，done=false ===
+
+=== 2. 已存在 ⇒ 更新字段但保留 done（核心规则）===
+
+=== 3. 服务端消失的条目不删（Android 同款）===
+
+=== 4. 不同 group 互不干扰 ===
+
+=== 5. 排序：截止升序、同日按时刻、稳定 ===
+
+=== 6. toEntry 字段搬运 ===
+
+=== 7. 端到端：toDdlItems → toEntry → mergeDdl ===
+
+=== 8. findDdl ===
+
+=== 9. remainTime 展示口径（1:1 Android）===
+
+=== 10. deadlineShort / isOverdue ===
+
+=== 11. remainTimeRatio（1:1 Android remainTimeRatio）===
+
+=== 12. mixHex / withAlpha（Android ColorUtils.mixColor 口径）===
+
+=== 13. cardColors（1:1 Android DDLScheduleItem）===
+
+=== 14. 分区顺序（1:1 DdlListOrder）===
+
+ALL PASS  pass=89 fail=0
+→ 通过（89 条）
+
+──────── test-libborrow ────────
+=== 1. 解析真实响应的一条借阅 ===
+=== 2. 空数组 = 空列表（确定没有），不是失败 ===
+=== 3. 找不到锚点 = 门户改版 = 失败，绝不是 0 条 ===
+=== 4. 不是 JSON → null ===
+=== 5. code ≠ 1 → null ===
+=== 6. 没有 data 或 div → null ===
+=== 7. 字段顺序打乱仍按 key 取值 ===
+=== 8. 日期解析失败不丢记录 ===
+=== 9. 多条按出现顺序解析 ===
+=== 10. 值里含引号与括号不误切 ===
+=== 11. uid 为空即未登录 ===
+=== 12. 会话响应无法识别 → null（不猜）===
+=== 13. 从页面取 sversion ===
+=== 14. 数据接口 URL 形状 ===
+=== 15. 距应还日按日期算（ChronoUnit.DAYS 口径）===
+=== 16. 提醒范围 = 逾期 + 3 天内，按最急排序 ===
+=== 17. 状态文案 ===
+=== 18. 应还日展示为月日 ===
+=== 19. 卡片摘要 ===
+=== 20. 通知正文不含书名（隐私边界）===
+=== 21. 通知标题区分逾期与否 ===
+=== 22. 没有要提醒的就不发通知 ===
+=== 23. 去重键 = 书名 + ISBN + 应还日原文 ===
+
+ALL PASS  pass=68 fail=0
+(node:52492) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（68 条）
+
+──────── test-routes ────────
+PASS main_pages.json 能解析且非空（38 条）
+PASS 扫到 53 个 .ets 文件
+PASS 扫到 60 处带 url 的导航调用
+PASS 导航目标已注册：pages/CardLoginPage（entry\src\main\ets\pages\CardPage.ets）
+PASS 导航目标已注册：pages/SettingsPage（entry\src\main\ets\pages\ClassroomPage.ets）
+PASS 导航目标已注册：pages/LoginPage（entry\src\main\ets\pages\ClassroomPage.ets）
+PASS 导航目标已注册：pages/WebShellPage（entry\src\main\ets\pages\CommunityPage.ets）
+PASS 导航目标已注册：pages/EclassLoginPage（entry\src\main\ets\pages\DdlPage.ets）
+PASS 导航目标已注册：pages/LibLoginPage（entry\src\main\ets\pages\LibBorrowPage.ets）
+PASS 导航目标已注册：pages/Index（entry\src\main\ets\pages\LoginPage.ets）
+PASS 导航目标已注册：pages/ScorePage（entry\src\main\ets\pages\MePage.ets）
+PASS 导航目标已注册：pages/NotifyListPage（entry\src\main\ets\pages\MePage.ets）
+PASS 导航目标已注册：pages/CardPage（entry\src\main\ets\pages\MePage.ets）
+PASS 导航目标已注册：pages/NetPage（entry\src\main\ets\pages\MePage.ets）
+PASS 导航目标已注册：pages/LibBorrowPage（entry\src\main\ets\pages\MePage.ets）
+PASS 导航目标已注册：pages/ExamPage（entry\src\main\ets\pages\SchedulePage.ets）
+PASS 导航目标已注册：pages/OverlayPage（entry\src\main\ets\pages\SchedulePage.ets）
+PASS 导航目标已注册：pages/TeachingAdjustmentPage（entry\src\main\ets\pages\SchedulePage.ets）
+PASS 导航目标已注册：pages/DdlPage（entry\src\main\ets\pages\SearchPage.ets）
+PASS 导航目标已注册：pages/CampusMapPage（entry\src\main\ets\pages\SearchPage.ets）
+PASS 导航目标已注册：pages/SeatMapPage（entry\src\main\ets\pages\SeatPage.ets）
+PASS 导航目标已注册：pages/SeatMonitorPage（entry\src\main\ets\pages\SeatPage.ets）
+PASS 导航目标已注册：pages/NotifySettingsPage（entry\src\main\ets\pages\SettingsPage.ets）
+PASS 导航目标已注册：pages/TimeTablePage（entry\src\main\ets\pages\SettingsPage.ets）
+PASS 导航目标已注册：pages/EclassActivityPage（entry\src\main\ets\pages\SettingsPage.ets）
+PASS 导航目标已注册：pages/NfcPage（entry\src\main\ets\pages\SettingsPage.ets）
+PASS 导航目标已注册：pages/AboutPage（entry\src\main\ets\pages\SettingsPage.ets）
+PASS 导航目标已注册：pages/WebServicesPage（entry\src\main\ets\pages\SettingsPage.ets）
+PASS 导航目标已注册：pages/CasLoginProbe（entry\src\main\ets\pages\SettingsPage.ets）
+PASS 导航目标已注册：pages/CasProbePage（entry\src\main\ets\pages\SettingsPage.ets）
+PASS 导航目标已注册：pages/SeatProbePage（entry\src\main\ets\pages\SettingsPage.ets）
+PASS 注册项有对应文件：pages/Index.ets
+PASS 注册项有对应文件：pages/LoginPage.ets
+PASS 注册项有对应文件：pages/SchedulePage.ets
+PASS 注册项有对应文件：pages/ClassroomPage.ets
+PASS 注册项有对应文件：pages/ExamPage.ets
+PASS 注册项有对应文件：pages/ShuttlePage.ets
+PASS 注册项有对应文件：pages/CasLoginProbe.ets
+PASS 注册项有对应文件：pages/CasProbePage.ets
+PASS 注册项有对应文件：pages/SpotDetailPage.ets
+PASS 注册项有对应文件：pages/SettingsPage.ets
+PASS 注册项有对应文件：pages/TimeTablePage.ets
+PASS 注册项有对应文件：pages/EclassLoginPage.ets
+PASS 注册项有对应文件：pages/DdlPage.ets
+PASS 注册项有对应文件：pages/EclassActivityPage.ets
+PASS 注册项有对应文件：pages/WebShellPage.ets
+PASS 注册项有对应文件：pages/LibBorrowPage.ets
+PASS 注册项有对应文件：pages/LibLoginPage.ets
+PASS 注册项有对应文件：pages/CardPage.ets
+PASS 注册项有对应文件：pages/CardLoginPage.ets
+PASS 注册项有对应文件：pages/NetPage.ets
+PASS 注册项有对应文件：pages/NfcPage.ets
+PASS 注册项有对应文件：pages/MePage.ets
+PASS 注册项有对应文件：pages/OverlayPage.ets
+PASS 注册项有对应文件：pages/NotifyListPage.ets
+PASS 注册项有对应文件：pages/NotifySettingsPage.ets
+PASS 注册项有对应文件：pages/SeatPage.ets
+PASS 注册项有对应文件：pages/SeatMapPage.ets
+PASS 注册项有对应文件：pages/SeatProbePage.ets
+PASS 注册项有对应文件：pages/SeatMonitorPage.ets
+PASS 注册项有对应文件：pages/ScorePage.ets
+PASS 注册项有对应文件：pages/AboutPage.ets
+PASS 注册项有对应文件：pages/WebServicesPage.ets
+PASS 注册项有对应文件：pages/SearchPage.ets
+PASS 注册项有对应文件：pages/CampusMapPage.ets
+PASS 注册项有对应文件：pages/TeachingAdjustmentPage.ets
+PASS 注册项有对应文件：pages/DiagnosticsPage.ets
+PASS 注册项有对应文件：pages/CacheCleanPage.ets
+PASS 注册项有对应文件：pages/CommunityPage.ets
+PASS 注册表含 pages/Index
+
+ALL PASS  pass=70 fail=0
+→ 通过（70 条）
+
+──────── test-card ────────
+=== 1. hostOf / 登录判定（最终 URL 口径） ===
+
+=== 2. 余额字段解析 ===
+
+=== 3. 余额文案分支 ===
+
+=== 4. 编码往返 / 脏数据 ===
+
+=== 5. 采样合并 / 裁剪 ===
+
+=== 6. 趋势口径 ===
+
+=== 7. 文案精度 / hasChange ===
+
+ALL PASS  pass=70 fail=0
+→ 通过（70 条）
+
+──────── test-net ────────
+=== 1. CSV 解析 ===
+
+=== 2. 三类结果（UI 文案全靠这个区分） ===
+
+=== 3. 格式化文案 ===
+
+=== 4. 采样追加（周期重置是重点） ===
+
+=== 5. 趋势与月末预测 ===
+
+=== 6. 编解码 ===
+
+ALL PASS  pass=77 fail=0
+→ 通过（77 条）
+
+──────── test-overlay ────────
+=== 1. 没有覆盖层 ===
+
+=== 2. 改（EDIT） ===
+
+=== 3. 藏（HIDE） ===
+
+=== 4. 加（ADD） ===
+
+=== 5. 匹配不上 / 脏数据 ===
+
+=== 6. 自然键与锚点 ===
+
+=== 7. 周次工具（鸿蒙侧 01 串） ===
+
+ALL PASS  pass=51 fail=0
+→ 通过（51 条）
+
+──────── test-netalert ────────
+=== 1. 阈值常量 ===
+
+=== 2. 流量提醒判定 ===
+
+=== 3. 网费判定 ===
+
+=== 4. 去重键 ===
+
+=== 5. 文案（与 Android 逐字一致） ===
+
+ALL PASS  pass=29 fail=0
+→ 通过（29 条）
+
+──────── test-notify ────────
+pass=32 fail=0
+ALL PASS  pass=32 fail=0
+(node:56656) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（32 条）
+
+──────── test-schedule ────────
+pass=37 fail=0
+ALL PASS  pass=37 fail=0
+(node:45704) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（37 条）
+
+──────── test-settings ────────
+pass=59 fail=0
+ALL PASS  pass=59 fail=0
+(node:54396) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（59 条）
+
+──────── test-score ────────
+
+ALL PASS  pass=87 fail=0
+→ 通过（87 条）
+
+──────── test-seat ────────
+
+ALL PASS  pass=72 fail=0
+(node:50152) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（72 条）
+
+──────── test-seatapi ────────
+
+ALL PASS  pass=131 fail=0
+(node:26256) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（131 条）
+
+──────── test-seatmap ────────
+
+ALL PASS  pass=28 fail=0
+(node:19768) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（28 条）
+
+──────── test-seatreserve ────────
+
+ALL PASS  pass=28 fail=0
+(node:26372) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（28 条）
+
+──────── test-seatviolation ────────
+
+ALL PASS  pass=15 fail=0
+(node:52864) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（15 条）
+
+──────── test-seatreservation ────────
+
+ALL PASS  pass=22 fail=0
+(node:48188) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（22 条）
+
+──────── test-seatmonitor ────────
+
+ALL PASS  pass=32 fail=0
+(node:27556) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（32 条）
+
+──────── test-seminar ────────
+
+ALL PASS  pass=23 fail=0
+(node:42188) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（23 条）
+
+──────── test-seatview ────────
+
+ALL PASS  pass=58 fail=0
+(node:16420) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（58 条）
+
+──────── test-widget ────────
+
+ALL PASS  pass=19 fail=0
+→ 通过（19 条）
+
+──────── test-enums ────────
+
+ALL PASS  pass=88 fail=0
+(node:33120) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（88 条）
+
+──────── test-scoreflow ────────
+PASS parseEnvelope 解析 detail 包装
+PASS challenge_id 取出
+PASS access_token 取出
+PASS status 取出
+PASS ready_services 空数组合法
+PASS error 非字符串 → 空串（不写成 null 混进判断）
+PASS parseEnvelope 兼容扁平形状
+PASS 空串 → null
+PASS 非 JSON → null
+PASS 既无 id 又无 status → null（不猜）
+PASS 数组顶层 → null
+PASS parseStatus 解析顶层形状
+PASS ready_services 取出 jwb
+PASS 轮询响应没有 challenge_id → 空串（不是 null 崩）
+PASS 既无 status 又无 ready_services → null
+PASS extractScoreTable 取出 data 二维数组
+PASS data 非数组 → null
+PASS 无 data → null
+PASS jwb 就绪 ⇒ fetch（优先于 status 判断）
+PASS running 未就绪 ⇒ wait
+PASS waiting_sms ⇒ need_sms
+PASS failed ⇒ auth_failed（不是「稍后重试」）
+PASS expired ⇒ expired
+PASS cancelled ⇒ failed
+PASS authenticated 但服务未就绪 ⇒ wait
+PASS status 空 ⇒ failed（不猜 running）
+PASS 未知状态 ⇒ failed
+PASS 学期名含中文序数
+PASS 第一学期
+PASS 空学期 → 未标注
+PASS 没有末位序数就原样返回（不编）
+PASS 认不出格式原样返回
+PASS score=null ⇒ 未出分
+PASS 空白 ⇒ 未出分
+PASS `--` 占位 ⇒ 未出分
+PASS `-` 占位 ⇒ 未出分
+PASS 有分数 ⇒ 已出分
+PASS 等级制分数也算已出分
+PASS 4 个分组（3 个学期 + 未标注）
+PASS 新学期在前
+PASS 次新学期第二
+PASS 旧学期在后
+PASS 未标注学期排最后
+PASS 同学期凑到一组
+PASS 组内已出分门数只数有分的
+PASS 组内保持表里原顺序（不重排）
+PASS 空表 → 空分组
+PASS 总数 5
+PASS 已出分 4
+PASS 待出分 1
+PASS 学期数 3（不含未标注）
+PASS 摘要讲条数
+PASS 摘要讲已出分
+PASS 摘要讲待出分
+PASS 摘要**不含分数**（隐私边界）
+PASS 空表摘要
+
+ALL PASS  pass=56 fail=0
+→ 通过（56 条）
+
+──────── test-scorestore ────────
+PASS 缓存能往返解码
+PASS 时刻保留
+PASS 条目数保留
+PASS 字段保留
+PASS null 分数仍是 null（不是空串）
+PASS 空串 → null
+PASS 非 JSON → null
+PASS 缺 at → null
+PASS at=0 → null（视为没有缓存）
+PASS at 负数 → null
+PASS rows 非数组 → null
+PASS 坏行逐条跳过（课名空/类型错/整行 null 都不炸）
+PASS 好行保留
+PASS 刚拉取 ⇒ 新鲜
+PASS 恰好到期 ⇒ 仍算新鲜（闭区间）
+PASS 超出窗口 ⇒ 过期
+PASS at=0 ⇒ 过期
+PASS 未来时间 ⇒ 过期（时钟被改过也不信）
+PASS 快照能往返
+PASS 快照值保留
+PASS 空分数保留成空串
+PASS 空串快照 → null
+PASS 顶层数组 → null（快照必须是对象）
+PASS 坏 JSON → null
+PASS 字符串值保留
+PASS 数字值转字符串
+PASS 对象/null 值丢掉（快照值只可能是分数原文）
+
+ALL PASS  pass=27 fail=0
+→ 通过（27 条）
+
+──────── test-widgetrefresh ────────
+PASS 状态能往返
+PASS 三个字段都保留
+PASS 空串 → null
+PASS 两段 → null（形状不对）
+PASS 非数字 → null
+PASS 负数计数 → null
+PASS 空状态 ⇒ 允许
+PASS 计数变 1
+PASS 记下时刻
+PASS 下次 = 现在 + 30 分钟
+PASS 1 分钟前装配过 ⇒ 拒绝
+PASS 原因 = too_soon
+PASS 拒绝时**不**加计数
+PASS 下次刷新按上次时刻 + 间隔算
+PASS 恰好 30 分钟 ⇒ 允许
+PASS 配额用满 ⇒ 拒绝
+PASS 原因 = daily_quota
+PASS 配额满时计数不再增长
+PASS 第 50 次仍然允许
+PASS 跨天 + 已过间隔 ⇒ 配额重置后允许
+PASS 状态换到新的一天
+PASS 新一天从 1 开始（不是 51）
+PASS 跨天但刚装配过 ⇒ 仍被最小间隔挡住（配额与间隔是两条闸门）
+PASS 时钟被往回调 ⇒ 仍允许（不锁死）
+PASS 用当前时间重设基准
+PASS 已过期 ⇒ 至少 5 分钟
+PASS 1 分钟被夹到 5
+PASS 31 分钟原样
+PASS 下限常量 = 5
+PASS 当天剩余 = 50-3
+PASS 跨天 ⇒ 剩余回到满额
+PASS 超限 ⇒ 0（不出负数）
+PASS COURSE → timetable
+PASS DDL → ddl
+PASS ACTIVITY → feed
+PASS SEAT → seat
+PASS STUDY → classroom
+PASS 未知 kind 落回课表（明确值，不是空）
+PASS 已知页签 id 通过
+PASS 去空白后通过
+PASS 已知模块 id 通过
+PASS 未知 id 丢掉（不回落）
+PASS 空串丢掉
+PASS param 键固定（卡片与 App 两侧必须一致）
+
+ALL PASS  pass=44 fail=0
+→ 通过（44 条）
+
+──────── test-version ────────
+PASS 三段 + 预发布解析
+PASS 预发布标记保留
+PASS 两段视作 patch=0
+PASS 四段 → null
+PASS 非数字 → null
+PASS 空串 → null
+PASS 负段 → null
+PASS 正式版 > 预发布
+PASS 预发布 < 正式版（反向）
+PASS alpha.9 < alpha.10（按段比数字）
+PASS 主版本优先
+PASS 次版本按数字不是字典序
+PASS 相同版本相等
+PASS 无法比较 ⇒ 0（不谎报有更新）
+PASS 三条都能解析
+PASS 新→旧排序（首条最新）
+PASS 末条最旧
+PASS 条目保留
+PASS 坏条目被丢，好条目保留
+PASS 空串 → 空列表
+PASS 坏 JSON → 空列表
+PASS 对象而非数组 → 空列表
+PASS 取到最新版本
+PASS 空清单 → 空串
+PASS 版本行格式
+PASS 空版本名给明确文案
+PASS 当前 alpha.8、说明有 alpha.9 ⇒ 提示
+PASS 当前已是最新 ⇒ 不提示
+PASS 当前正式版 ≥ 说明 ⇒ 不提示
+PASS 版本号未知 ⇒ 不提示（不谎报更新）
+PASS 空说明 ⇒ 不提示
+
+ALL PASS  pass=31 fail=0
+→ 通过（31 条）
+
+──────── test-weblinks ────────
+PASS 带路径与查询串
+PASS 去掉端口
+PASS 去 userinfo + 小写
+PASS 没有 scheme → 空串
+PASS 空串 → 空串
+PASS sso.bit.edu.cn 是学校
+PASS 裸域名是学校
+PASS 大小写不影响
+PASS notbit.edu.cn **不是**学校
+PASS bit.edu.cn.evil.com 不是学校
+PASS bit.edu.com 不是学校
+PASS 空串不是学校
+PASS 学校域名留 App 内
+PASS 外站不跳（本版不丢外部浏览器）
+PASS 非 http(s) 一律不处理
+PASS 空串不处理
+PASS 入口至少 5 个
+PASS key 唯一
+PASS 清单里每个地址都能留在 App 内（踢出去会变未登录）
+PASS 每项都有标题与说明
+PASS entryByKey 命中
+PASS entryByKey 未命中 → null
+PASS 座位入口指向 seatlib
+
+ALL PASS  pass=23 fail=0
+→ 通过（23 条）
+
+──────── test-ddlsource ────────
+PASS 编码形状可读
+PASS 往返不丢状态
+PASS 空串 ⇒ 两源都开
+PASS 坏串 ⇒ 回落默认（不让用户以为作业全丢）
+PASS 只写一半时另一半保持默认
+PASS 默认两源都开
+PASS local_ 前缀 ⇒ 本机条目
+PASS uid 前缀优先于 group（本地条目不会被当成教务的）
+PASS eclass 分组
+PASS lexue 分组
+PASS 认不出的源默认当 eclass（显示，不消失）
+PASS 两源都开：乐学仍然不显示
+PASS 只开本地 ⇒ 只剩本机条目
+PASS 只开延河 ⇒ 只剩教务条目
+PASS 两源都关 ⇒ 空列表
+PASS 空库不炸
+PASS 都关 ⇒ noneEnabled
+PASS 开一个就不算全关
+PASS 全关文案
+PASS 全开文案
+PASS 只开本地文案
+PASS 列出三个源（含不可用的乐学）
+PASS 乐学标为不可用（不假装支持）
+PASS 乐学说明写清「接口未验证」
+PASS 两个可用源都在
+
+ALL PASS  pass=25 fail=0
+→ 通过（25 条）
+
+──────── test-search ────────
+PASS 全角 Ｉ４０４ → i404
+PASS 去空白（含全角空格）+ 小写
+PASS 字母转小写
+PASS 空串归一化仍是空串
+PASS 多词切开并各自归一化
+PASS 纯空白 → 无词
+PASS 空串 → 无词
+PASS 标题前缀 = 100
+PASS 标题包含 = 60
+PASS 副标题 = 30
+PASS 附加字段 = 15（且大小写不敏感）
+PASS 不命中 = 0
+PASS 全角 i404 命中副标题（归一化生效）
+PASS 两个词都命中 → 有分
+PASS 任一词不命中 → 0（与关系）
+PASS 空词表 → 0
+PASS 「文萃」命中两组（课程 + 教室）
+PASS 分组顺序固定：课程在教室前
+PASS 「文萃」共 3 条（2 课程 + 1 教室，DDL 不含文萃）
+PASS 「数据结构」命中课程与作业两组
+PASS 课程组命中 c2
+PASS 作业组命中 d1
+PASS 教室「文萃楼I404」标题前缀命中得 100
+PASS limit 按组生效
+PASS limit<=0 视为不限
+PASS 空查询 → 无结果（不猜推荐）
+PASS 纯空白查询 → 无结果
+PASS 空文档集 → 无结果
+PASS 同分按 id 排序（可复现）
+PASS 输入顺序变化不影响结果顺序
+PASS 同分短标题优先（更精确）
+PASS 四种类型的中文名
+PASS 卷 → 课表
+PASS 图 → 校园楼栋（不再是「地图」：本版是楼栋索引）
+PASS 座 → 座位
+PASS 未知 key 回退到 key（不编名字）
+
+ALL PASS  pass=36 fail=0
+→ 通过（36 条）
+
+──────── test-weektext ────────
+PASS activeWeeks 取到 1/3 周
+PASS 空串 → 无周次
+PASS 全 0 → 无周次
+PASS 非法字符当 0 处理（不崩）
+PASS 连续 1-16 周
+PASS 奇数周 → 1-15周(单)
+PASS 偶数周 → 2-16周(双)
+PASS 断续周次不合并
+PASS 单周 → 3周（不加(单)）
+PASS 两周一单 → 1-3周(单)
+PASS 空串 → 未标注
+PASS 全 0 → 未标注
+PASS weekCount 单周 8 次
+PASS totalWeeks = 串长 16
+PASS 学分学时
+PASS 都取不到 → 空串（整行不显示）
+PASS 只有学分 → 不出现残缺分隔符
+PASS 性质/类别/单位用 · 连接
+PASS 空字段跳过
+PASS 教室 + 校区
+PASS 都空 → 未标注
+PASS 只有校区
+PASS 详情周次用人话
+PASS 课号
+PASS 无课号 → 空串
+PASS 半角逗号 → 顿号
+PASS 全角逗号 → 顿号
+PASS 空教师 → 空串
+PASS 多余分隔符/空白被清掉
+PASS 详情行顺序固定
+PASS 行值正确
+PASS 空字段整行不出现
+PASS 原始安排串排最后
+PASS 摘要三段
+PASS 空字段跳过不留悬空分隔符
+PASS 全空 → 空串
+
+ALL PASS  pass=36 fail=0
+→ 通过（36 条）
+
+──────── test-campusdir ────────
+PASS 两个校区
+PASS 良乡在前、中关村在后
+PASS 楼栋总数 48（34 良乡 + 14 中关村）
+PASS 分校区数量正确
+PASS 组内按名称排序
+PASS campusNames 与分组一致
+PASS 「文萃」在良乡命中 15 栋（整体 + A~M + 圆形报告厅）
+PASS A~M 十三翼全在结果里
+PASS 前缀命中排前
+PASS 空查询 + 校区 = 该校区全部
+PASS 空查询 + 无校区 = 全部
+PASS 表里没有的楼 → 空（不猜）
+PASS 别名/名称能搜到图书馆
+PASS 全角 Ｉ 归一化后能搜到文萃楼I
+PASS 文萃楼I 归集到
+PASS 全角 Ｊ 也能归集到文萃楼J
+PASS 匹配不到的地点不产生「未知楼栋」
+PASS 同楼同课去重
+PASS 只返回有课的 2 栋楼
+PASS coursesAt 按教室名查
+PASS 没课的楼 → 空数组
+PASS 未知楼 → 空数组（不抛）
+PASS 经纬度 5 位小数
+PASS geo URI 前缀
+PASS geo URI 带 ?q= 定位
+PASS 楼栋页必须 await loadCourses()
+PASS refresh() 必须在 await loadCourses 之后
+PASS 不许再出现「loadCourses(); refresh();」的并列写法（无 await）
+
+ALL PASS  pass=28 fail=0
+→ 通过（28 条）
+
+──────── test-scoresummary ────────
+PASS 解析 3 行
+PASS 学分列被解析（5）
+PASS 小学分 3.5 正常
+PASS 「免修」不编成数字（credit undefined）
+PASS 等级制分数原样保留
+PASS 表里没有学分列 → 不给 credit
+PASS scoreKey 不受学分影响
+PASS 不同课不同键
+PASS '95' → 95
+PASS '95.5' → 95.5
+PASS 去空白
+PASS '95分' → null（不做模糊猜测）
+PASS '优秀' → null
+PASS 'A' → null
+PASS 空串 → null
+PASS null → null
+PASS 超出 100 → null
+PASS 负分 → null
+PASS 多个小数点 → null
+PASS 100 → 90-100
+PASS 90 → 90-100（边界含）
+PASS 89.9 → 80-89
+PASS 80 → 80-89
+PASS 79 → 70-79
+PASS 60 → 60-69
+PASS 59 → <60
+PASS 等级制不归入任何数字档
+PASS 未出分不归档
+PASS 分档中文名
+PASS 学分合计 11.5
+PASS 学分完整 → partial=false
+PASS 有学分 3 门
+PASS 按学期 2 组
+PASS 新学期在前且小计 8.5
+PASS 缺学分 → 合计是下界（partial）
+PASS 该学期 partial=true
+PASS 全无学分 → credited=0
+PASS 完整学分文案
+PASS 不全 → 用 ≥
+PASS 没有学分列 → 空串（整块不显示）
+PASS 整数不带小数点
+PASS 小数保留
+PASS 最多两位
+PASS 0 → 0
+PASS 两个分档
+PASS 90-100 2 门（92 与 95）
+PASS 80-89 1 门（88）
+PASS 分档条文案
+PASS 无数字分数 → 空串
+PASS 等级制计数 1
+PASS ScoreFlowLogic 的 summarize 仍是 3/3
+PASS 缓存往返 3 条
+PASS 往返保留学分 5
+PASS 往返保留 3.5
+PASS 旧缓存无 credit → undefined（不造假 0）
+
+ALL PASS  pass=55 fail=0
+→ 通过（55 条）
+
+──────── test-notifygroup ────────
+PASS dayIndex 取整到天
+PASS 0 毫秒 → -1（时间未定）
+PASS 负数 → -1
+PASS 同一天 → 今天
+PASS 前一天 → 昨天
+PASS 3 天前 → 本周早些时候
+PASS 7 天前 → 更早（边界不含）
+PASS 6 天前仍在「本周」
+PASS -1 → 时间未定
+PASS 切成 4 组
+PASS 今天 [0,2)
+PASS 昨天 [2,3)
+PASS 本周 [3,4)
+PASS 更早 [4,5)
+PASS 空数组 → 无分组
+PASS 未发出但排期今天 → 今天
+PASS compareNewestFirst 把旧→新转成新→旧
+PASS 未发条目按排定时刻排
+PASS dedupeByKey 去重并保留第一条
+PASS 从没看过 → 已发的 2 条都未读
+PASS 看过昨天之后 → 只有今天的未读
+PASS 看过今天 → 全部已读
+PASS 只有未发出的 → 0 未读
+PASS 0 → 空徽标
+PASS 5 → "5"
+PASS >99 → "99+"
+PASS 清空文案点明条数
+PASS 清空文案说明不影响设置
+PASS CLASS → 课表页签
+PASS DDL → ddl
+PASS SEAT_SIGN_IN → seat
+PASS EXAM → 考试页
+PASS ADJUSTMENT → 教学调整页
+PASS SCORE → 成绩页
+PASS 未知 kind → 空落点（不乱跳）
+PASS 空 kind → 空落点
+PASS kind 去空白 + 大小写不敏感
+PASS 合法页签通过
+PASS ddl 通过
+PASS 非页签值 → 空（不猜）
+PASS 空 → 空
+PASS 白名单页面通过
+PASS 非白名单页面 → 空（绝不 pushUrl 任意串）
+PASS URL 不被当页面路径
+PASS 去空白后仍在白名单
+PASS 参数键名固定（与卡片深链共用 bit101Content）
+PASS 放假文案
+PASS 补课文案点明周几
+PASS 周几越界 → 空（不编）
+PASS 周几 9 → 空
+PASS 未来含今天 2 条（越界那条被丢）
+PASS 今天的放假排最前
+PASS 补课在第二
+PASS 日期标签含星期
+PASS limit 生效
+PASS 过去 1 条
+PASS 今日角标
+PASS 非调整日 → 空角标
+PASS 今日补课角标
+PASS 7 天内（含今天）有调整
+PASS 只看当天且当天无调整 → false
+PASS 3 天后超出 2 天窗口 → false
+
+ALL PASS  pass=62 fail=0
+→ 通过（62 条）
+
+──────── test-cacheindex ────────
+PASS 6 个可清理项
+PASS 默认（不含用户数据）5 项
+PASS 默认项里没有 userData
+PASS 显式包含用户数据 → 6 项
+PASS userData 项只有一个（作业数据）
+PASS userData 是 ddl
+PASS 作业项文案点明不可恢复
+PASS 前缀匹配课表缓存
+PASS 精确匹配 last_term
+PASS 版本不同的前缀不匹配（不误删未来格式）
+PASS 别的键不匹配
+PASS 成绩缓存精确匹配
+PASS 快照**不在**清理项里（清了会重复提醒历史成绩）
+PASS 出分检查时间戳不清（清了会立刻重新检查）
+PASS 设置/凭据/快照键一个都没被归入可清理项
+PASS 课表缓存 3 个键（2 学期 + last_term）
+PASS 作业数据 1 个键
+PASS 成绩缓存 1 个键（不含快照）
+PASS 提醒记录 2 个键
+PASS 默认不归入作业数据
+PASS 默认仍归入课表缓存
+PASS 同一键出现两次也会各自归入（调用方按键去重）
+PASS 0 → 0 B
+PASS 负数 → 0 B
+PASS 512 → 512 B
+PASS 1024 → 1 KB
+PASS 1536 → 1.5 KB
+PASS 1 MiB → 1 MB
+PASS 1.25 MiB → 1.3 MB（一位小数四舍五入）
+PASS 合计
+PASS 忽略负数
+PASS 空合计 0
+PASS 点名清理项
+PASS 不含用户数据时不说「不可恢复」
+PASS 含用户数据时明确警示
+PASS 含用户数据时说明不可恢复
+PASS 空选择文案
+PASS 长学号前 3 后 2
+PASS 5 位也至少遮 1 位（否则等于没脱敏）
+PASS 4 位及以下全遮
+PASS 空 → 未登录
+PASS 空白 → 未登录
+PASS 中间段不泄露
+PASS 布尔中文
+PASS 10 行诊断
+PASS 第一行版本
+PASS 学号已脱敏
+PASS 缓存行
+PASS 空记录显示「无记录」
+PASS 首行标题
+PASS 整段文本不含完整学号
+PASS 含脱敏学号
+PASS 数据行不含 cookie/密码字样
+PASS 末尾说明已脱敏
+PASS 未登录显示「未登录」
+
+ALL PASS  pass=55 fail=0
+→ 通过（55 条）
+
+──────── test-weeknav ────────
+PASS 中间周原样
+PASS 第一周原样
+PASS 最后一周原样
+PASS 第 0 周 → 1
+PASS 负数 → 1
+PASS 超出 → max
+PASS NaN → 1
+PASS 小数向下取整
+PASS max 为 NaN → 视为只有 1 周
+PASS max 为 0 → 视为只有 1 周
+PASS max 为负 → 视为只有 1 周
+PASS 下一周
+PASS 上一周
+PASS 一次跳 5 周
+PASS 第 1 周往前不越界
+PASS 最后一周往后不越界
+PASS 大步长也钳在 max
+PASS delta 0 不动
+PASS delta NaN 不动
+PASS 左滑 → 下一周
+PASS 右滑 → 上一周
+PASS 第 1 周右滑不动
+PASS 最后一周左滑不动
+PASS dir 0 不动
+PASS 单周学期左滑不动
+PASS 单周学期右滑不动
+PASS 单周学期步进不动
+PASS 周次标签
+PASS max 非法：只报当前周，不钳成 1
+PASS max 为 NaN 同上
+PASS 越界值先钳再显示
+PASS 无障碍讲到左滑
+PASS 无障碍讲到右滑
+PASS 第一周如实说边界
+PASS 最后一周如实说边界
+PASS 单周学期不瞎讲滑动
+PASS max 非法：只说当前周
+PASS max 非法：不把第 5 周钳成第 1 周
+PASS max 非法：不讲总周数
+PASS max 非法：不讲滑动（说了也没有下一周）
+PASS 0°(向右) → 上一周
+PASS 180°(向左) → 下一周
+PASS 360° 等价 0°
+PASS 负角度归一
+PASS 90°(向下) → 不切周（留给上下滚动）
+PASS 270°(向上) → 不切周
+PASS 60° 斜划不切周
+PASS 120° 斜划不切周
+PASS 30° 仍算水平
+PASS 150° 仍算水平
+PASS 45° 边界算水平
+PASS 46° 已不算水平
+PASS NaN 不处理
+
+ALL PASS  pass=53 fail=0
+→ 通过（53 条）
+
+──────── test-quiethours ────────
+PASS 同日：起点算在窗口内（含）
+PASS 同日：终点前 1 分钟在内
+PASS 同日：终点不算在窗口内（该响了）
+PASS 同日：起点前 1 分钟在外
+PASS 同日：零点在外
+PASS 同日：23:59 在外
+PASS 跨零点：23:00 在内
+PASS 跨零点：23:59 在内
+PASS 跨零点：00:00 在内
+PASS 跨零点：06:59 在内
+PASS 跨零点：07:00 结束（该响了）
+PASS 跨零点：22:59 在外
+PASS 跨零点：中午在外
+PASS 总开关关 → 永不静默
+PASS 起止相同 → 窗口无效
+PASS 起止相同 → 不静默（不是全天）
+PASS 起止相同 → 任何时刻都不静默
+PASS minute=NaN → 不静默
+PASS minute=-1 → 不静默
+PASS minute=1440 → 不静默
+PASS 边界 NaN → 不静默
+PASS 窗口外原样返回
+PASS 关闭时不动
+PASS 23:30 被推迟
+PASS 23:30 → 次日 07:00
+PASS 00:30 → 当天 07:00（已在次日段）
+PASS 推迟后一定晚于原时刻
+PASS 10:15 → 当天 12:00
+PASS 推迟后秒/毫秒归零
+PASS 只推迟窗口内那一条
+PASS 预算够 → 一条不丢
+PASS 条数不变（不丢提醒）
+PASS 跨天：日/时/分都重算
+PASS 窗口外那条不动
+PASS 不修改入参（纯函数）
+PASS 去重键/标题保留
+PASS 关闭时直接返回原数组（零拷贝）
+PASS 只留 DDL（预算不限）
+PASS 留下的是 DDL
+PASS 上课 + 考试被丢（推迟 450 分钟 > 预算）
+PASS DDL 记为推迟
+PASS 默认零预算 → 静默期一条不发
+PASS 推迟 450 = 预算 450 → 保留
+PASS 推迟 450 > 预算 449 → 丢弃
+PASS clampMinute 负 → 0
+PASS clampMinute 超上限 → 1439
+PASS clampMinute NaN → fallback
+PASS minuteText 零点
+PASS minuteText 补零
+PASS minuteText 末点
+PASS parseMinute 正常
+PASS parseMinute 不补零也认
+PASS parseMinute 小时越界 → fallback
+PASS parseMinute 分钟越界 → fallback
+PASS parseMinute 乱码 → fallback
+PASS parseMinute 空串 → fallback
+PASS summary 跨零点标注次日
+PASS summary 同日不加次日
+PASS summary 关闭态
+PASS summary 无效窗口说实话
+PASS hint 讲清无效窗口
+PASS hint 讲清「推迟不丢」
+PASS null → 默认值
+PASS 脏字段各自回落，不整块回退
+PASS 越界钳回区间
+PASS 所有预设都是有效窗口
+PASS 默认不打扰用户（静默默认关）
+PASS budgetFor CLASS
+PASS budgetFor EXAM
+PASS budgetFor 座位签到
+PASS budgetFor DDL
+PASS budgetFor 未知/其它 → otherMax
+PASS budgetFor 完全不认识的类型 → otherMax
+
+ALL PASS  pass=73 fail=0
+→ 通过（73 条）
+
+──────── test-a11ytext ────────
+PASS 两段用中文逗号
+PASS 中间空段被跳过
+PASS 全空 → 空串
+PASS 各段去首尾空白
+PASS 空数组 → 空串
+PASS 开关开启
+PASS 开关关闭
+PASS 不出现 true
+PASS 不出现 false
+PASS 三段齐全
+PASS 空值不留悬空逗号
+PASS 空提示不留悬空逗号
+PASS 全空 → 空串（不产生只读逗号的行）
+PASS 0 → 没有未读
+PASS 正常计数
+PASS 负数按 0 处理
+PASS NaN 按 0 处理
+PASS 超上限带实际值
+PASS cap=0 表示不限
+PASS 小数向下取整
+PASS 正常进度
+PASS 分母 0 → 只说分子
+PASS 分母 NaN → 只说分子
+PASS chip 选中
+PASS chip 未选中
+PASS 金额两位小数
+PASS NaN → 未知（不显示 0.00）
+PASS 真 0 元照实说
+PASS 成对时间
+PASS 缺结束 → 只说开始
+PASS 缺开始 → 只说结束
+PASS 都缺 → 只有标签
+PASS 无英文布尔/空值/连续逗号
+
+ALL PASS  pass=33 fail=0
+→ 通过（33 条）
+
+──────── test-ddlsort ────────
+PASS course 被认出
+PASS 空串 → 默认 due
+PASS 脏值 → 默认 due
+PASS 默认是按截止
+PASS 未完成 5 条（已完成不进 pending）
+PASS due 按天→分钟升序
+PASS pending 里没有已完成
+PASS 三门课聚成 3 组（操作系统 / 计算机网络 / 空名）
+PASS 组内课程名一致（没有串组）
+PASS 同名课程没有被拆成两组
+PASS 每个课程组内部按截止升序
+PASS 无课程名的排最后
+PASS 课程组次序 = 课程名排序结果
+PASS 同截止同课程 → 顺序与输入无关（稳定）
+PASS 按 uid 兜底升序
+PASS done 截止倒序（最近在上）
+PASS 排序不改入参顺序
+PASS 空输入 → 空
+PASS 只有已完成 → pending 空
+PASS 只有未完成 → done 空
+PASS due 标签
+PASS course 标签
+PASS due → course
+PASS course → due
+PASS 切两下回原档
+
+ALL PASS  pass=25 fail=0
+→ 通过（25 条）
+
+──────── test-notifystatus ────────
+PASS 用户关闭 → 提总开关
+PASS 未授权 → 说通知权限
+PASS 空计划 → 说本地没数据
+PASS 静默全吃掉 → 说免打扰 + 条数
+PASS 四条文案互不相同（没有两条撞到一起）
+PASS 未授权时**不许**说「已重排」
+PASS 用户关闭时不许说「已重排」
+PASS 空计划时不许说「已重排」
+PASS 静默全吃掉时不许说「已重排」
+PASS 纯成功
+PASS 全零后缀不出现
+PASS 配额后缀
+PASS 推迟后缀
+PASS 丢弃后缀
+PASS 失败后缀
+PASS 四个后缀同时出现
+PASS 真空结果如实说 0 条
+PASS 未授权 → 要按钮
+PASS 用户关闭 → 不要按钮（点了也没用）
+PASS 空计划 → 不要按钮
+PASS 静默 → 不要按钮
+PASS 成功 → 不要按钮
+PASS 3 条无 reason → 生效
+PASS 0 条 → 不生效
+PASS reason 非空时 published 不该存在，按不生效处理
+PASS 全部被拒 → 说明是系统拒绝
+PASS 带上错误码方便排查
+PASS 全拒时不许说「已重排」
+PASS 部分成功仍说排了几条
+PASS 带拒绝后缀
+PASS 拒绝后缀取 quotaRejected
+PASS 剩余失败数 = failed - rejected
+PASS 不许把全部失败都算成普通失败
+PASS 缺省 quotaRejected 不影响成功文案
+PASS 普通失败不说系统拒绝
+PASS 普通失败如实计数
+
+ALL PASS  pass=36 fail=0
+→ 通过（36 条）
+
+──────── test-redact ────────
+
+ALL PASS  pass=23 fail=0
+→ 通过（23 条）
+
+──────── test-lifecycle ────────
+
+ALL PASS  pass=19 fail=0
+→ 通过（19 条）
+
+──────── test-appforeground ────────
+(node:36868) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/node-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36868) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36868) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+  ✓ setForeground(false) → isForegroundNow false
+  ✓ 值变化触发一次 onChange
+  ✓ 值不变不重复通知
+  ✓ 再次变化再触发一次
+  ✓ 取消订阅后不再触发
+  ✓ 后台启动也返回 true（已登记任务）
+  ✓ 任务已登记到仓库
+  ✓ 后台启动后状态 RUNNING（保留，由 UI 状态条提示已暂停）
+  ✓ 后台启动后 message 标记「已暂停」
+  ✓ 终态任务 resume 不被重启
+  ✓ 前台启动后进入轮询（WAIT 分支保持 RUNNING）
+  ✓ stopSeatMonitor 能终止轮询（CANCELLED）
+
+[appforeground] pass=12 fail=0
+→ 通过（12 条）
+
+──────── test-instantalerts ────────
+=== 1. 流量状态机（对照 Android NetFlowChecker.check）===
+
+=== 2. 本地日期 / 时间 ===
+
+=== 3. 借阅新键筛选 ===
+
+=== 4. 源码栅栏：接线点与纪律 ===
+
+ALL PASS pass=48 fail=0
+(node:14308) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（48 条）
+
+──────── test-notifyread ────────
+=== 1. 快照净化 ===
+
+=== 2. 已发键与未读 ===
+
+=== 3. 旧时间戳迁移 ===
+
+=== 4. 合并已读键 ===
+
+=== 5. 源码栅栏：页面与存储接线 ===
+
+ALL PASS pass=43 fail=0
+(node:27472) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（43 条）
+
+──────── test-sso ────────
+=== 1. SSO 域判据 ===
+=== 2. 只下沉 CAS 域 cookie ===
+=== 3. 接线栅栏 ===
+
+ALL PASS pass=25 fail=0
+(node:43832) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（25 条）
+
+──────── test-nfc ────────
+=== 1. 能力三态 ===
+=== 2. UID / technology ===
+=== 3. NDEF 最小解析 ===
+=== 4. 摘要 ===
+=== 5. 权限与只读栅栏 ===
+
+ALL PASS pass=42 fail=0
+(node:52140) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（42 条）
+
+──────── test-cardprobe ────────
+
+ALL PASS pass=61 fail=0
+(node:768) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（61 条）
+
+──────── test-cardid ────────
+
+ALL PASS pass=44 fail=0
+(node:10400) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（44 条）
+
+──────── test-proberunner ────────
+
+ALL PASS pass=25 fail=0
+(node:33800) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（25 条）
+
+──────── test-nfcwire ────────
+
+ALL PASS pass=35 fail=0
+→ 通过（35 条）
+
+──────── test-authgate ────────
+
+ALL PASS pass=26 fail=0
+(node:34688) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（26 条）
+
+──────── test-deepscan ────────
+
+ALL PASS  pass=21 fail=0
+(node:44736) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（21 条）
+
+──────── test-classic ────────
+
+=== Classic 只读 dump ===
+  ok 1 - 16 扇区 × (1 认证 + 4 读块) = 80 条流水
+  ok 2 - onLine 每条都回调（边收边显示）
+  ok 3 - 16 次认证
+  ok 4 - 64 次读块
+  ok 5 - 全部是 KeyA 认证
+  ok 6 - 全部用唯一默认密钥 FFFFFFFFFFFF
+  ok 7 - 块0=制造商块，读出 UID
+  ok 8 - 块0 标注制造商块
+  ok 9 - 其余 63 块全零且被标记 allZero
+  ok 10 - 认证失败扇区只留一行 auth-fail
+  ok 11 - 跳过时明确标注不试其他密钥
+  ok 12 - 失败扇区也只有一次认证（没换密钥重试）
+  ok 13 - 认证失败扇区没有读任何块
+  ok 14 - 认证抛错按 auth-fail 处理，不中断全程
+  ok 15 - 掉卡块记 read-fail
+  ok 16 - 掉卡后继续读后续块（保留已得）
+  ok 17 - 非零块被识别，不误标全零
+  ok 18 - 源码无任何写块/增值/NDEF 写入调用
+  ok 19 - 源码无第二个候选密钥（只有全 FF 默认密钥）
+  ok 20 - 认证统一走 DEFAULT_KEY_A 常量
+
+ALL PASS pass=20 fail=0
+(node:55084) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（20 条）
+
+──────── test-logout ────────
+
+=== 退出清空单点 (#150) ===
+
+ALL PASS pass=22 fail=0
+→ 通过（22 条）
+
+──────── test-updatecheck ────────
+
+=== 版本检查纯逻辑 (#158) ===
+  ok 1 - 合法响应解析成功
+  ok 2 - 数字字段正确
+  ok 3 - 字符串字段正确
+  ok 4 - msg 正确
+  ok 5 - camelCase 字段兼容
+  ok 6 - 数字字符串字段解析
+  ok 7 - null → null
+  ok 8 - 数组 → null
+  ok 9 - 空对象 → null（缺关键字段）
+  ok 10 - 空 versionName → null
+  ok 11 - 负 versionCode → null
+  ok 12 - 非法数字 → null
+  ok 13 - 低于最低版本 → REQUIRED
+  ok 14 - 介于最低与最新 → OPTIONAL
+  ok 15 - 等于最新 → NONE
+  ok 16 - 高于最新 → NONE
+  ok 17 - 坏 remote → NONE 且 checked=false（UI 不显示"已是最新"）
+  ok 18 - 坏 local → checked=false
+  ok 19 - 非法 local code → checked=false
+  ok 20 - 确实最新 → checked=true（可显示"已是最新"）
+  ok 21 - 展示取 msg + versionName
+  ok 22 - 判定结果不含 APK url（鸿蒙不装 APK）
+  ok 23 - 判定结果不含任何下载链接
+  ok 24 - updateNote 只取 msg
+  ok 25 - 版本检查逻辑无下载/安装/拉起动作
+  ok 26 - VersionCheckService 走纯逻辑解析与判定
+  ok 27 - 版本接口带尾斜杠（绕过 308 重定向）
+  ok 28 - AboutPage 区分检查失败与检查完成（服务端是 Android 版公告，不谎报鸿蒙最新）
+  ok 29 - AboutPage 有检查更新按钮并调服务
+  ok 30 - version-svc 无下载/安装/拉起动作
+  ok 31 - about-page 无下载/安装/拉起动作
+
+ALL PASS pass=31 fail=0
+(node:13636) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（31 条）
+
+──────── test-campuscenter ────────
+
+=== 校区中心点 (#156) ===
+  ok 1 - 4 个校区（良乡/中关村/珠海/嘉兴）
+  ok 2 - 默认第一个是良乡（与 Android 顺序一致）
+  ok 3 - 校区顺序 = Android MapCampus.ALL
+  ok 4 - 良乡校区 经纬度与 Android 可查证值一致
+  ok 5 - 中关村校区 经纬度与 Android 可查证值一致
+  ok 6 - 珠海校区 经纬度与 Android 可查证值一致
+  ok 7 - 嘉兴校区 经纬度与 Android 可查证值一致
+  ok 8 - 良乡/中关村有建筑索引
+  ok 9 - 珠海/嘉兴无建筑索引（OSM 数据太稀，Android 已证）
+  ok 10 - 找不到校区返回 null 不猜
+  ok 11 - geo URI 用 WGS-84 经纬度（lat,lon）
+  ok 12 - geo URI 格式正确
+  ok 13 - 有索引校区无提示
+  ok 14 - 无索引校区给诚实说明
+  ok 15 - 无索引校区给出路（系统地图定位）
+  ok 16 - 校区 chip 渲染 4 校区（不再是 groups 的 2 个）
+  ok 17 - 无索引校区接了系统地图定位 + 诚实说明
+  ok 18 - 保留 loadCourses→refresh 顺序（真机踩坑栅栏）
+  ok 19 - 页面不编造珠海/嘉兴的建筑条目
+  ok 20 - CampusLocations 头部注释已修正为实际 34+14
+
+ALL PASS pass=20 fail=0
+(node:22916) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（20 条）
+
+──────── test-autorelogin ────────
+
+=== 自动重登纯逻辑 ===
+
+ALL PASS pass=49 fail=0
+(node:43500) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（49 条）
+
+──────── test-seattree ────────
+
+=== 座位树解析守卫（真机 fixture）===
+
+ALL PASS pass=27 fail=0
+(node:9660) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（27 条）
+
+──────── test-communityauth ────────
+
+=== 社区鉴权（fake-cookie）===
+
+ALL PASS pass=20 fail=0
+(node:37992) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（20 条）
+
+──────── test-community ────────
+
+=== 话廊列表解析 ===
+
+=== 举报类型解析 ===
+
+ALL PASS pass=31 fail=0
+(node:19936) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（31 条）
+
+──────── test-communityuser ────────
+
+=== 社区我的资料解析 ===
+ALL PASS  pass=49
+(node:19572) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（49 条）
+
+──────── test-scheduledisplay ────────
+
+=== 课表显示开关 ===
+ALL PASS  pass=22
+(node:17220) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（22 条）
+
+──────── test-seat500a ────────
+
+=== 座位 500 方案 A′ ===
+ALL PASS  pass=31
+(node:40184) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（31 条）
+
+──────── test-seatauthgate ────────
+
+=== 座位授权门禁（对齐 seatlib-contract §1）===
+ALL PASS  pass=13
+→ 通过（13 条）
+
+──────── test-login302 ────────
+=== 登录页已登录态 302 复用守卫 ===
+ALL PASS 15 assertions
+→ 通过（0 条）
+
+──────── test-casjar ────────
+=== phpCAS 换票链隔离罐守卫 ===
+ALL PASS 11 assertions
+→ 通过（0 条）
+
+──────── test-seatloop ────────
+=== 座位授权死循环修复守卫 ===
+ALL PASS 54 assertions
+→ 通过（0 条）
+
+──────── test-seatsegment ────────
+=== 时段解析守卫 resolveSeatSegment ===
+ALL PASS 11 assertions
+→ 通过（0 条）
+
+──────── test-seatform ────────
+=== 新建预约表单逻辑守卫 ===
+ALL PASS 33 assertions
+(node:42744) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（0 条）
+
+──────── test-communitywrite ────────
+ALL PASS pass=58 fail=0
+(node:46752) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（58 条）
+
+──────── test-seat500rc ────────
+ALL PASS pass=11 fail=0
+→ 通过（11 条）
+
+──────── test-maptile ────────
+=== 常量（对齐 Android 契约）===
+
+=== Android 校区归一化坐标 ↔ 经纬度往返 ===
+
+=== 瓦片坐标换算 ===
+
+=== URL 构造 ===
+
+=== 可见瓦片范围 ===
+
+=== 层级夹取 ===
+
+ALL PASS  pass=34 fail=0
+(node:42048) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（34 条）
+
+──────── test-seatmappage ────────
+=== 阶段3座位图页逻辑守卫 ===
+ALL PASS pass=68 fail=0
+(node:50976) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（68 条）
+
+──────── test-seatlist ────────
+=== 阶段4列表tab逻辑守卫 ===
+ALL PASS pass=58 fail=0
+(node:23608) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（58 条）
+
+──────── test-seatsideeffect ────────
+=== 座位预约/取消副作用边界用例 ===
+ALL PASS pass=40 fail=0
+(node:41108) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+→ 通过（40 条）
+
+════════════════════════════════════
+ALL PASS  通过 93/93 套件，累计 4060 条断言
+EXITCODE=0

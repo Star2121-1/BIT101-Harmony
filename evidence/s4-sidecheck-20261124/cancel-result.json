@@ -1,0 +1,19 @@
+{
+  "case": "TC-02 取消 + 二次确认",
+  "verdict": "FAIL (BLOCKED: 会话失效)",
+  "time": "2026-11-24 20:20 +0800",
+  "device": "4CY9K25614019980",
+  "evidence_xml": "evidence/s4-sidecheck-20261124/g5-cancel-check.xml",
+  "script_output": "[FAIL] 座位会话已失效，先点「去授权」由本人重登后再跑本用例（不伪通过）",
+  "checked": {
+    "reservation_still_visible": "我的预约（1）+ 2026-11-24 20:17:10 记录仍在",
+    "cancel_button": "不存在（TC-01 取证时 [915,771][1104,859] click=true；会话失效后消失）",
+    "auth_gate": true,
+    "auth_gate_text": "登录已失效，请重新登录 ×2（违约/研讨间区块）+ 去授权座位系统",
+    "quota": "今天还剩 2 次（未递减，取消未执行）"
+  },
+  "verdict_reason": "按红线：会话失效直接 FAIL，不把降级态算通过；取消入口随会话失效隐藏，无法执行",
+  "next": "用户本人点「去授权座位系统」重登后重跑 TC-02；agent 不代点、不代登",
+  "note": "TC-01 已真实预约座位 001（20:17:10），60 分钟内需本人刷卡签到，逾期记违约",
+  "cancel_button": "不存在（精确核对 clickable=true 且 text=取消 的节点：TC-01 结果时 [915,771][1104,859]，TC-02 检查时 []）"
+}

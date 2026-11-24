@@ -1,0 +1,8 @@
+# CI 对照证据（S4 本轮查证 2026-11-24）
+来源: gh run view 45146665044 --repo Star2121-1/BIT101-Harmony --log
+仓库 HEAD: 5498157fcedde02aaac98e1e6b773dc5a201eb62
+unit	UNKNOWN STEP	2026-11-23T09:24:06.5180145Z   node-version: 22
+unit	UNKNOWN STEP	2026-11-23T09:24:09.0495970Z node: v22.23.5
+unit	UNKNOWN STEP	2026-11-23T09:24:09.0913659Z v22.23.5
+unit	UNKNOWN STEP	2026-11-23T09:24:09.0994781Z ^[[36;1m  echo "::error::单测红：$(grep -E '失败套件' /tmp/unit.log | tr '\n' ' ')"^[[0m
+unit	UNKNOWN STEP	2026-11-23T09:24:42.0681455Z ALL PASS  通过 93/93 套件，累计 4060 条断言

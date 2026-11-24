@@ -1,0 +1,19 @@
+{
+  "case": "TC-01 预约正路径",
+  "verdict": "PASS",
+  "time": "2026-11-24 20:18 +0800",
+  "device": "4CY9K25614019980",
+  "app_version": "1.0.0-alpha.47 (versionCode 47)",
+  "trigger": "用户本人在座位图页点击「预约 001」(脚本未代点)",
+  "evidence_xml": "evidence/s4-sidecheck-20261124/g5-reserve-result.xml",
+  "checks": {
+    "auto_nav_to_list_tab": "pagePath=pages/Index + 列表 tab 高亮内容渲染",
+    "success_hint": "预约座位 001 成功！请在 60 分钟内刷卡签到（当日预约，逾期记违约）",
+    "reservation_count": "我的预约（1）",
+    "record": "2026-11-24 20:17:10 / 未签到",
+    "quota": "每天最多可取消 2 次 · 今天还剩 2 次 · 刚刚更新",
+    "no_auth_gate": true,
+    "no_failure_text": true
+  },
+  "note": "静态绿≠真机通过；本条由用户本人点击并现场取证，G5 逐条签字项之一"
+}

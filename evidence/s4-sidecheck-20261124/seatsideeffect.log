@@ -1,0 +1,4 @@
+=== 座位预约/取消副作用边界用例 ===
+ALL PASS pass=40 fail=0
+(node:38636) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
