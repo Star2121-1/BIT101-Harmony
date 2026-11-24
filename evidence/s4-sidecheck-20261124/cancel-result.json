@@ -15,5 +15,8 @@
   "verdict_reason": "按红线：会话失效直接 FAIL，不把降级态算通过；取消入口随会话失效隐藏，无法执行",
   "next": "用户本人点「去授权座位系统」重登后重跑 TC-02；agent 不代点、不代登",
   "note": "TC-01 已真实预约座位 001（20:17:10），60 分钟内需本人刷卡签到，逾期记违约",
-  "cancel_button": "不存在（精确核对 clickable=true 且 text=取消 的节点：TC-01 结果时 [915,771][1104,859]，TC-02 检查时 []）"
+  "cancel_button": "不存在（精确核对 clickable=true 且 text=取消 的节点：TC-01 结果时 [915,771][1104,859]，TC-02 检查时 []）",
+  "actual_outcome": "用户本人取消后，alpha.48 重启进列表 tab 显示「我的预约（0）」「还没有座位预约」，额度显示正常 ⇒ 取消实际生效（TC-02 真机 PASS，事后取证）",
+  "verdict_updated": "PASS（事后取证：alpha.48 a48-list.xml）",
+  "evidence_after": "evidence/autorenew-s3-20261124/a48-list.xml"
 }
