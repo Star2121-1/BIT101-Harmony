@@ -35,6 +35,11 @@ import {
 } from '../corelogic/SeatApiLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 import { CasLoginService } from '../service/CasLoginService.ts';
+import { AutoReloginService } from '../service/AutoReloginService.ts';
+import { RenewDecision } from '../corelogic/AutoReloginLogic.ts';
+import {
+  seatRenewAction, seatJwtStillExpiredMessage,
+} from '../corelogic/SeatAutoReloginLogic.ts';
 import { getTaskRepository } from '../data/SeatTaskStore.ts';
 import { createTask, isTerminalStatus, TaskMode } from '../model/SeatTask.ts';
 import type { ReservationTask } from '../model/SeatTask.ts';
@@ -420,10 +425,15 @@ export struct SeatPage {
   }
 
   /**
-   * 门禁「授权座位系统」按钮（对齐 Android SeatViewModel.authorize）。
+   * 门禁「授权座位系统」按钮（对齐 Android SeatViewModel.ensureSeatlibSession）。
    * ⚠️ 红线：只在用户主动点击时调；自动路径绝不走到这里（避免学校风控短信无人输入）。
-   * 第一步先做只读的 cookie 静默续期（安全、不发短信）；失败则跳登录页请用户本人重登——
-   * 重登会重建 seatlib 域 phpCAS 会话并落新 PHPSESSID（A′ 落盘链路），这才是换 JWT 的前提。
+   *
+   * 两步（成本从低到高，对齐 Android SeatAutoLogin.renew）：
+   * 1. 只读 cookie 静默续期（安全、不发短信）——成功则直接重试取数；
+   * 2. 失败 ⇒ 用 opt-in 存的凭据走 CAS 重登（**仅此显式路径允许**，短信二验会停手交回用户）。
+   *    renewed 后 CAS 会话重建，但 seatlib JWT 还没换——再 silentRenewJwt 一次才可用。
+   *
+   * 其余结果（无凭据/需验证码/密码错/节流/失败）一律跳登录页由本人处理，不猜码、不伪通过。
    */
   private async authorizeSeat(): Promise<void> {
     if (this.seatAuthorizing) return;
@@ -431,14 +441,29 @@ export struct SeatPage {
     this.seatsErr = '';
     try {
       const ctx: Context = getContext(this) as Context;
+      // 1. cookie 静默续期（无副作用、不发短信）
       if (await CasLoginService.silentRenewJwt(ctx)) {
         info('seat authorize: cookie silent renew ok');
         this.seatAuthExpired = false;
         await this.loadSeats(false);
         return;
       }
-      // cookie 换不到 token ⇒ 旧 phpCAS 会话已死（seatlib 单会话互踢），必须本人重登
-      this.seatsErr = '座位会话已过期，请重新登录学校账号后重试';
+      // 2. cookie 死了 ⇒ 用户已显式点授权，允许用 opt-in 凭据重登（对齐 allowCredentials=true）
+      const decision: RenewDecision = await AutoReloginService.renew(ctx);
+      info('seat authorize: credential renew kind=' + decision.kind);
+      if (seatRenewAction(decision.kind) === 'renew-jwt-and-retry') {
+        // CAS 会话已重建，但还要用新 cookie 换 seatlib JWT 才算座位会话可用（不把半程当成功）
+        if (await CasLoginService.silentRenewJwt(ctx)) {
+          info('seat authorize: seatlib jwt renewed after CAS relogin');
+          this.seatAuthExpired = false;
+          await this.loadSeats(false);
+          return;
+        }
+        this.seatsErr = seatJwtStillExpiredMessage();
+      } else {
+        // 无凭据/需验证码/密码错/节流/失败：显示分类文案，跳登录页由本人决定
+        this.seatsErr = decision.message;
+      }
       // 带来源参数：登录成功要回座位页并自动重试（对齐 BIT101-S 授权闭环），不能回课表。
       router.pushUrl({ url: 'pages/LoginPage', params: { from: 'seat' } }).catch((e: Error) => {
         warn('seat -> login fail: ' + JSON.stringify(e));

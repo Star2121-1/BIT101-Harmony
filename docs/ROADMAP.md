@@ -1,5 +1,7 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-24 alpha.48（versionCode 47→48）座位授权「点一下免输密码」（对齐 Android SeatAutoLogin.allowCredentials=true）**：用户诉求——每次 seatlib 会话失效都要跳登录页输密码太烦，想要像 Android 一样点一下授权就用存的一次凭据自动重登。根因：鸿蒙 `AutoReloginService.renew()` 基建早已存在（一卡通/图书馆在用）、登录页也有 opt-in「记住密码」勾选，唯独 `SeatPage.authorizeSeat()` 从没调它——cookie 静默续期失败就直接跳登录页。修复：`authorizeSeat()`（用户显式点击路径）改为两步——① cookie silentRenewJwt（无副作用）→ ② 失败则 `AutoReloginService.renew(ctx)`（用 opt-in 凭据走 CAS，短信二验停手交回用户），renewed 后再 silentRenewJwt 一次换 seatlib JWT 才算成功（不把半程当成功）；其余结果按 decision.message 跳登录页。红线：renew 只在 authorizeSeat 内，自动路径（loadSeats/confirmReserve/onAuthRetry/aboutToAppear）绝不走凭据直登（防学校风控短信无人输入）。新增 `SeatAutoReloginLogic.ts` 纯逻辑 + `test-seatautorelogin`（31 断言，拆红移除 renew 调用验红 EXIT=1、恢复绿，红/绿日志按 §2.4-A 归档 `evidence/autorenew-s3-20261124/`）。全量 **94/94 套件 4091 断言绿**，assembleHap 成功。**真机待验**：需 opt-in 已开，验「点去授权→自动重登→计数恢复」。
+
 > **2026-11-23 alpha.47（versionCode 46→47）真机又抓到一个冷启动 bug**：alpha.46 装机后列表 tab 的额度副标题「每天最多可取消 2 次 · 今天还剩 2 次 · 座位需刷卡签到 · 刚刚更新」、任务区骨架（已结束/展开/清除/打开监控面板）都正常，但**之前创建的监控任务不显示**。根因：`SeatTaskRepository.init()`（从 Prefs 读回持久化任务）在 SeatPage 从未调用——任务只在同进程内存里活着，重启即"消失"（SeatMonitorPage 有调，但用户没先进那个页）。修复：`SeatPage.aboutToAppear` 里 `getTaskRepository().init().then(() => this.syncTasks())`；test-seatlist +1 守卫拆红验过。全量 **92/92 套件 4020 断言绿**，`assembleHap` 成功。
 
 > **2026-11-23 alpha.46（versionCode 45→46）阶段4：列表 tab 补齐（座位迁移收尾）**：

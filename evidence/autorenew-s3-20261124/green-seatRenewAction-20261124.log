@@ -1,0 +1,16 @@
+=== 拆红反证 · 绿日志（GREEN / 恢复后）===
+守卫名: AutoReloginService.renew 接线（test-seatautorelogin）
+批次目录: evidence/autorenew-s3-20261124
+执行时间戳: 2026-11-24 20:28 +0800（晚于红日志）
+
+--- ① 恢复动作（与红日志改前原文逐字一致）---
+文件: entry/src/main/ets/pages/SeatPage.ets
+行号: 452
+恢复后完整语句原文（逐字）:       const decision: RenewDecision = await AutoReloginService.renew(ctx);
+恢复手段: 从 /tmp/SeatPage.bak 原样拷回，未改任何业务语义
+grep 佐证: 452:      const decision: RenewDecision = await AutoReloginService.renew(ctx);
+
+--- ② 结果 ---
+EXITCODE:0
+套件末行结果: ALL PASS pass=31 fail=0
+全量: ALL PASS 通过 94/94 套件，累计 4091 条断言

@@ -1,0 +1,25 @@
+=== 拆红反证 · 红日志（RED）===
+守卫名: AutoReloginService.renew 接线（test-seatautorelogin）
+批次目录: evidence/autorenew-s3-20261124
+执行时间戳: 2026-11-24 20:28 +0800
+
+--- ① 拆红改动（真移除，非注释）---
+文件: entry/src/main/ets/pages/SeatPage.ets
+行号: 452
+改前原文（逐字）:       const decision: RenewDecision = await AutoReloginService.renew(ctx);
+改后原文（逐字）:       const decision: RenewDecision = { kind: 'failed', message: '拆红测试' };
+git diff 片段（实测）:
+-      const decision: RenewDecision = await AutoReloginService.renew(ctx);
++      const decision: RenewDecision = { kind: 'failed', message: '拆红测试' };
+说明: 语句被整体替换（凭据重登调用真移除），非 // 注释、非 if(false)、非改变量名。
+
+--- ② 失败断言定位 ---
+套件: tools/test-seatautorelogin.mjs
+断言原文: 第二步：cookie 失败后用 opt-in 凭据重登
+断言行: tools/test-seatautorelogin.mjs:52
+期望: authBody 含 'AutoReloginService.renew(ctx)'
+实际: 不含（源码该调用已被替换）
+错误原文: AssertionError [ERR_ASSERTION]: 第二步：cookie 失败后用 opt-in 凭据重登
+
+--- ③ 进程退出码 ---
+EXITCODE=1
