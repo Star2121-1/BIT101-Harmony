@@ -10,8 +10,16 @@
  * 跑法：node --experimental-transform-types tools/test-classroomfree.mjs
  */
 
-import { currentSection, isFreeNow } from '../entry/src/main/ets/corelogic/ClassroomFree.ts';
+import {
+  currentSection, isFreeNow, nextBusyStartMinutes,
+  DEFAULT_FREE_MINUTES, DEFAULT_HIDE_BUSY
+} from '../entry/src/main/ets/corelogic/ClassroomFree.ts';
 import { FALLBACK_TIME_TABLE } from '../entry/src/main/ets/corelogic/TimeTableLogic.ts';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+const __root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const code = (p) => readFileSync(join(__root, p), 'utf8');
 
 let failed = 0;
 let passed = 0;
@@ -71,6 +79,41 @@ const custom = [
 eq(currentSection(custom, 9 * 60 + 30), 1, '自定义表 09:30 → 1');
 ok(isFreeNow([1], custom, 9 * 60 + 30) === false, '自定义表第1节占用 → 占用');
 ok(isFreeNow([1], custom, 8 * 60) === true, '自定义表课前 → 空闲');
+
+console.log('\n=== G07-02：空闲阈值（默认 5，对齐 Android）===');
+eq(DEFAULT_FREE_MINUTES, 5, '默认阈值 5 分钟（A:FreeClassroomViewModel.kt:23，不是历史误写的 0）');
+eq(DEFAULT_HIDE_BUSY, true, '默认隐藏当前不空闲（A:FreeClassroomViewModel.kt:22）');
+// nextBusyStartMinutes：第2节 08:50=530 开始；now=08:46=526 课间
+eq(nextBusyStartMinutes([2], T, 8 * 60 + 46), 8 * 60 + 50, '下一占用节起点=第2节 08:50');
+eq(nextBusyStartMinutes([2], T, 8 * 60 + 50), -1, 'now 已在第2节内时不再把它当"下一个"（-1=今天再无）');
+eq(nextBusyStartMinutes([], T, 8 * 60), -1, '无占用节 → -1（对应 LocalTime.MAX）');
+// 临界样本：占用节 08:50 开始、now=08:46，空档只有 4 分钟
+ok(isFreeNow([2], T, 8 * 60 + 46, 0) === true, '阈值 0：空档 4 分钟 ≥ 0 → 空闲');
+ok(isFreeNow([2], T, 8 * 60 + 46, 5) === false, '阈值 5：空档 4 分钟 < 5 → 不算空闲（两值结果不同）');
+ok(isFreeNow([2], T, 8 * 60 + 46) === false, '不传阈值走默认 5 → 占用');
+ok(isFreeNow([2], T, 8 * 60 + 40, 5) === true, '空档 10 分钟 ≥ 5 → 空闲（非临界侧不误杀）');
+ok(isFreeNow([5], T, 12 * 60 + 20, 5) === true, '午间 12:20 距第5节(13:20) 60 分钟 → 空闲');
+
+console.log('\n=== G07-01/02：源码接线守卫（静态）===');
+const settingsSrc = code('entry/src/main/ets/pages/SettingsPage.ets');
+const classSrc = code('entry/src/main/ets/pages/ClassroomPage.ets');
+const storeSrc = code('entry/src/main/ets/data/ClassroomSettings.ts');
+const freeSrc = code('entry/src/main/ets/corelogic/ClassroomFree.ts');
+ok(settingsSrc.includes("this.groupTitle('空教室')"), '设置页有空教室设置组');
+ok(settingsSrc.includes('隐藏当前不空闲的教室') && settingsSrc.includes('toggleHideBusy(on)'),
+  '设置页有隐藏开关且绑定 toggleHideBusy');
+ok(settingsSrc.includes('空闲时段阈值') && settingsSrc.includes('this.saveMinutes()'),
+  '设置页有阈值设置且能保存');
+ok(settingsSrc.includes('空闲时段阈值已设为'), '保存成功有可见反馈（非静默）');
+ok(classSrc.includes('this.visibleRooms()') && classSrc.includes('this.hideBusy && this.rooms.length'),
+  '空教室页按 hideBusy 过滤列表且处理整栋被过滤的空态');
+ok(classSrc.includes('this.nowMinutes, this.freeMinutes'), 'roomFree 把阈值传给 isFreeNow');
+ok(classSrc.includes('loadHideBusyClassroom()') && classSrc.includes('loadFreeMinutes()'),
+  '空教室页加载两项设置');
+ok(!freeSrc.includes('默认 0'), '源码注释不再写"默认 0"（订正历史错误）');
+ok(storeSrc.includes('DEFAULT_FREE_MINUTES, DEFAULT_HIDE_BUSY'), '设置存储从 corelogic 取默认值（单一来源）');
+ok(storeSrc.includes('Number.isInteger(value)') && storeSrc.includes('value > 120'),
+  '阈值归一化拦脏值（非整数 / 越界回落默认）');
 
 console.log('\n' + (failed === 0 ? 'ALL PASS' : 'FAILED') + '  pass=' + passed + ' fail=' + failed);
 process.exit(failed === 0 ? 0 : 1);

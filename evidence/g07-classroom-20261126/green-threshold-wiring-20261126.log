@@ -1,0 +1,18 @@
+时间戳: 2026-11-26 21:53:07 +0800
+守卫: test-classroomfree.mjs / 阈值接线
+=== 恢复动作：把 ClassroomPage.ets:301 还原为改前原文 ===
+    return isFreeNow(r.busySections, this.table, this.nowMinutes, this.freeMinutes);
+（与红日志「改前原文」逐字一致）
+=== 跑套件 ===
+=== currentSection：节内 / 边界 / 课间 / 课外 ===
+
+=== isFreeNow：对齐原版 nextBusyTime>=now 语义 ===
+
+=== 自定义作息表（用户改过时间表）===
+
+=== G07-02：空闲阈值（默认 5，对齐 Android）===
+
+=== G07-01/02：源码接线守卫（静态）===
+
+ALL PASS  pass=44 fail=0
+EXITCODE:0

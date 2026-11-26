@@ -53,6 +53,11 @@ import {
 } from '../corelogic/SearchNav.ts';
 import { measure as measureCache } from '../data/CacheCleaner.ts';
 import { totalBytes, sizeText } from '../corelogic/CacheIndex.ts';
+import { DEFAULT_FREE_MINUTES, DEFAULT_HIDE_BUSY } from '../corelogic/ClassroomFree.ts';
+import {
+  loadHideBusyClassroom, saveHideBusyClassroom, loadFreeMinutes, saveFreeMinutes,
+  normalizeFreeMinutes
+} from '../data/ClassroomSettings.ts';
 
 /** 默认校区偏好的持久化键（ClassroomPage 也读这个）。 */
 export const KEY_DEFAULT_CAMPUS: string = 'default_campus_code';
@@ -75,6 +80,14 @@ struct SettingsPage {
   @State campusCode: string = '';
   @State campusList: CampusInfo[] = [];
   @State pickerOpen: boolean = false;
+  /** G07-01：空教室「隐藏当前不空闲」（默认 true，对齐 Android）。 */
+  @State hideBusyClassroom: boolean = DEFAULT_HIDE_BUSY;
+  /** G07-02：空闲时段阈值分钟（默认 5）。 */
+  @State freeMinutes: number = DEFAULT_FREE_MINUTES;
+  /** 阈值输入面板是否展开（内联，避免多引一个弹层组件）。 */
+  @State minutesPickerOpen: boolean = false;
+  /** 阈值输入框的暂存文本（ArkTS TextInput 需字符串）。 */
+  @State minutesDraft: string = String(DEFAULT_FREE_MINUTES);
   @State busy: boolean = false;
   @State toast: string = '';
   @State versionText: string = '';
@@ -409,6 +422,14 @@ struct SettingsPage {
     } catch (e) {
       warn('Settings read campus fail: ' + JSON.stringify(e));
     }
+    // G07-01/02：空教室两项设置（读失败留默认值）
+    try {
+      this.hideBusyClassroom = await loadHideBusyClassroom();
+      this.freeMinutes = await loadFreeMinutes();
+      this.minutesDraft = String(this.freeMinutes);
+    } catch (e) {
+      warn('Settings read classroom settings fail: ' + JSON.stringify(e));
+    }
   }
 
   private loadVersion(): void {
@@ -515,6 +536,34 @@ struct SettingsPage {
   }
 
   /** 教务接口诊断（403 变体矩阵），结果写沙箱文件 jxzx_probe.txt。 */
+  /** G07-01：隐藏当前不空闲教室开关（对齐 Android setHideBusyClassroom）。 */
+  private async toggleHideBusy(on: boolean): Promise<void> {
+    this.hideBusyClassroom = on;
+    try {
+      await saveHideBusyClassroom(on);
+      this.toast = on ? '已隐藏当前不空闲的教室' : '已显示全部教室';
+    } catch (e) {
+      this.toast = '保存失败：' + (e as Error).message;
+      warn('Settings save hideBusy fail: ' + JSON.stringify(e));
+    }
+  }
+
+  /** G07-02：空闲时段阈值——提交前归一化，脏值不落盘（同 Android InputNumberDialog）。 */
+  private async saveMinutes(): Promise<void> {
+    const parsed: number = Number(this.minutesDraft);
+    const value: number = normalizeFreeMinutes(parsed);
+    try {
+      await saveFreeMinutes(value);
+      this.freeMinutes = value;
+      this.minutesDraft = String(value);
+      this.minutesPickerOpen = false;
+      this.toast = '空闲时段阈值已设为 ' + value + ' 分钟';
+    } catch (e) {
+      this.toast = '保存失败：' + (e as Error).message;
+      warn('Settings save freeMinutes fail: ' + JSON.stringify(e));
+    }
+  }
+
   private async runDiag(): Promise<void> {
     this.busy = true;
     this.diagText = '诊断中…';
@@ -1170,6 +1219,51 @@ struct SettingsPage {
               }
               .width('100%')
               .margin({ top: 8 })
+            }
+
+            // G07-01：隐藏当前不空闲的教室（对齐 A:FreeClassroomSettingPage.kt:117-121）
+            Row() {
+              Text('隐藏当前不空闲的教室')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Toggle({ type: ToggleType.Checkbox, isOn: this.hideBusyClassroom })
+                .onChange((on: boolean) => {
+                  this.toggleHideBusy(on);
+                })
+            }
+            .width('100%').padding({ top: 10 })
+            .border({ width: { top: 0.5 }, color: this.p().outlineVariant })
+
+            // G07-02：空闲时段阈值（对齐 A:FreeClassroomSettingPage.kt:122-127）
+            Row() {
+              Text('空闲时段阈值')
+                .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(this.freeMinutes + ' 分钟')
+                .fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
+            }
+            .width('100%').padding({ top: 10 })
+            .border({ width: { top: 0.5 }, color: this.p().outlineVariant })
+            .onClick(() => {
+              this.minutesDraft = String(this.freeMinutes);
+              this.minutesPickerOpen = !this.minutesPickerOpen;
+            })
+            if (this.minutesPickerOpen) {
+              Row() {
+                Text('不大于此值的空闲时段将被忽略')
+                  .fontSize(11).fontColor(this.p().onSurfaceVariant).layoutWeight(1)
+                TextInput({ text: this.minutesDraft })
+                  .width(64).height(32)
+                  .type(InputType.Number)
+                  .onChange((v: string) => {
+                    this.minutesDraft = v;
+                  })
+                Text('保存').fontSize(13).fontColor(this.p().primary)
+                  .padding({ left: 8 })
+                  .onClick(() => {
+                    this.saveMinutes();
+                  })
+              }
+              .width('100%').padding({ top: 8 })
             }
           }
           .width('100%').padding(12)

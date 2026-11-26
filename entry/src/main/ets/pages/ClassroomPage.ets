@@ -55,7 +55,10 @@ import { weekOf } from '../corelogic/CourseWeekdayLogic.ts';
 import { parseISODate } from '../corelogic/timeutil.ts';
 import { groupCampuses } from '../corelogic/CampusGrouping.ts';
 import type { CampusGroup } from '../corelogic/CampusGrouping.ts';
-import { isFreeNow } from '../corelogic/ClassroomFree.ts';
+import { isFreeNow, DEFAULT_FREE_MINUTES, DEFAULT_HIDE_BUSY } from '../corelogic/ClassroomFree.ts';
+import {
+  loadHideBusyClassroom, loadFreeMinutes
+} from '../data/ClassroomSettings.ts';
 import { joinA11y } from '../corelogic/A11yText.ts';
 import { FALLBACK_TIME_TABLE } from '../corelogic/TimeTableLogic.ts';
 import type { TimeTable } from '../corelogic/timeutil.ts';
@@ -91,6 +94,10 @@ export struct ClassroomPage {
   @State weekKnown: boolean = false;
   /** 用户作息表（M6-2）；「现在空闲」的节次边界以它为准。 */
   @State table: TimeTable = FALLBACK_TIME_TABLE;
+  /** G07-01：是否隐藏当前不空闲的教室（设置页可改，默认 true）。 */
+  @State hideBusy: boolean = DEFAULT_HIDE_BUSY;
+  /** G07-02：空闲时段阈值（设置页可改，默认 5 分钟）。 */
+  @State freeMinutes: number = DEFAULT_FREE_MINUTES;
   /** 全部教学楼按校区分组（当前校区排最前）；原版 CampusGrouping 的移植。 */
   @State groups: CampusGroup[] = [];
   /** 设置里选的默认校区代码；只用于「· 默认」角标与自动展开，不筛列表。 */
@@ -113,7 +120,18 @@ export struct ClassroomPage {
 
   aboutToAppear(): void {
     this.initToday();
+    this.loadSettings();
     this.load();
+  }
+
+  /** G07-01/02：读两项设置。读失败留默认值，不阻塞主加载。 */
+  private async loadSettings(): Promise<void> {
+    try {
+      this.hideBusy = await loadHideBusyClassroom();
+      this.freeMinutes = await loadFreeMinutes();
+    } catch (e) {
+      warn('ClassroomPage loadSettings fail: ' + JSON.stringify(e));
+    }
   }
 
   /**
@@ -280,17 +298,32 @@ export struct ClassroomPage {
     if (this.nowMinutes < 0) {
       return true;
     }
-    return isFreeNow(r.busySections, this.table, this.nowMinutes);
+    return isFreeNow(r.busySections, this.table, this.nowMinutes, this.freeMinutes);
   }
 
-  /** 现在空闲的教室数（与卡片双色同一 nowMinutes 口径）。 */
+  /** 当前应展示的教室：hideBusy 开启时过滤掉「现在不空闲」的（对齐 A:FreeClassroomSearch.kt:572）。 */
+  private visibleRooms(): ClassroomRow[] {
+    if (!this.hideBusy || this.nowMinutes < 0) {
+      return this.rooms;
+    }
+    const out: ClassroomRow[] = [];
+    for (let i = 0; i < this.rooms.length; i++) {
+      if (this.roomFree(this.rooms[i])) {
+        out.push(this.rooms[i]);
+      }
+    }
+    return out;
+  }
+
+  /** 现在空闲的教室数（与卡片双色、可见列表同一 nowMinutes 口径）。 */
   private freeNowCount(): number {
-    if (this.rooms.length === 0 || this.nowMinutes < 0) {
+    const shown: ClassroomRow[] = this.visibleRooms();
+    if (shown.length === 0 || this.nowMinutes < 0) {
       return 0;
     }
     let n: number = 0;
-    for (let i = 0; i < this.rooms.length; i++) {
-      if (this.roomFree(this.rooms[i])) {
+    for (let i = 0; i < shown.length; i++) {
+      if (this.roomFree(shown[i])) {
         n++;
       }
     }
@@ -564,12 +597,20 @@ export struct ClassroomPage {
                             Text(this.roomsError)
                               .fontSize(12).fontColor(this.tk().error).width('100%')
                               .margin({ top: 6 })
+                          } else if (this.hideBusy && this.rooms.length > 0 &&
+                            this.visibleRooms().length === 0) {
+                            // 有教室但全被「隐藏不空闲」过滤掉：说清楚是整栋在课，不是加载失败
+                            // （对齐 A:FreeClassroomSearch.kt:576-585 的空态口径）。
+                            Text('这栋楼现在都有课（已隐藏当前不空闲的教室）')
+                              .fontSize(12).fontColor(this.tk().onSecondaryContainer)
+                              .width('100%').margin({ top: 6 })
                           } else {
-                            Text('共 ' + this.rooms.length + ' 间教室 · 现在空闲 ' +
+                            Text('共 ' + this.visibleRooms().length + ' 间教室' +
+                              (this.hideBusy ? '（已隐藏占用中）' : '') + ' · 现在空闲 ' +
                               this.freeNowCount() + ' 间')
                               .fontSize(11).fontColor(this.tk().textPlaceholder)
                               .width('100%').margin({ top: 6, bottom: 4 })
-                            ForEach(this.rooms, (r: ClassroomRow) => {
+                            ForEach(this.visibleRooms(), (r: ClassroomRow) => {
                               Column() {
                                 Row() {
                                   Column() {

@@ -1,0 +1,26 @@
+时间戳: 2026-11-26 21:52:37 +0800
+守卫: test-classroomfree.mjs / 阈值接线 this.nowMinutes, this.freeMinutes
+=== 拆红改动（git diff， ClassroomPage.ts:301）===
+    * 若只靠默认值，标题会拿 week=1 / dayOfWeek=1 冒充「第 1 周 · 周一」（2026-10-30 真机栽过）。
+@@ -283,14 +301,29 @@ export struct ClassroomPage {
+     return isFreeNow(r.busySections, this.table, this.nowMinutes);
+   }
+ 
+=== 改前原文（301行）===
+    return isFreeNow(r.busySections, this.table, this.nowMinutes, this.freeMinutes);
+=== 改后原文（301行）===
+    return isFreeNow(r.busySections, this.table, this.nowMinutes);
+=== 跑套件 ===
+=== currentSection：节内 / 边界 / 课间 / 课外 ===
+
+=== isFreeNow：对齐原版 nextBusyTime>=now 语义 ===
+
+=== 自定义作息表（用户改过时间表）===
+
+=== G07-02：空闲阈值（默认 5，对齐 Android）===
+
+=== G07-01/02：源码接线守卫（静态）===
+FAIL roomFree 把阈值传给 isFreeNow
+
+FAILED  pass=43 fail=1
+EXITCODE:1

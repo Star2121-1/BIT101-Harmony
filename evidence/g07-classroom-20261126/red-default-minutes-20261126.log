@@ -1,0 +1,25 @@
+时间戳: 2026-11-26 21:53:41 +0800
+守卫: test-classroomfree.mjs / 默认阈值=5 语义断言
+=== 拆红改动（git diff，ClassroomFree.ts:30）===
++/** 空闲时段阈值默认值（分钟）——对齐 Android FreeClassroomViewModel.default。 */
++export const DEFAULT_FREE_MINUTES: number = 0;
++/** 「隐藏当前不空闲的教室」默认值——对齐 Android（G07-01）。 */
+=== 改前原文（30行）===
+export const DEFAULT_FREE_MINUTES: number = 5;
+=== 改后原文（30行）===
+export const DEFAULT_FREE_MINUTES: number = 0;
+=== 跑套件 ===
+=== currentSection：节内 / 边界 / 课间 / 课外 ===
+
+=== isFreeNow：对齐原版 nextBusyTime>=now 语义 ===
+
+=== 自定义作息表（用户改过时间表）===
+
+=== G07-02：空闲阈值（默认 5，对齐 Android）===
+FAIL 默认阈值 5 分钟（A:FreeClassroomViewModel.kt:23，不是历史误写的 0）：实际 0 ≠ 期望 5
+FAIL 不传阈值走默认 5 → 占用
+
+=== G07-01/02：源码接线守卫（静态）===
+
+FAILED  pass=42 fail=2
+EXITCODE:1
