@@ -309,8 +309,8 @@ v1.0 / 2026-11-24
 
 | 编号 | 状态 | 证据 |
 |---|---|---|
-| F05-01 | ⚠️ 代码完成 + 静态绿，**贴卡真机待验 + push 未验** | commit `f5c3f1d` 本地（alpha.53/versionCode 53）；SavedCardLogic 逐条对齐 A:SavedCardLogic.kt（换 UID 整张替换防张冠李戴、确认学号优先、sameContent 不比 savedAt）；SavedCardStore 键名对齐 KEY_*、无凭据字段、忘名片不动输入框；test-savedcard 37 断言 + 拆红日志 `evidence/f05-savedcard-20261127/`（首次拆红假绿→补反例后真红→恢复绿，事故复盘留证）；全测 97/97、4328 断言 EXITCODE:0；hvigor BUILD SUCCESSFUL；装机 `bm dump`=53、MD5 `12E5C8E0DDA514D989F1E82F3566B75B`。⚠️ push 遇 GitHub 502/408（代理故障+远端抖动），两次失败后按规范停止重试，commit 仅在本地未推远端；贴卡真机未验 |
+| F05-01 | ⚠️ 代码完成 + 静态绿 + 已推远端，**贴卡真机待验** | commit `f5c3f1d` 本地（alpha.53/versionCode 53）；SavedCardLogic 逐条对齐 A:SavedCardLogic.kt（换 UID 整张替换防张冠李戴、确认学号优先、sameContent 不比 savedAt）；SavedCardStore 键名对齐 KEY_*、无凭据字段、忘名片不动输入框；test-savedcard 37 断言 + 拆红日志 `evidence/f05-savedcard-20261127/`（首次拆红假绿→补反例后真红→恢复绿，事故复盘留证）；全测 97/97、4328 断言 EXITCODE:0；hvigor BUILD SUCCESSFUL；装机 `bm dump`=53、MD5 `12E5C8E0DDA514D989F1E82F3566B75B`。push 初遇 GitHub 502/408，网络恢复后已成功推 `0fe552a`（`ls-remote` 确认）；贴卡真机未验 |
 
-> F05-01 不判 ✅（G5 未签字 + G6 push 未验）。待网络恢复推 commit、用户贴卡验证名片保持/换卡替换/忘掉保留输入框后回写。
+> F05-01 不判 ✅（G5 未签字）。待用户贴卡验证名片保持/换卡替换/忘掉保留输入框后回写。
 
 *v1.1 进度登记 / 2026-11-27*
