@@ -25,6 +25,8 @@ import { warn } from '../core/log/BitLog.ts';
 /** 卡片的 router 动作参数（显式接口：ArkTS 不接受对象字面量当类型）。 */
 interface CardRouterParams {
   bit101Content: string;
+  /** F03：条目级定位键（DDL uid / 课程名 / 考试名 / 动态 id），无条目时省略。 */
+  bit101Focus?: string;
 }
 
 /** `postCardAction` 的 router 动作。 */
@@ -51,6 +53,8 @@ struct WidgetPage {
   @LocalStorageProp('widgetPalette') widgetPalette: string = 'brand';
   @LocalStorageProp('widgetDark') widgetDark: boolean = false;
   @State private currentTabIndex: number = 0;
+  /** F03：最近点中的条目键（行 onClick 先写它再 openApp，深链带上做条目级定位）。 */
+  @State private tappedFocus: string = '';
 
   /** 5 个页面名称（对应 PageKind） */
   private readonly tabLabels: string[] = ['课程', 'DDL', '动态', '座位', '自习'];
@@ -322,7 +326,12 @@ struct WidgetPage {
     .borderRadius(4)
     .padding({ left: 6 })
     // M8-6：点条目直接落到对应的 App 页签（不是只把 App 拉起来）
+    // F03：带 focusKey 做条目级定位（header 行/空行不点，避免落到无关的条目）
     .onClick(() => {
+      if (line.header || line.focusKey === null || line.focusKey.length === 0) {
+        return;
+      }
+      this.tappedFocus = line.focusKey;
       this.openApp();
     })
   }
@@ -338,6 +347,9 @@ struct WidgetPage {
     const page: WidgetPageData | null = this.currentPage();
     const kind: string = page === null ? 'COURSE' : page.kind;
     const params: CardRouterParams = { bit101Content: contentIdForKind(kind) };
+    if (this.tappedFocus.length > 0) {
+      params.bit101Focus = this.tappedFocus;
+    }
     const action: CardRouterAction = {
       action: 'router',
       bundleName: 'cn.bit101.next',

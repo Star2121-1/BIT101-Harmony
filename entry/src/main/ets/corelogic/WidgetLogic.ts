@@ -32,6 +32,8 @@ import {
   type EclassActivity,
 } from "./EclassActivityLogic.ts";
 import { ddlDisplayName } from "./TeachingAdjustment.ts";
+import type { ExamRow } from "../core/model/SchoolModels.ts";
+import { examDateOf, examTimeOfMinutes } from "./NotifyAdapter.ts";
 
 // ── 常量（对应 Android config 侧的共享约定）─────────────────────────────
 
@@ -41,6 +43,8 @@ export enum PageKind {
   ACTIVITY = "ACTIVITY",
   SEAT = "SEAT",
   STUDY = "STUDY",
+  /** F02：近期考试（对齐 A:WidgetLogic.PageKind.EXAM，新增只能追加在末尾，不改老页号）。 */
+  EXAM = "EXAM",
 }
 
 export function pageKindLabel(kind: PageKind): string {
@@ -53,6 +57,8 @@ export function pageKindLabel(kind: PageKind): string {
       return "动态";
     case PageKind.SEAT:
       return "座位";
+    case PageKind.EXAM:
+      return "考试";
     default:
       return "自习";
   }
@@ -399,6 +405,8 @@ export function build(
   eclassLoggedIn: boolean = true,
   planOf: (epochDay: number) => DayPlan | null = () => null,
   studySpotLine: string | null = null,
+  exams: ExamRow[] = [],
+  examLoggedIn: boolean = true,
 ): WidgetPage[] {
   return [
     coursePage(courses, todayEpochDay, now, firstDayEpochDay, timeTable, bit101LoggedIn, planOf),
@@ -411,6 +419,8 @@ export function build(
       studyCourseLine(courses, todayEpochDay, now, firstDayEpochDay, timeTable, planOf),
       studySpotLine,
     ),
+    // F02：近期考试（新页只能追加在末尾，不改老页号）
+    examPage(exams, now, examLoggedIn),
   ];
 }
 
@@ -644,6 +654,61 @@ export function ddlPage(ddls: DDLSchedule[], now: DateTime): WidgetPage {
   }
 
   return page(PageKind.DDL, items.slice(0, MAX_ITEMS), "暂无待办");
+}
+
+/**
+ * F02：近期考试页（对齐 A:WidgetLogic.examPage:651-685）。
+ * - 按考试日期+开始时刻升序；已结束整场剔除；
+ * - 日期标记「今天/明天/后天/MM/DD」（无时间部分则走到 dateOnly）；
+ * - 时间取 KSSJMS 解析出的 HH:mm-HH:mm，地点取 JASMC；
+ * - 行带 openTab（课表页）与 focusKey（考试名），供 F03 深链定位。
+ */
+export function examPage(
+  exams: ExamRow[],
+  now: DateTime,
+  loggedIn: boolean = true,
+): WidgetPage {
+  if (!loggedIn) {
+    return page(PageKind.EXAM, [], "暂无考试安排", loginPromptOf(PageKind.EXAM, false));
+  }
+  const rows: { exam: ExamRow; day: number; begin: number; end: number }[] = [];
+  for (const e of exams) {
+    const day: number | null = examDateOf(e.KSSJMS, e.KSRQ);
+    const time = examTimeOfMinutes(e.KSSJMS);
+    if (day === null || time === null) {
+      continue;  // 解析不出日期/时刻的整场跳过（不伪造）
+    }
+    const isPast: boolean = day < now.day || (day === now.day && time.end < now.minutes);
+    if (isPast) {
+      continue;
+    }
+    rows.push({ exam: e, day, begin: time.begin, end: time.end });
+  }
+  rows.sort((a, b) => a.day - b.day || a.begin - b.begin);
+  const items: WidgetLine[] = [];
+  for (const r of rows.slice(0, MAX_ITEMS)) {
+    const o: WidgetLine = line(examLead(r.day, now.day), r.exam.KCM);
+    o.time = fmtHM(r.begin) + '-' + fmtHM(r.end);
+    o.trail = r.exam.JASMC;
+    o.urgent = r.day === now.day;  // 今天有考试 → 醒目
+    o.focusKey = r.exam.KCM;
+    o.openTab = 0;  // 课表页 tab（COURSE）
+    items.push(o);
+  }
+  return page(PageKind.EXAM, items, "暂无考试安排");
+}
+
+/** 考试日期标记：今天/明天/后天/MM/DD（对齐 A:WidgetLogic.examLead）。 */
+function examLead(day: number, today: number): string {
+  const diff: number = day - today;
+  if (diff === 0) return "今天";
+  if (diff === 1) return "明天";
+  if (diff === 2) return "后天";
+  // epoch day → MM/DD（用 UTC 避免本地时区偏移）
+  const d: Date = new Date(day * 86400000);
+  const mm: string = (d.getUTCMonth() + 1).toString().padStart(2, "0");
+  const dd: string = d.getUTCDate().toString().padStart(2, "0");
+  return mm + "/" + dd;
 }
 
 function ddlToLine(d: DDLSchedule, now: DateTime): WidgetLine {

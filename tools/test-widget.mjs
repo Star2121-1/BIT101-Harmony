@@ -87,7 +87,7 @@ function courseRow(over) {
   eq(snap.quickReserveTaskId, null, "无快捷预约");
 }
 
-// ── 装配：有课表 ⇒ 5 页 + 可序列化 ──
+// ── 装配：有课表 ⇒ 6 页 + 可序列化（F02：EXAM 页追加在末尾，老页号不变）──
 {
   const now = { day: parseISODate("2026-12-01"), minutes: 480 };
   const pages = assembleWidgetPages({
@@ -99,7 +99,8 @@ function courseRow(over) {
     timeTable: FALLBACK_TIME_TABLE,
     now: now
   });
-  eq(pages.length, 5, "5 页（课程/DDL/动态/座位/自习）");
+  eq(pages.length, 6, "6 页（课程/DDL/动态/座位/自习/考试，EXAM 追加末尾）");
+  eq(pages[5].kind, "EXAM", "第 6 页 = EXAM（追加不改老页号）");
   ok(isSerializablePayload(pages), "整条 payload 可 JSON 序列化（卡片独立进程前提）");
   // 课程页标题存在
   eq(pages[0].title.length > 0, true, "课程页有标题");
@@ -117,7 +118,7 @@ function courseRow(over) {
     timeTable: FALLBACK_TIME_TABLE,
     now: now
   });
-  eq(pages.length, 5, "无数据仍 5 页（各页走空态/登录引导，不崩）");
+  eq(pages.length, 6, "无数据仍 6 页（各页走空态/登录引导，不崩）");
   ok(isSerializablePayload(pages), "空数据 payload 也可序列化");
 }
 

@@ -23,6 +23,7 @@ import { resourceManager } from '@kit.LocalizationKit';
 import { Prefs } from '../data/Prefs.ts';
 import { CourseCache, CachedSchedule } from '../data/CourseCache.ts';
 import { DdlStore } from '../data/DdlStore.ts';
+import { ExamCache } from '../data/ExamCache.ts';
 import { TermStore, isTermOverride } from '../data/TermStore.ts';
 import { assembleWidgetPages, isSerializablePayload } from '../corelogic/WidgetData.ts';
 import { coursesToSchedule, ddlsToSchedule } from '../corelogic/WidgetData.ts';
@@ -32,6 +33,7 @@ import { getPaletteName, DEFAULT_PALETTE } from '../core/theme/GridTokens.ts';
 import type { PaletteName } from '../core/theme/GridTokens.ts';
 import type { AdjustmentEntry } from '../corelogic/TeachingAdjustment.ts';
 import type { EclassActivity } from '../corelogic/EclassActivityLogic.ts';
+import type { ExamRow } from '../core/model/SchoolModels.ts';
 import type { TimeTable, DateTime } from '../corelogic/timeutil.ts';
 import type { CourseSchedule, DDLSchedule } from '../corelogic/WidgetLogic.ts';
 import type { RefreshState, RefreshDecision } from '../corelogic/WidgetRefreshLogic.ts';
@@ -382,7 +384,19 @@ export default class FormExtension extends FormExtensionAbility {
     // 4. 动态源为空（eclass 活动没有本地缓存，卡片不碰网络）
     const activities: EclassActivity[] = [];
 
-    // 5. 装配卡片数据
+    // 5. F02：考试源（ExamCache.loadLast 只读本地，不联网）
+    let exams: ExamRow[] = [];
+    try {
+      const cachedExams = await ExamCache.loadLast();
+      if (cachedExams !== null) {
+        exams = cachedExams.exams;
+        hilog.info(DOMAIN, this.TAG, '考试缓存命中, count=%{public}d', exams.length);
+      }
+    } catch (e) {
+      hilog.warn(DOMAIN, this.TAG, '考试缓存读取失败: %{public}s', JSON.stringify(e));
+    }
+
+    // 6. 装配卡片数据
     const pages = assembleWidgetPages({
       courses: courses,
       ddls: ddls,
@@ -390,7 +404,8 @@ export default class FormExtension extends FormExtensionAbility {
       adjustments: adjustments,
       firstDay: firstDay,
       timeTable: timeTable,
-      now: now
+      now: now,
+      exams: exams
     });
 
     // 5. 验证序列化（卡片独立进程前提）

@@ -1,0 +1,10 @@
+时间戳: 2026-11-27 02:13:14 +0800
+守卫: test-widgetparity.mjs / F02 EXAM 剔除已结束
+=== 拆红改动（WidgetLogic.ts examPage）===
+改前原文: if (isPast) { continue; }
+改后原文: // 拆红：不过滤已结束
+=== 跑套件 ===
+AssertionError [ERR_ASSERTION]: 已结束的英语被剔除，剩 3 场
+  actual: 4,
+  expected: 3,
+EXITCODE:1

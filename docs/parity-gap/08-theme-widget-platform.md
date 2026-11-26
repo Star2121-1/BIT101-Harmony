@@ -174,3 +174,16 @@ v1.0 / 2026-11-24
 > F01 不判 ✅，待用户本人把卡片加到桌面确认首帧为 brand（BIT101经典配色深蓝）后回写。
 
 *v1.1 进度登记 / 2026-11-26*
+
+### 7.2 卡片三件套（2026-11-27，v1.0 审计内容不改动）
+
+| 编号 | 状态 | 证据 |
+|---|---|---|
+| F02 | ⚠️ 代码完成 + 静态绿，**真机待集中验** | `WidgetLogic` 加 `PageKind.EXAM`（第 6 值，追加末尾不改老页号）+ `examPage()`（ExamListLogic 同口径：过去场次剔除、今天/明天/后天/MM/DD、HH:mm-HH:mm、JASMC 地点）；`build()` 加 exams 入参；`FormExtension` 用 `ExamCache.loadLast()` 读本地考试源；`test-widgetparity` 48 断言 + `test-widget` 锚点 5→6 页更新；拆红反证 `evidence/widget-parity-20261127/red-exam-past-20261127.log`（剔除逻辑删掉即红） |
+| F03 | ⚠️ 代码完成 + 静态绿，**真机待集中验** | `WidgetLine.focusKey` 原本已赋值（DDL/动态/考试行）；`WidgetPage` 行点击先记 focusKey 再 openApp，want 带 `bit101Focus`；`WidgetDeepLink.sanitizeFocusKey` 只认 ddl/course/exam/activity 四前缀 + 200 字上限；`EntryAbility` 写 `AppStorage[ui_open_focus]`；`DdlPage` 用 @Watch 消费 `ddl:<uid>` 并高亮命中行。静态守卫锁定全链路 |
+| F04 | ⚠️ 部分完成 + 静态绿，**真机待集中验** | 移除 `seatLoggedIn=false`/`eclassLoggedIn=false` 恒定值：改为 `input.seatLoggedIn` 入参控制、activities 有数据即视为已登录（比恒定 false 诚实）；`FormExtension` 仍不读座位/eclass 缓存，因为鸿蒙侧**没有可跨进程读的座位登录态快照 / eclass 活动缓存**（`SeatTaskStore` 只有预约任务、不含登录态），座位真实行与动态真实行的**数据源本身缺失**，非代码能凭空补。判据的「有本地预约/活动缓存时显示真实行」在这两端无源前不满足，如实标 ⚠️ 而非冒称 ✅ |
+| F05 | ⚠️ 代码完成 + 静态绿（**已在第 3 条 S01/S02 全量落地**） | 审计判据写于第 3 条之前已过时：`CoursePalette.ts` 现有 legacy/classic/morandi/brand 4 套 12 色 + auto 解析（共 5 族），`courseColorsOf`/`ScheduleTint` 按族取色，`SettingsPage` 有族选择入口。证据见 02 文档 §7 与 commit `b6aa010`（alpha.51）。本条不重做 |
+
+> 本批不判 ✅（G5 集中验收未做）。真机需验：卡片考试页可见且过期场次不显示、点 DDL 行落到 DDL 页并高亮该条、EXAM 页 tab 切换正常。F04 座位/动态真实行需先有本地源（另立任务），当前不视为完成。
+
+*v1.2 进度登记 / 2026-11-27*

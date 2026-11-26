@@ -57,5 +57,30 @@ export function sanitizeContentId(raw: string): string {
 /** 卡片动作用的 param 键（卡片侧与 App 侧两个常量必须一致，单独抽出来防手写错）。 */
 export const KEY_CARD_CONTENT: string = 'bit101Content';
 
+/** F03：卡片条目级定位键（want 参数）。 */
+export const KEY_CARD_FOCUS: string = 'bit101Focus';
+/** `AppStorage` 里传递条目级定位目标的键（EntryAbility 写、目标页读并清空）。 */
+export const STORAGE_OPEN_FOCUS: string = 'ui_open_focus';
+
+/**
+ * 校验 focusKey：只认 `ddl:<uid>`、`course:<课名>`、`exam:<课名>`、`activity:<id>` 四种前缀，
+ * 长度上限 200（卡片 payload 来自 JSON，脏值不能被当导航指令）。
+ */
+export function sanitizeFocusKey(raw: string): string {
+  const s: string = raw.trim();
+  if (s.length === 0 || s.length > 200) {
+    return '';
+  }
+  const colon: number = s.indexOf(':');
+  if (colon <= 0) {
+    return '';
+  }
+  const prefix: string = s.substring(0, colon);
+  if (prefix !== 'ddl' && prefix !== 'course' && prefix !== 'exam' && prefix !== 'activity') {
+    return '';
+  }
+  return s;
+}
+
 /** `AppStorage` 里传递深链目标的键（EntryAbility 写、Index 读并清空）。 */
 export const STORAGE_OPEN_CONTENT: string = 'ui_open_content';

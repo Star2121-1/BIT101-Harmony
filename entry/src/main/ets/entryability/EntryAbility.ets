@@ -26,7 +26,8 @@ import { ScoreCheckRunner } from '../service/ScoreCheckRunner.ts';
 import { setDumpDir } from '../core/log/DebugDump.ts';
 import { JxzxProbe } from '../service/JxzxProbe.ts';
 import { setForeground } from '../core/AppForegroundState.ts';
-import { sanitizeContentId, KEY_CARD_CONTENT, STORAGE_OPEN_CONTENT } from '../corelogic/WidgetDeepLink.ts';
+import { sanitizeContentId, KEY_CARD_CONTENT, STORAGE_OPEN_CONTENT,
+  sanitizeFocusKey, KEY_CARD_FOCUS, STORAGE_OPEN_FOCUS } from '../corelogic/WidgetDeepLink.ts';
 import { sanitizePage, KEY_NOTIFY_PAGE, STORAGE_OPEN_PAGE } from '../corelogic/NotifyDeepLink.ts';
 
 const DOMAIN = 0x0000;
@@ -97,6 +98,17 @@ export default class EntryAbility extends UIAbility {
           hilog.info(DOMAIN, 'testTag', 'card deep link content=%{public}s', safe);
         } else {
           hilog.warn(DOMAIN, 'testTag', 'card deep link ignored: %{public}s', wantContent);
+        }
+      }
+      // F03 卡片条目级定位：want 带 bit101Focus → AppStorage，由目标页消费一次。
+      const wantFocus: string = String(params[KEY_CARD_FOCUS] ?? '');
+      if (wantFocus.length > 0) {
+        const safeFocus: string = sanitizeFocusKey(wantFocus);
+        if (safeFocus.length > 0) {
+          AppStorage.setOrCreate<string>(STORAGE_OPEN_FOCUS, safeFocus);
+          hilog.info(DOMAIN, 'testTag', 'card deep link focus=%{public}s', safeFocus);
+        } else {
+          hilog.warn(DOMAIN, 'testTag', 'card deep link focus ignored: %{public}s', wantFocus);
         }
       }
       // 通知深链：独立页（成绩/考试/教学调整）。白名单在 sanitizePage 里，

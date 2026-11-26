@@ -26,6 +26,7 @@ import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { DdlStore, STORAGE_DDL_EPOCH } from '../data/DdlStore.ts';
+import { STORAGE_OPEN_FOCUS } from '../corelogic/WidgetDeepLink.ts';
 import { DdlSourceStore } from '../data/DdlSourceStore.ts';
 import type { DdlSourcePrefs } from '../corelogic/DdlSourceLogic.ts';
 import { DEFAULT_DDL_SOURCE, noneEnabled, visibleEntries } from '../corelogic/DdlSourceLogic.ts';
@@ -77,6 +78,10 @@ export struct DdlPage {
   @State sortMode: DdlSortMode = DEFAULT_DDL_SORT;
   /** 外部写库信号（设置页「重新拉取」同步完 +1）：嵌入壳里收不到 onPageShow，靠它重载。 */
   @StorageLink(STORAGE_DDL_EPOCH) @Watch('onDdlEpoch') ddlEpoch: number = 0;
+  /** F03：卡片点 DDL 行带来的条目定位键（ddl:<uid>），消费一次清空。 */
+  @StorageLink(STORAGE_OPEN_FOCUS) @Watch('onCardFocus') cardFocus: string = '';
+  /** 命中焦点的条目 uid（高亮，供列表滚动定位）。 */
+  @State focusedUid: string = '';
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -175,6 +180,25 @@ export struct DdlPage {
 
   /** 设置页写完库（重新拉取）后会 +1：重读列表，不必等用户下拉。 */
   private onDdlEpoch(): void {
+    this.reload();
+  }
+
+  /** F03：消费卡片 DDL 行带来的 focusKey（ddl:<uid>）；非 DDL 前缀不认、读完即清。 */
+  private onCardFocus(): void {
+    const raw: string = this.cardFocus;
+    if (raw.length === 0) {
+      return;
+    }
+    this.cardFocus = '';
+    if (!raw.startsWith('ddl:')) {
+      return;
+    }
+    const uid: string = raw.substring(4);
+    if (uid.length === 0) {
+      return;
+    }
+    this.focusedUid = uid;
+    // 卡片带 focus 进来时列表可能还没 reload；等 reload 完成后高亮仍在
     this.reload();
   }
 
@@ -566,6 +590,8 @@ export struct DdlPage {
     .margin({ top: 5, bottom: 5 })
     .backgroundColor(this.cardBg(e))
     .borderRadius(12)
+    // F03：卡片深链带来的条目用主色描边高亮（focusedUid 只由卡片深链写入，读完即清）
+    .border({ width: e.uid === this.focusedUid ? 2 : 0, color: this.tk().primary })
     .alignItems(VerticalAlign.Center)
     // 无障碍：说清「哪门作业、什么时候交、完成没」，读屏只念标题等于没状态
     .accessibilityText(e.title + '，' + remainTime({ day: e.day, minutes: e.minutes }, this.now()) +

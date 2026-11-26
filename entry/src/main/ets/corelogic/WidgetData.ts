@@ -13,7 +13,7 @@
  * 本地没有落地源，给空 ⇒ 卡片只显示课程/DDL/自习，不猜。
  */
 
-import { type CourseRow, skzcToWeeks } from '../core/model/SchoolModels.ts';
+import { type CourseRow, type ExamRow, skzcToWeeks } from '../core/model/SchoolModels.ts';
 import { type DdlEntry } from './DdlRules.ts';
 import {
   type CourseSchedule,
@@ -78,6 +78,10 @@ export interface WidgetAssembleInput {
   firstDay: string; // 开学日 ISO（CourseCache.firstDay）；空 = 未知
   timeTable: TimeTable;
   now: DateTime;
+  /** F02：近期考试（ExamCache.loadLast 读出后传入；空 = 无考试安排）。 */
+  exams?: ExamRow[];
+  /** F04：座位是否已有本地会话（有本地预约任务快照即 true；无源给 false 走引导）。 */
+  seatLoggedIn?: boolean;
 }
 
 /**
@@ -108,11 +112,15 @@ export function assembleWidgetPages(input: WidgetAssembleInput): WidgetPage[] {
     firstDayEpochDay,
     input.timeTable,
     true, // bit101LoggedIn：卡片不区分学校登录态（本地有课表就能显示，没课表走空态）
-    false, // seatLoggedIn：座位源未接，按未登录给引导
+    input.seatLoggedIn === true, // F04：有本地座位源才显示真实行，否则走登录引导
     input.activities,
-    false, // eclassLoggedIn：动态源未接
+    // F04：activities 有数据即视为已登录；鸿蒙没有独立的 eclass 登录态缓存，
+    //     用「有无本地活动」推断（比恒定 false 诚实：有数据就不该再显示登录引导）。
+    input.activities.length > 0,
     planOf,
-    null // studySpotLine：空教室要网络，卡片不碰，给 null 走「暂时看不了」
+    null, // studySpotLine：空教室要网络，卡片不碰，给 null 走「暂时看不了」
+    input.exams ?? [], // F02：近期考试页
+    true // examLoggedIn：考试源是本地缓存（ExamCache），与学校登录态无关
   );
 }
 
