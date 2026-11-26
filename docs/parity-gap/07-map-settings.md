@@ -309,3 +309,16 @@ v1.0 / 2026-11-24
 > 两项目前不判 ✅（G5 未签字）。待设备登录恢复 + 可滚动后，由用户本人在设置页确认开关初值 true、阈值初值 5、改动后空教室列表按预期过滤，再回写为 ✅。
 
 *v1.1 进度登记 / 2026-11-26*
+
+### 7.2 地图四件套（2026-11-27，v1.0 审计内容不改动）
+
+| 编号 | 状态 | 证据 |
+|---|---|---|
+| G07-03 | ⚠️ 代码完成 + 静态绿，**真机待验** | `corelogic/MapTileCachePolicy.ts`（7 天 TTL / 10MB / LRU 纯策略，单测钉死）；`MapPage` 显式 `.cacheMode(CacheMode.Default)`（ArkWeb HTTP 磁盘缓存，与 Android OkHttp Cache 同构）；`map.html` 瓦片 URL 无 cache-buster、ODbL 署名保留。`test-mapparity.mjs` 静态守卫锁定。**边界如实**：ArkWeb 缓存的实际容量/过期由 WebView 内核与服务端 Cache-Control 决定，应用层的 7 天/10MB 是策略声明与纪律常量，不是强制配额；断网重进可见性需真机验 |
+| G07-04 | ⚠️ 代码完成 + 静态绿，**真机待验** | `corelogic/MapTarget.ts` 一次性 holder（consume 取完即清，拆红反证 `evidence/map-parity-20261127/red-consume-20261127.log`）；`targetFromPlace` 复用 `CampusLocations.match` 最长别名（文萃楼I404→文萃楼I，地点级 z18）；`SchedulePage` 课程详情「在地图查看」入口 + 匹配失败明说「暂未收录」；`Index` 的 `@Watch('onMapNav')` 切模块；`MapPage.onPageEnd` 消费并弹提示 |
+| G07-05 | ⚠️ 代码完成 + 静态绿，**真机待验** | `corelogic/MapScaleLogic.ts` 单一来源（默认 1，用户拍板；scaleToZoom 1→z15 / 5→z18）；`data/MapSettingsStore.ts` key `ui_map_scale`（不在 CacheIndex 白名单，清缓存不掉倍率）；`MapPage` aboutToAppear 读回、滑杆 onChange 写盘 |
+| G07-06 | ⚠️ 代码完成 + 静态绿，**真机待验** | `shouldStayInApp` 扩为学校域 + `bit101.cn`(含子域) + `10.0.0.55`（对齐 `A:InAppWebUrls.kt:39-46`，拆红反证 `red-weblink-20261127.log`）；`WebNavPolicy.ts` 纯判定；`WebServicesPage` 外部链接 `startAbility(viewData)` 交系统浏览器、无浏览器 toast 不崩；`WorldWebPage`/`WebShellPage` 的 `.onLoadIntercept` 拦下外部导航（内部域放行保 CAS 会话 cookie）。旧「本版不跳」提示已移除 |
+
+> 本批不判 ✅（G5 集中验收未做）。真机需验：断网重进地图瓦片可见、课表教室点「在地图查看」定位到楼且提示只弹一次、缩放滑杆杀进程后保持、非内部链接拉起系统浏览器且无浏览器不崩。
+
+*v1.2 进度登记 / 2026-11-27*
