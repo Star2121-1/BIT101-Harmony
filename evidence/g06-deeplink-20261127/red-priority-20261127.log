@@ -1,0 +1,11 @@
+时间戳: 2026-11-27 01:11:39 +0800
+守卫: test-messagedeelink.mjs / linkObj 优先
+=== 拆红改动（MessageDeepLink.ts messageTarget）===
+改前: 先 parseTarget(linkObj)，命中即返回；再 parseTarget(obj)
+改后: 先 parseTarget(obj)，命中即返回；再 parseTarget(linkObj)
+=== 跑套件 ===
+AssertionError [ERR_ASSERTION]: linkObj 优先于 obj
++ actual - expected
+  actual: { kind: 'user', id: '22' },
+  expected: { kind: 'poster', id: '11' },
+EXITCODE:1

@@ -1,0 +1,9 @@
+时间戳: 2026-11-27 01:11:55 +0800
+守卫: test-messagedeelink.mjs / linkObj 优先
+=== 恢复动作：MessageDeepLink.ts messageTarget 还原为改前原文 ===
+  const fromLink = parseTarget(linkObj); if (fromLink.kind.length>0) return fromLink;
+=== 跑套件 ===
+=== 4. pageOfTarget：页面白名单 ===
+
+ALL PASS  pass=26 fail=0
+EXITCODE:0
