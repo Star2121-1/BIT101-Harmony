@@ -1,0 +1,13 @@
+时间戳: 2026-11-27 00:59:30 +0800
+守卫: test-savedcard.mjs / 换卡整张替换
+=== 拆红改动（SavedCardLogic.ts merge）===
+改前原文:       name: fresh.name, studentId: fresh.studentId, sidConfirmed: fresh.sidConfirmed,
+改后原文:       name: isEmpty(fresh.name) ? (old === null ? null : old.name) : fresh.name,  // 逐字段合并bug
+=== 跑套件 ===
+EXITCODE:0
+
+=== 补测：首次拆红未抓到（守卫假绿），补反例后重跑 ===
+新增用例: 换卡且新卡无姓名时，逐字段合并会错误继承旧卡姓名
+实际: 高天翔 / 期望: null（整张替换）
+时间戳: 2026-11-27 00:59:47 +0800
+EXITCODE:1（真红，守卫有效）

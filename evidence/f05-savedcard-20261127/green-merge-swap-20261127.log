@@ -1,0 +1,10 @@
+时间戳: 2026-11-27 00:59:58 +0800
+守卫: test-savedcard.mjs / 换卡整张替换
+=== 恢复动作：SavedCardLogic.ts merge 还原为改前原文 ===
+      name: fresh.name, studentId: fresh.studentId, sidConfirmed: fresh.sidConfirmed,
+（与红日志改前原文逐字一致；同时保留新增的反例用例使守卫真正有效）
+=== 跑套件 ===
+=== 6. 源码守卫（静态）===
+
+ALL PASS  pass=37 fail=0
+EXITCODE:0

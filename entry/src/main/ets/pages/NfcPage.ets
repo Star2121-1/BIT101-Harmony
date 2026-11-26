@@ -19,6 +19,12 @@ import {
   summarize as summarizeIdentity, hasPerson, cardNoCandidates
 } from '../corelogic/CardIdentityLogic.ts';
 import type { CardIdentity } from '../corelogic/CardIdentityLogic.ts';
+import {
+  SavedCard, mergeCard, sameContent, isBlank, cardLine
+} from '../corelogic/SavedCardLogic.ts';
+import {
+  loadCard, saveCard, forgetCard, loadStudentInput, saveStudentInput
+} from '../data/SavedCardStore.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
 @Entry
@@ -37,6 +43,8 @@ struct NfcPage {
   @State error: string = '';
   // APDU 快速读（M16-3）
   @State studentIdInput: string = '';
+  /** F05-01：本机名片（读卡后合并落盘，重进页面仍在）。 */
+  @State savedCard: SavedCard | null = null;
   @State probing: boolean = false;
   @State probeLines: ProbeLine[] = [];
   @State identity: CardIdentity | null = null;
@@ -179,6 +187,17 @@ struct NfcPage {
         }
       }
       this.identity = summarizeIdentity(result.lines, cardNoCandidates(uidNums), sid);
+      // F05-01：读卡成功后合并进本机名片并落盘（换卡整张替换，确认学号优先）。
+      const id: CardIdentity | null = this.identity;
+      const fresh: SavedCard = {
+        name: id === null ? null : id.name,
+        studentId: id === null ? null : id.studentId,
+        sidConfirmed: id !== null && id.studentId !== null,
+        cardNo: id === null ? null : id.cardNo,
+        uid: result.uid.length > 0 ? result.uid : null,
+        savedAt: Date.now()
+      };
+      this.persistCard(fresh);
       info('NFC page probe done lines=' + result.lines.length +
         ' person=' + (this.identity !== null && hasPerson(this.identity)));
     }).catch((e: Error) => {
@@ -258,6 +277,43 @@ struct NfcPage {
 
   aboutToAppear(): void {
     this.refreshCap();
+    this.loadSaved();
+  }
+
+  /** F05-01：读回名片 + 学号输入框（读失败留空态，不阻塞诊断页）。 */
+  private async loadSaved(): Promise<void> {
+    try {
+      this.savedCard = await loadCard();
+      this.studentIdInput = await loadStudentInput();
+    } catch (e) {
+      warn('NFC load saved card fail: ' + JSON.stringify(e));
+    }
+  }
+
+  /** F05-01：合并新读到的名片并落盘；内容没变就不写盘（sameContent 不含 savedAt）。 */
+  private async persistCard(fresh: SavedCard): Promise<void> {
+    const merged: SavedCard = mergeCard(this.savedCard, fresh, fresh.savedAt);
+    if (sameContent(this.savedCard, merged)) {
+      return;
+    }
+    try {
+      await saveCard(merged);
+      this.savedCard = merged;
+      info('NFC saved card updated uid=' + (merged.uid === null ? 'none' : merged.uid));
+    } catch (e) {
+      warn('NFC save card fail: ' + JSON.stringify(e));
+    }
+  }
+
+  /** F05-01：忘掉这张卡——名片清空，**学号输入框保留**。 */
+  private async forgetSaved(): Promise<void> {
+    try {
+      await forgetCard();
+      this.savedCard = null;
+      info('NFC saved card forgotten');
+    } catch (e) {
+      warn('NFC forget card fail: ' + JSON.stringify(e));
+    }
   }
 
   aboutToDisappear(): void {
@@ -282,6 +338,28 @@ struct NfcPage {
 
       Scroll() {
         Column() {
+          // F05-01：本机名片（读卡后一直在；「忘掉」只清名片，不清学号输入框）
+          if (!isBlank(this.savedCard)) {
+            Column() {
+              Row() {
+                Text('我的校园卡').fontSize(13).fontWeight(FontWeight.Medium)
+                  .fontColor(this.tk().onSurface).layoutWeight(1)
+                Text('忘掉这张卡').fontSize(12).fontColor(this.tk().primary)
+                  .onClick(() => { this.forgetSaved(); })
+              }.width('100%')
+              Text(cardLine(this.savedCard))
+                .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').margin({ top: 6 })
+              if (this.savedCard !== null && this.savedCard.savedAt > 0) {
+                Text('更新于 ' + new Date(this.savedCard.savedAt).toLocaleString())
+                  .fontSize(10).fontColor(this.tk().textPlaceholder)
+                  .width('100%').margin({ top: 4 })
+              }
+            }
+            .width('100%').padding(12).margin({ bottom: 8 })
+            .backgroundColor(this.tk().secondaryContainer).borderRadius(10)
+          }
+
           Row() {
             Text(this.capTitle())
               .fontSize(15).fontWeight(FontWeight.Medium)
@@ -305,6 +383,9 @@ struct NfcPage {
               .fontSize(14).width('100%').height(40)
               .onChange((v: string) => {
                 this.studentIdInput = v;
+                saveStudentInput(v).catch((e: Error) => {
+                  warn('NFC save student input fail: ' + JSON.stringify(e));
+                });
               })
 
             Column() {
