@@ -1,0 +1,6 @@
+时间戳: 2026-11-27 01:51:12 +0800
+守卫: G07-04 consume 一次性
+=== 恢复动作：MapTarget.ts 逐字 cp 备份 ===
+
+ALL PASS  pass=87 fail=0
+EXITCODE:0

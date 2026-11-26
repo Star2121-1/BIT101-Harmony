@@ -10,7 +10,10 @@
  */
 
 import { webview } from '@kit.ArkWeb';
-import { router } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
+import { shouldHandOff, isHttpUrl } from '../corelogic/WebNavPolicy.ts';
+import { warn } from '../core/log/BitLog.ts';
 
 /** 默认页（拿不到入参时）：延河课堂首页。 */
 const FALLBACK_URL: string = 'https://zy-eclass.bit.edu.cn/';
@@ -39,6 +42,20 @@ struct WebShellPage {
     }
   }
 
+  /** G07-06：外部链接交系统浏览器；内部域（含 CAS/eclass）留在 WebView 保住会话。 */
+  private handOffExternal(url: string): boolean {
+    if (!isHttpUrl(url) || !shouldHandOff(url)) {
+      return false;
+    }
+    const ctx = getContext(this) as common.UIAbilityContext;
+    ctx.startAbility({ action: 'ohos.want.action.viewData', uri: url })
+      .catch((e: Error) => {
+        warn('WebShell handoff fail: ' + JSON.stringify(e));
+        promptAction.showToast({ message: '没有可用的浏览器。地址：' + url });
+      });
+    return true;
+  }
+
   build() {
     Column() {
       Row() {
@@ -60,6 +77,9 @@ struct WebShellPage {
       })
         .domStorageAccess(true)
         .javaScriptAccess(true)
+        .onLoadIntercept((event: OnLoadInterceptEvent) => {
+          return this.handOffExternal(event.data.getRequestUrl());
+        })
         .layoutWeight(1)
     }
     .width('100%').height('100%')

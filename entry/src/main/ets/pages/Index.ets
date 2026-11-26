@@ -35,6 +35,7 @@ import {
 import type { ShellSelection } from '../corelogic/shellNav.ts';
 import { STORAGE_OPEN_CONTENT } from '../corelogic/WidgetDeepLink.ts';
 import { STORAGE_OPEN_PAGE, sanitizePage } from '../corelogic/NotifyDeepLink.ts';
+import { STORAGE_MAP_NAV } from '../corelogic/MapTarget.ts';
 import { TopTabBar } from '../components/shell/TopTabBar.ets';
 import { BottomNavBar } from '../components/shell/BottomNavBar.ets';
 import { ModulePlaceholder } from '../components/shell/ModulePlaceholder.ets';
@@ -56,6 +57,8 @@ struct Index {
   @StorageLink(STORAGE_PALETTE) paletteName: string = 'brand';
   /** 顶部安全区（状态栏/前摄），内容下压避让、背景由 expandSafeArea 延伸。 */
   @StorageLink(STORAGE_TOP_INSET) topInset: number = 0;
+  /** G07-04：课表教室点「在地图查看」写 'map'，这里切模块后清空（一次性）。 */
+  @StorageLink(STORAGE_MAP_NAV) @Watch('onMapNav') mapNav: string = '';
 
   /** 当前模块 key（卷/图/网/话/我/座）。 */
   @State private moduleKey: string = DEFAULT_MODULE;
@@ -107,6 +110,22 @@ struct Index {
   private selectModule(key: string): void {
     this.moduleKey = normalizeModule(key);
     this.markVisited(contentIdOf(this.moduleKey, this.tabKey));
+  }
+
+  /**
+   * G07-04：课表教室「在地图查看」触发的切模块请求。
+   * 目标坐标由 MapTarget 的 pending 携带，地图页进来时消费；这里只负责切模块。
+   * ⚠️ 清空会再触发一次 Watch，必须先判空避免递归。
+   */
+  private onMapNav(): void {
+    if (this.mapNav.length === 0) {
+      return;
+    }
+    const key: string = this.mapNav;
+    this.mapNav = '';
+    if (key === 'map') {
+      this.selectModule('map');
+    }
   }
 
   /**

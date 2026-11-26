@@ -1,0 +1,10 @@
+时间戳: 2026-11-27 01:51:05 +0800
+守卫: test-mapparity.mjs / G07-04 consume 一次性
+=== 拆红改动（MapTarget.ts consumeMapTarget）===
+改前原文:   const t = pending; pending = null; return t;
+改后原文:   const t = pending; return t;  // 不清空bug
+=== 跑套件 ===
+AssertionError [ERR_ASSERTION]: consume 一次即清空（旋转不重复弹）
+  actual: false,
+  expected: true,
+EXITCODE:1

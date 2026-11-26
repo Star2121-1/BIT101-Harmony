@@ -6,17 +6,18 @@
  * App 内 `WebShellPage` 打开，复用已经登录的会话。
  *
  * 清单与「留在 App 内」的判定都在 `corelogic/WebEntryLogic.ts`（纯函数、有单测）：
- * 学校域名（`*.bit.edu.cn`）留 App 内，其它域名本版**不跳系统浏览器**（只提示），
- * 避免把用户丢进一个陌生页面。
+ * 学校域名（`*.bit.edu.cn`）+ bit101.cn + 校园网门户留 App 内（CAS 会话 cookie 在此），
+ * 其它域名交系统浏览器（G07-06，对齐 A:InAppWebUrls.kt）；无可用浏览器给提示不崩。
  */
 
-import { router } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import type { WebEntry } from '../corelogic/WebEntryLogic.ts';
 import { WEB_ENTRIES, shouldStayInApp } from '../corelogic/WebEntryLogic.ts';
-import { warn } from '../core/log/BitLog.ts';
+import { info, warn } from '../core/log/BitLog.ts';
 
 @Entry
 @Component
@@ -30,16 +31,31 @@ export struct WebServicesPage {
     return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
-  /** 打开入口：学校域名留 App 内；其它域名明确告诉用户「本版不跳外部浏览器」。 */
+  /** 打开入口：内部域留 App 内 WebView（保住会话）；外部域交系统浏览器。 */
   private open(e: WebEntry): void {
     if (!shouldStayInApp(e.url)) {
-      this.note = '「' + e.label + '」不在学校域名下，本版不做外部浏览器跳转';
+      this.openExternal(e.url);
       return;
     }
     this.note = '';
     router.pushUrl({ url: 'pages/WebShellPage', params: { url: e.url } }).catch((err: Error) => {
       warn('open web entry fail: ' + JSON.stringify(err));
       this.note = '打开失败：' + err.message;
+    });
+  }
+
+  /** 外部链接交系统浏览器（对齐 A:WebScreen.kt）；没有浏览器给提示，不崩。 */
+  private openExternal(url: string): void {
+    this.note = '';
+    const ctx = getContext(this) as common.UIAbilityContext;
+    ctx.startAbility({
+      action: 'ohos.want.action.viewData',
+      uri: url,
+    }).then(() => {
+      info('WebServices open external ok: ' + url);
+    }).catch((err: Error) => {
+      warn('WebServices open external fail: ' + JSON.stringify(err));
+      promptAction.showToast({ message: '没有可用的浏览器。地址：' + url });
     });
   }
 

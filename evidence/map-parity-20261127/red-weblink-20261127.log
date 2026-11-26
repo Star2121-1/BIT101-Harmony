@@ -1,0 +1,10 @@
+时间戳: 2026-11-27 01:50:49 +0800
+守卫: test-mapparity.mjs / G07-06 外链三类域名
+=== 拆红改动（WebEntryLogic.ts shouldStayInApp）===
+改前原文: return isSchoolHost(host) || isBit101Host(host) || host === CAMPUS_NET_PORTAL_HOST;
+改后原文: return isSchoolHost(host);
+=== 跑套件 ===
+AssertionError [ERR_ASSERTION]: bit101.cn 留 App 内
+  actual: false,
+  expected: true,
+EXITCODE:1

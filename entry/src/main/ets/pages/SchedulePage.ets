@@ -19,7 +19,7 @@
  * - 0.6 有副作用的动作（重登）必须用户显式点。
  * - 「取不到」绝不显示成「没课」：错误态单独一屏，空课表另说。
  */
-import { router } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
 import { FabColumn, FabAction } from '../components/shell/FabColumn.ets';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import { mixHex, withAlpha } from '../core/theme/colorUtil.ts';
@@ -53,6 +53,7 @@ import { shiftWeek, swipeWeek, weekLabel, weekA11y, swipeDirFromAngle, WeekMove 
 import { creditText, categoryText, summaryText } from '../corelogic/CourseDetailLogic.ts';
 import { todayBadge } from '../corelogic/TeachingAdjustmentView.ts';
 import { STORAGE_FOCUS_COURSE, sanitizeCourseName } from '../corelogic/SearchNav.ts';
+import { targetFromPlace, requestMapTarget, STORAGE_MAP_NAV } from '../corelogic/MapTarget.ts';
 import { of as courseColorOf } from '../corelogic/CourseColorLogic.ts';
 import { courseColorsOf } from '../core/theme/CoursePalette.ts';
 import type { CourseColorFamily } from '../core/theme/CoursePalette.ts';
@@ -1146,9 +1147,16 @@ export struct SchedulePage {
             '-' + this.selected!.JSJC + ' 节（' +
             courseTimeText(this.table, this.selected!.KSJC, this.selected!.JSJC) + '）')
             .fontSize(12).fontColor(this.p().onSurfaceVariant).width('100%').margin({ top: 4 })
-          Text('地点：' + (this.selected!.JASMC.length > 0 ? this.selected!.JASMC : '未标注') +
-            (this.selected!.XXXQMC.length > 0 ? '（' + this.selected!.XXXQMC + '）' : ''))
-            .fontSize(12).fontColor(this.p().onSurfaceVariant).width('100%').margin({ top: 2 })
+          Row() {
+            Text('地点：' + (this.selected!.JASMC.length > 0 ? this.selected!.JASMC : '未标注') +
+              (this.selected!.XXXQMC.length > 0 ? '（' + this.selected!.XXXQMC + '）' : ''))
+              .fontSize(12).fontColor(this.p().onSurfaceVariant).layoutWeight(1)
+            // G07-04：教室 → 地图定位（匹配不到明说「暂未收录」，不退回校区中心）
+            Text('在地图查看 ›')
+              .fontSize(12).fontColor(this.p().primary)
+              .onClick(() => this.locateSelectedOnMap())
+          }
+          .width('100%').margin({ top: 2 })
           Text('教师：' + (this.selected!.SKJS.length > 0 ? this.selected!.SKJS : '未标注'))
             .fontSize(12).fontColor(this.p().onSurfaceVariant).width('100%').margin({ top: 2 })
           Text('周次：' + weekSpanText(this.selected!.SKZC) +
@@ -1289,6 +1297,28 @@ export struct SchedulePage {
     const idx: number = override >= 0 ? override : courseColorOf(title);
     return tintedScheduleColors(this.isDark, this.columnTint(dayIndex), this.paletteName,
       this.courseFamily, idx);
+  }
+
+  /**
+   * G07-04：课程详情「在地图查看」——把教室文本匹配到地点，写中转目标后切到「图」模块。
+   * 匹配不到明说「暂未收录」（对齐 A:CourseSchedule.kt:48-58），不退回校区中心糊弄。
+   */
+  private locateSelectedOnMap(): void {
+    if (this.selected === null) {
+      return;
+    }
+    const raw: string = this.selected!.JASMC.length > 0 ? this.selected!.JASMC : this.selected!.YPSJDD;
+    const target = targetFromPlace(raw);
+    if (target === null) {
+      const t: string = raw.trim();
+      const shown: string = t.length > 12 ? t.substring(0, 12) + '…' : t;
+      promptAction.showToast({
+        message: shown.length === 0 ? '这个地点没有写教室' : '暂未收录「' + shown + '」的位置'
+      });
+      return;
+    }
+    requestMapTarget(target);
+    AppStorage.setOrCreate<string>(STORAGE_MAP_NAV, 'map');
   }
 
   /** S02：给当前选中课程改色号（覆盖哈希，落盘）。 */

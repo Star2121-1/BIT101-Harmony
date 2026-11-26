@@ -23,6 +23,11 @@
  * 瓦片源与 Android 同源：https://map.bit101.flwfdd.xyz/tile/{z}/{col}/{row}.png
  * 坐标口径：Web-Mercator 归一化 0..1，缩放 z15..z18，瓦片 256px。
  * 不依赖任何外部 JS/CDN，WebView 里自包含运行。
+ *
+ * G07-03 瓦片磁盘缓存：瓦片 URL 不带任何随机参数（保证 HTTP 缓存 key 稳定），
+ * 由 ArkWeb 的 HTTP 磁盘缓存承接（MapPage 显式 `.cacheMode(CacheMode.Default)`，
+ * 与 Android OkHttp Cache 同构）；策略常量 7 天 / 10MB 见 corelogic/MapTileCachePolicy.ts。
+ * ODbL 署名见本文件下方的 #attrib，常驻不动。
  */
 (function () {
   'use strict';

@@ -1,0 +1,7 @@
+时间戳: 2026-11-27 01:50:57 +0800
+守卫: G07-06 外链三类域名
+=== 恢复动作：WebEntryLogic.ts shouldStayInApp 还原（逐字 cp 备份）===
+=== 跑套件 ===
+
+ALL PASS  pass=87 fail=0
+EXITCODE:0

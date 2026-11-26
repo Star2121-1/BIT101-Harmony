@@ -13,12 +13,14 @@
  */
 
 import { webview } from '@kit.ArkWeb';
-import { router } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
+import { shouldHandOff, isHttpUrl } from '../corelogic/WebNavPolicy.ts';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
 import { FakeCookieStore } from '../data/FakeCookieStore.ts';
-import { info, warn } from '../core/log/BitLog.ts';
+import { warn } from '../core/log/BitLog.ts';
 
 /** 对齐 Android WebViewModel.BASE_URL。 */
 const BASE_URL: string = 'https://bit101.cn';
@@ -63,6 +65,23 @@ export struct WorldWebPage {
       "s['" + key + "']='" + safe + "';window.localStorage.setItem('store',JSON.stringify(s))}}catch(e){}";
   }
 
+  /**
+   * G07-06：外部链接拦下并交系统浏览器（内部域放行，CAS 会话 cookie 不丢）。
+   * 返回 true = 已交出去、Web 不再加载；无浏览器给提示不崩。
+   */
+  private handOffExternal(url: string): boolean {
+    if (!isHttpUrl(url) || !shouldHandOff(url)) {
+      return false;
+    }
+    const ctx = getContext(this) as common.UIAbilityContext;
+    ctx.startAbility({ action: 'ohos.want.action.viewData', uri: url })
+      .catch((e: Error) => {
+        warn('WorldWeb handoff fail: ' + JSON.stringify(e));
+        promptAction.showToast({ message: '没有可用的浏览器。地址：' + url });
+      });
+    return true;
+  }
+
   build() {
     Column() {
       // ── 顶部品牌色状态栏占位（Android statusBarHeight 色块）──
@@ -86,6 +105,9 @@ export struct WorldWebPage {
         .layoutWeight(1)
         .domStorageAccess(true)
         .javaScriptAccess(true)
+        .onLoadIntercept((event: OnLoadInterceptEvent) => {
+          return this.handOffExternal(event.data.getRequestUrl());
+        })
         .onPageBegin(() => this.injectStore())
         .onPageEnd(() => { this.progress = 100; })
     }

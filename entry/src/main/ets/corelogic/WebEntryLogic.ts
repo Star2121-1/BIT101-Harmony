@@ -98,18 +98,35 @@ export function isSchoolHost(host: string): boolean {
   return h === 'bit.edu.cn' || h.endsWith('.bit.edu.cn');
 }
 
+/** BIT101 自家站（App 的「网」页就是它），对齐 A:InAppWebUrls.kt:19。 */
+export const BIT101_ROOT: string = 'bit101.cn';
+/** 校园网认证门户（深澜 Srun），纯内网 HTTP 也必须留 App 内。对齐 A:InAppWebUrls.kt:22-25。 */
+export const CAMPUS_NET_PORTAL_HOST: string = '10.0.0.55';
+
+/** 是否 BIT101 自家站及其子域。 */
+export function isBit101Host(host: string): boolean {
+  const h: string = host.toLowerCase();
+  return h === BIT101_ROOT || h.endsWith('.' + BIT101_ROOT);
+}
+
 /**
- * 该地址是否应留在 App 内打开。
- * - 学校域名 → true（会话在 App 的 Web 组件里，踢出去会变未登录）；
- * - 其它 → false；
- * - 非 http(s) → false（交出去也没意义，调用方应直接拒绝）。
+ * 该地址是否应留在 App 内打开（G07-06，对齐 A:InAppWebUrls.kt:39-46 `isInternal`）。
+ * - 学校域名（`*.bit.edu.cn`）→ true：CAS 会话 cookie 在 App 的 Web 组件里，踢出去 = 白登；
+ * - BIT101 自家站（含子域）→ true；
+ * - 校园网认证门户 `10.0.0.55` → true（纯 HTTP，浏览器里进不去）；
+ * - 其它 → false（交系统浏览器）；
+ * - 非 http(s) → false（解析不了也一律按外部，宁可交出去也不让 WebView 加载）。
  */
 export function shouldStayInApp(url: string): boolean {
   const s: string = url.trim();
   if (!s.startsWith('http://') && !s.startsWith('https://')) {
     return false;
   }
-  return isSchoolHost(hostOf(s));
+  const host: string = hostOf(s);
+  if (host.length === 0) {
+    return false;
+  }
+  return isSchoolHost(host) || isBit101Host(host) || host === CAMPUS_NET_PORTAL_HOST;
 }
 
 /** 清单按 key 取一项（找不到返回 null）。 */

@@ -24,16 +24,17 @@ import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts
 import { CAMPUSES, findCampus } from '../corelogic/CampusCenters.ts';
 import type { CampusCenter } from '../corelogic/CampusCenters.ts';
 import { info, warn } from '../core/log/BitLog.ts';
+import {
+  scaleToZoom, normalizeScale, DEFAULT_MAP_SCALE, MAP_SCALE_MIN, MAP_SCALE_MAX, MAP_SCALE_STEP
+} from '../corelogic/MapScaleLogic.ts';
+import { loadMapScale, saveMapScale } from '../data/MapSettingsStore.ts';
+import { consumeMapTarget } from '../corelogic/MapTarget.ts';
+import type { MapTarget } from '../corelogic/MapTarget.ts';
 
-/** 地图缩放倍率（对齐 Android mapScale 默认 2f，范围 1..5，steps=7 ⇒ 每档 0.5）。 */
-const SCALE_MIN: number = 1;
-const SCALE_MAX: number = 5;
-const SCALE_STEP: number = 0.5;
-
-/** 倍率 → 瓦片层级（1 倍=z15 视野最大，5 倍=z18；与底栏缩放滑杆同一口径）。 */
-function scaleToZoom(value: number): number {
-  return 15 + (value - SCALE_MIN) / (SCALE_MAX - SCALE_MIN) * 3;
-}
+/** 倍率口径单一来源 corelogic/MapScaleLogic.ts（G07-05），这里只做本地别名。 */
+const SCALE_MIN: number = MAP_SCALE_MIN;
+const SCALE_MAX: number = MAP_SCALE_MAX;
+const SCALE_STEP: number = MAP_SCALE_STEP;
 
 @Component
 export struct MapPage {
@@ -42,8 +43,8 @@ export struct MapPage {
 
   @State private currentCampus: string = '良乡校区';
   @State private showBottomBar: boolean = false;
-  /** 默认 1 倍（用户拍板）：z15 视野最大，完整显示校区范围。 */
-  @State private mapScale: number = 1;
+  /** 默认 1 倍（用户拍板）：z15 视野最大；实际值从 Prefs 读回（G07-05）。 */
+  @State private mapScale: number = DEFAULT_MAP_SCALE;
   @State private tip: string = '';
 
   private controller: webview.WebviewController = new webview.WebviewController();
@@ -54,15 +55,40 @@ export struct MapPage {
 
   aboutToAppear(): void {
     this.currentCampus = CAMPUSES[0].name;
+    this.loadScale();
   }
 
-  /** WebView 加载完本地引擎后定位到当前校区（Android init: goTo(ALL.first())）。 */
+  /** 读回上次缩放倍率（G07-05：切 Tab / 杀进程重启都保持）。 */
+  private async loadScale(): Promise<void> {
+    this.mapScale = await loadMapScale();
+  }
+
+  /**
+   * WebView 加载完本地引擎后定位（G07-04）。
+   * 优先消费课表/考试教室带来的定位目标（一次性），否则落到当前校区。
+   */
   private onPageEnd(): void {
+    const target: MapTarget | null = consumeMapTarget();
+    if (target !== null) {
+      this.currentCampus = target.campus;
+      this.mapScale = normalizeScale(target.scale);
+      this.gotoXY(target.x, target.y);
+      this.tip = '已定位到' + target.name;
+      info('MapPage focus target ' + target.name + ' z=' + scaleToZoom(this.mapScale).toFixed(2));
+      return;
+    }
     this.gotoCampus(this.currentCampus);
     const c: CampusCenter | null = findCampus(this.currentCampus);
     if (c !== null) {
       info('MapPage loaded, focus ' + c.name + ' (' + c.lon + ',' + c.lat + ')');
     }
+  }
+
+  /** 直接用归一化坐标驱动引擎（不查校区表，定位目标用）。 */
+  private gotoXY(x: number, y: number): void {
+    this.controller.runJavaScript('window.MapEngine && window.MapEngine.goto(' +
+      x.toFixed(6) + ',' + y.toFixed(6) + ',' + scaleToZoom(this.mapScale).toFixed(2) + ')')
+      .catch((e: Error) => warn('MapEngine.goto fail: ' + JSON.stringify(e)));
   }
 
   /** 切校区：记高亮 + 通知引擎滚过去 + 弹一次提示（对齐 Android snackbar）。 */
@@ -73,15 +99,14 @@ export struct MapPage {
       return;
     }
     this.currentCampus = name;
-    this.controller.runJavaScript('window.MapEngine && window.MapEngine.goto(' +
-      c.x.toFixed(6) + ',' + c.y.toFixed(6) + ',' + scaleToZoom(this.mapScale).toFixed(2) + ')')
-      .catch((e: Error) => warn('MapEngine.goto fail: ' + JSON.stringify(e)));
+    this.gotoXY(c.x, c.y);
     this.tip = '已切换到' + c.name;
   }
 
   /** 缩放滑杆 → 引擎层级（1..5 映射到 z15..18）。 */
   private onScaleChange(value: number): void {
     this.mapScale = value;
+    saveMapScale(value).catch((e: Error) => warn('save map scale fail: ' + JSON.stringify(e)));
     const z: number = scaleToZoom(value);
     this.controller.runJavaScript('window.MapEngine && window.MapEngine.setZoom(' + z.toFixed(2) + ')')
       .catch((e: Error) => warn('MapEngine.setZoom fail: ' + JSON.stringify(e)));
@@ -96,7 +121,9 @@ export struct MapPage {
       })
         .width('100%')
         .height('100%')
-        .domStorageAccess(false)
+        // G07-03：瓦片走 ArkWeb 自身的 HTTP 磁盘缓存（与 Android OkHttp Cache 同构）
+        .cacheMode(CacheMode.Default)  // ArkUI 全局枚举，无需 import
+        .domStorageAccess(true)
         .javaScriptAccess(true)
         .zoomAccess(false)
         .onPageEnd(() => this.onPageEnd())
