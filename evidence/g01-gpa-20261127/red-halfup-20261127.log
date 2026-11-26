@@ -1,0 +1,10 @@
+时间戳: 2026-11-27 00:45:48 +0800
+守卫: test-scoregpa.mjs / 80分→3.3 half-up（防 ties-even 退化）
+=== 拆红改动（ScoreGpaLogic.ts round1）===
+改前原文:   return Math.floor(x * 10 + 0.5) / 10;
+改后原文:   return Math.round(x * 10) / 10;
+=== 跑套件 ===
+AssertionError [ERR_ASSERTION]: half-up 用 floor(x*10+0.5)，非 Math.round
+  actual: false,
+  expected: true,
+EXITCODE:1

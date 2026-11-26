@@ -1,0 +1,9 @@
+时间戳: 2026-11-27 00:46:10 +0800
+守卫: test-scoregpa.mjs / half-up
+=== 恢复动作：ScoreGpaLogic.ts round1 还原为改前原文 ===
+  return Math.floor(x * 10 + 0.5) / 10;
+=== 跑套件 ===
+=== 7. 源码守卫（静态）===
+
+ALL PASS  pass=66 fail=0
+EXITCODE:0

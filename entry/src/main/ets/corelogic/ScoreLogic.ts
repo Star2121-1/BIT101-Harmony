@@ -31,6 +31,16 @@ export interface ScoreEntry {
    * ⚠️ **不进 `scoreKey`**：改学分不该触发「新出分」提醒。
    */
   credit?: number;
+  /**
+   * 课程编号（G-01 GPA 去重键优先用它）。没有该列时 undefined，退回课程名去重。
+   * ⚠️ **不进 `scoreKey`**：出分提醒仍按「课程+学期」，不因编号列变化刷屏。
+   */
+  courseNumber?: string;
+  /**
+   * 课程种类 / 类别（G-01 判定「校公选课不及格不计入绩点」用）。
+   * ⚠️ **不进 `scoreKey`**，理由同上。
+   */
+  category?: string;
 }
 
 /**
@@ -48,6 +58,10 @@ const SCORE_KEYWORDS: string[] = ['成绩', '分数', '总评', '得分'];
 const TERM_KEYWORDS: string[] = ['学期', '学年'];
 /** 学分列（真实表头里有「学分」；取不到就不给学分统计，不猜）。 */
 const CREDIT_KEYWORDS: string[] = ['学分'];
+/** 课程编号列（G-01 GPA 去重；A:ScoreTable.NUMBER_KEYS）。 */
+const NUMBER_KEYWORDS: string[] = ['课程编号', '课程号'];
+/** 课程种类/类别列（G-01 校公选判定；A:ScoreTable.CATEGORY_KEYS，刻意不含「课程归属」）。 */
+const CATEGORY_KEYWORDS: string[] = ['课程种类', '课程类别'];
 
 /** 一个单元格取成字符串（primitive → 串；对象/数组/null → 空）。 */
 function cellToString(v: JsonValue | undefined): string {
@@ -173,9 +187,16 @@ export function parseTable(data: JsonValue | null): ScoreEntry[] {
   if (courseCol < 0) {
     return [];
   }
-  const scoreCol: number = findColumn(header, SCORE_KEYWORDS, []);
+  // ⚠️ 成绩/学分列必须带排除词（对齐 A:ScoreTable.SCORE_EXCLUDE/CREDIT_EXCLUDE）：
+  // 真实表头 16 列里「成绩」与「成绩标识」并列，列序一换就会命中「正常考试/补考」
+  // 那列 → 全表 0 门；学分列同理会命中「平均学分绩点」。
+  const scoreCol: number = findColumn(header, SCORE_KEYWORDS,
+    ['标识', '性质', '方式', '类型', '备注', '说明', '绩点']);
   const termCol: number = findColumn(header, TERM_KEYWORDS, []);
-  const creditCol: number = findColumn(header, CREDIT_KEYWORDS, []);
+  const creditCol: number = findColumn(header, CREDIT_KEYWORDS,
+    ['绩点', '平均', '总', '已修', '未修']);
+  const numberCol: number = findColumn(header, NUMBER_KEYWORDS, []);
+  const categoryCol: number = findColumn(header, CATEGORY_KEYWORDS, []);
 
   const out: ScoreEntry[] = [];
   for (let i = headerIndex + 1; i < all.length; i++) {
@@ -186,16 +207,29 @@ export function parseTable(data: JsonValue | null): ScoreEntry[] {
     }
     const score: string | null = scoreCol >= 0 && scoreCol < row.length ? (row[scoreCol].trim().length > 0 ? row[scoreCol].trim() : null) : null;
     const term: string | null = termCol >= 0 && termCol < row.length ? (row[termCol].trim().length > 0 ? row[termCol].trim() : null) : null;
+    // G-01：课程编号 + 课程种类（只在列命中且非空时带上，缺列给 undefined）
+    const numberRaw: string = numberCol >= 0 && numberCol < row.length ? row[numberCol].trim() : '';
+    const categoryRaw: string = categoryCol >= 0 && categoryCol < row.length ? row[categoryCol].trim() : '';
     // 学分：只有解析成有限正数才带上（「3.0」→ 3；「免修」之类原文不动，给 undefined）
     const creditRaw: string = creditCol >= 0 && creditCol < row.length ? row[creditCol].trim() : '';
+    let credit: number | undefined = undefined;
     if (creditRaw.length > 0) {
       const n: number = Number(creditRaw);
       if (Number.isFinite(n) && n > 0) {
-        out.push({ course: course, score: score, term: term, credit: n });
-        continue;
+        credit = n;
       }
     }
-    out.push({ course: course, score: score, term: term });
+    const entry: ScoreEntry = { course: course, score: score, term: term };
+    if (credit !== undefined) {
+      entry.credit = credit;
+    }
+    if (numberRaw.length > 0) {
+      entry.courseNumber = numberRaw;
+    }
+    if (categoryRaw.length > 0) {
+      entry.category = categoryRaw;
+    }
+    out.push(entry);
   }
   return out;
 }

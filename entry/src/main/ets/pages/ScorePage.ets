@@ -19,7 +19,8 @@
  */
 
 import { Context } from '@kit.AbilityKit';
-import { router } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
+import { pasteboard } from '@kit.BasicServicesKit';
 import { gridTokens } from '../core/theme/GridTokens.ts';
 import type { GridTokens } from '../core/theme/GridTokens.ts';
 import { STORAGE_DARK, STORAGE_PALETTE, getPalette } from '../data/ThemeStore.ts';
@@ -35,6 +36,9 @@ import {
   creditSummary, creditLine, buckets, bucketLine, formatCredit,
 } from '../corelogic/ScoreSummaryLogic.ts';
 import type { CreditSummary, BucketCount, TermCredit } from '../corelogic/ScoreSummaryLogic.ts';
+import { summarizeGpa } from '../corelogic/ScoreGpaLogic.ts';
+import type { GpaSummary } from '../corelogic/ScoreGpaLogic.ts';
+import { scoreCsv } from '../corelogic/ScoreCsvLogic.ts';
 import type { ScoreTermGroup } from '../corelogic/ScoreFlowLogic.ts';
 import { statusText, fmtCheckTime, humanReason, ScoreCheckCode } from '../corelogic/ScoreCheckLogic.ts';
 import type { ScoreCheckStatus } from '../corelogic/ScoreCheckLogic.ts';
@@ -64,6 +68,8 @@ export struct ScorePage {
   @State collapsed: string[] = [];
   /** 课程名过滤（成绩多时按课名找）。 */
   @State filter: string = '';
+  /** 「计算口径」弹窗是否展开（G-03）。 */
+  @State showGpaRule: boolean = false;
 
   // ── 临时凭据输入（不保存时只在内存里活一次）──
   @State inputUser: string = '';
@@ -108,6 +114,40 @@ export struct ScorePage {
   private creditText(): string {
     const c: CreditSummary = creditSummary(this.entries);
     return creditLine(c);
+  }
+
+  /** GPA 一行（G-01；无课可统计时为空，整块不显示）。 */
+  private gpaText(): string {
+    const g: GpaSummary = summarizeGpa(this.entries);
+    if (g.weightedGpa === null) {
+      return '';
+    }
+    let s: string = '平均学分绩点 ' + g.weightedGpa.toFixed(4) +
+      '（' + g.courseCount + ' 门 / ' + g.totalCredit + ' 学分）';
+    if (g.electiveFailed > 0) {
+      s += ' · 校公选不及格 ' + g.electiveFailed + ' 门未计入';
+    }
+    if (g.skipped > 0) {
+      s += ' · 另有 ' + g.skipped + ' 门未计入';
+    }
+    return s;
+  }
+
+  /** G-02：CSV 复制到剪贴板（RFC 4180 转义在 ScoreCsvLogic）。 */
+  private async exportCsv(): Promise<void> {
+    if (this.entries.length === 0) {
+      this.msg = '还没有成绩可导出';
+      return;
+    }
+    try {
+      const csv: string = scoreCsv(this.entries);
+      const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, csv);
+      await pasteboard.getSystemPasteboard().setData(data);
+      promptAction.showToast({ message: '已复制 ' + this.entries.length + ' 条成绩 CSV 到剪贴板' });
+    } catch (e) {
+      this.msg = '导出失败：' + (e as Error).message;
+      warn('score csv export fail: ' + JSON.stringify(e));
+    }
   }
 
   /** 分档一行。 */
@@ -298,6 +338,12 @@ export struct ScorePage {
         Text('成绩')
           .fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.tk().onSurface)
           .layoutWeight(1).textAlign(TextAlign.Center)
+        Text('口径')
+          .fontSize(14).fontColor(this.tk().primary)
+          .margin({ right: 12 })
+          .onClick(() => {
+            this.showGpaRule = !this.showGpaRule;
+          })
         Text(this.busy ? '查询中' : '刷新')
           .fontSize(14)
           .fontColor(this.busy ? this.tk().onSurfaceVariant : this.tk().primary)
@@ -380,16 +426,39 @@ export struct ScorePage {
             }
 
             // ── 学期分组列表 ──
-            // 学分与分档（没有学分列时 creditText 为空，整行不显示）
+            // G-03：计算口径弹窗（顶栏「口径」可开可关）
+            if (this.showGpaRule) {
+              Column() {
+                Text('GPA 计算口径').fontSize(13).fontWeight(FontWeight.Bold)
+                  .fontColor(this.tk().onSurface).width('100%')
+                Text('按教〔2022〕16号：百分制绩点 = 4 - 3×(100-X)²/1600，逐课 half-up 到 0.1 后加权；不及格记 0 分但学分照常进分母。')
+                  .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
+                Text('校公选课不及格不计入；缺考/旷考/作弊记 0 分；缓考/免修不计；重修只取最高成绩。与 BIT101 网页版口径有意不同（网页版剔除所有不及格且不逐课舍入）。')
+                  .fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 4 })
+              }
+              .width('100%').padding(10).margin({ top: 8 })
+              .backgroundColor(this.tk().secondaryContainer).borderRadius(10)
+            }
+            // 学分 / GPA / 分档（没有对应列时整行不显示）
             if (this.creditText().length > 0) {
               Text(this.creditText())
                 .fontSize(12).fontColor(this.tk().onSurfaceVariant)
                 .width('100%').margin({ top: 10 })
             }
+            if (this.gpaText().length > 0) {
+              Text(this.gpaText())
+                .fontSize(12).fontColor(this.tk().onSurfaceVariant)
+                .width('100%').margin({ top: 2 })
+            }
             if (this.bucketText().length > 0) {
               Text(this.bucketText())
                 .fontSize(11).fontColor(this.tk().textPlaceholder)
                 .width('100%').margin({ top: 2 })
+            }
+            if (this.entries.length > 0) {
+              Text('导出 CSV').fontSize(12).fontColor(this.tk().primary)
+                .width('100%').margin({ top: 6 })
+                .onClick(() => { this.exportCsv(); })
             }
 
             if (this.entries.length > 0) {
