@@ -19,7 +19,9 @@
  * 本端口径：fill → container；ink/mark → onContainer。
  */
 
-import type { CourseColors } from '../core/theme/CoursePalette.ts';
+import type { CourseColors, CourseColorFamily } from '../core/theme/CoursePalette.ts';
+import { courseColorsOf } from '../core/theme/CoursePalette.ts';
+import type { PaletteName } from '../core/theme/GridTokens.ts';
 import { mixHex } from '../core/theme/colorUtil.ts';
 import { gridTokens, getPaletteName } from '../core/theme/GridTokens.ts';
 
@@ -31,24 +33,26 @@ export const MAKEUP_TINT: number = 0.6;
 export type ScheduleTint = 'normal' | 'holiday' | 'makeup';
 
 /**
- * 课块配色 = **所有课程同一个容器色** + 调休变体。
+ * 课块配色 = 按族+色号取到的课程色 + 调休变体（S01 全量移植）。
  *
- * ⚠️ 2026-10-31 对齐原版改口：原版 `CourseScheduleCalendar.kt` 的
- * `scheduleItemColors` 只有 3 档（normal/holiday/makeup），normal 恒为
- * `secondaryContainer`/`onSecondaryContainer` —— **没有按课程换色**。
- * 我方早先按课名哈希取 12 色（本文件旧版），真机对照官方课表一眼就看出不是一套。
- * 12 色板（CoursePalette）保留给别处用，课表不再引用。
+ * ⚠️ 2026-10-31 曾改成「恒 secondaryContainer 统色」对齐当时原版默认观感。
+ * 2026-11-27 全量移植 Android 五族（S01）：族决定课程色表——
+ * legacy（默认）12 支同值（固定色，不随 palette，保住默认观感统一）；
+ * classic/morandi/brand 按色号取 12 色；auto 按 palette 解析。
+ * 色号由调用方给（课名哈希 or 单课覆盖），本文件只查表 + 调休混合。
+ *
+ * @param family 课程配色族（默认 legacy）
+ * @param courseIndex 课程色号 0..11
  */
-export function tintedScheduleColors(isDark: boolean, tint: ScheduleTint, paletteName: string = 'brand'): CourseColors {
-  const t = gridTokens(isDark, getPaletteName(paletteName));
-  const base: CourseColors = {
-    fill: t.secondaryContainer,
-    ink: t.onSecondaryContainer,
-    mark: t.secondary,
-  };
+export function tintedScheduleColors(isDark: boolean, tint: ScheduleTint,
+  paletteName: string = 'brand', family: CourseColorFamily = 'legacy',
+  courseIndex: number = 0): CourseColors {
+  const pName: PaletteName = getPaletteName(paletteName) as PaletteName;
+  const base: CourseColors = courseColorsOf(family, courseIndex, isDark, pName);
   if (tint === 'normal') {
     return base;
   }
+  const t = gridTokens(isDark, pName);
   let ratio: number;
   let container: string;
   let onContainer: string;

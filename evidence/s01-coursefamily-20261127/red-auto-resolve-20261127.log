@@ -1,0 +1,11 @@
+时间戳: 2026-11-27 00:29:58 +0800
+守卫: test-coursefamily.mjs / Auto 解析 Classic⇒Legacy
+=== 拆红改动（CoursePalette.ts resolveCourseFamily）===
+改前原文:   if (paletteName === 'classic') { return 'legacy'; }
+改后原文:   if (paletteName === 'classic') { return 'classic'; }
+=== 跑套件 ===
+AssertionError [ERR_ASSERTION]: auto + Classic palette ⇒ Legacy 统色
++ actual - expected
+  actual: 'classic',
+  expected: 'legacy',
+EXITCODE:1

@@ -53,12 +53,20 @@ import { shiftWeek, swipeWeek, weekLabel, weekA11y, swipeDirFromAngle, WeekMove 
 import { creditText, categoryText, summaryText } from '../corelogic/CourseDetailLogic.ts';
 import { todayBadge } from '../corelogic/TeachingAdjustmentView.ts';
 import { STORAGE_FOCUS_COURSE, sanitizeCourseName } from '../corelogic/SearchNav.ts';
+import { of as courseColorOf } from '../corelogic/CourseColorLogic.ts';
+import { courseColorsOf } from '../core/theme/CoursePalette.ts';
+import type { CourseColorFamily } from '../core/theme/CoursePalette.ts';
+import {
+  loadCourseFamily, loadOverrides, saveOverrides, CourseColorOverride, indexOfOverride
+} from '../data/CourseColorFamilyStore.ts';
 
 const CELL_H: number = 43;
 const TOTAL_SECTIONS: number = 13;
 const DAY_LABELS: string[] = ['一', '二', '三', '四', '五', '六', '日'];
 /** 1..13（节次，1-based）。ArkTS 里 Array.from({length}) 不可靠，直接列常量。 */
 const SECTIONS: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+/** 课程色号 0..11（单课改色色块；ArkTS 里 Array.from 不可靠，直接列）。 */
+const COLOR_INDEXES: number[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
 /** 一个渲染块（一列内的一段）。 */
 interface Block {
@@ -110,6 +118,10 @@ export struct SchedulePage {
   @State errorText: string = '';
   /** 课表显示开关（对齐原版 SettingDataStore）：当前只接边框/分隔线两项。 */
   @State displayFlags: ScheduleDisplayFlags = defaultScheduleDisplay();
+  /** 课程配色族（S01；默认 legacy 统色，设置页可改，onWake 重读）。 */
+  @State courseFamily: CourseColorFamily = 'legacy';
+  /** 单课改色覆盖（S02；课名→色号，优先于哈希）。 */
+  @State courseOverrides: CourseColorOverride[] = [];
   @State needLogin: boolean = false;
   @State term: string = '';
   /** 可选学期（接口返回，新→旧）。空 = 没取到（选择器不显示）。 */
@@ -158,7 +170,18 @@ export struct SchedulePage {
   aboutToAppear(): void {
     this.computeToday();
     this.loadDisplayFlags();
+    this.loadCourseColorSettings();
     this.load();
+  }
+
+  /** 读课程配色族 + 单课覆盖（设置页改完返回也重读，见 onWake）。 */
+  private async loadCourseColorSettings(): Promise<void> {
+    try {
+      this.courseFamily = await loadCourseFamily();
+      this.courseOverrides = await loadOverrides();
+    } catch (e) {
+      warn('schedule course color settings fail: ' + JSON.stringify(e));
+    }
   }
 
   /** 读显示开关（设置页改完返回也重读，见 onWake）。 */
@@ -382,6 +405,7 @@ export struct SchedulePage {
     this.selected = null;
     this.selectedPlanNote = '';
     this.loadDisplayFlags();  // 设置页改显示开关后切回来生效
+    this.loadCourseColorSettings();  // 课程配色族/单课改色改完切回来生效
     if (this.active) {
       this.reloadOverlaysAndRemerge();
       // 搜索页点课程结果 → replaceUrl(Index) → epoch 自增 → 这里触发。
@@ -1150,6 +1174,29 @@ export struct SchedulePage {
             Text('安排：' + this.selected!.YPSJDD)
               .fontSize(12).fontColor(this.p().onSurfaceVariant).width('100%').margin({ top: 2 })
           }
+          // S02：单课改色（选中的色块带边框；重置回到按课名哈希）
+          Row() {
+            Text('课程颜色').fontSize(12).fontColor(this.p().onSurfaceVariant).layoutWeight(1)
+            if (this.hasOverride()) {
+              Text('重置').fontSize(12).fontColor(this.p().primary)
+                .onClick(() => { this.resetCourseColor(); })
+            }
+          }.width('100%').margin({ top: 8 })
+          Row() {
+            ForEach(COLOR_INDEXES, (i: number) => {
+              Column()
+                .width(22).height(22)
+                .backgroundColor(courseColorsOf(this.courseFamily, i, this.isDark,
+                  this.paletteName).fill)
+                .borderRadius(4)
+                .border({
+                  width: indexOfOverride(this.courseOverrides, this.selected!.KCM) === i ? 2 : 0,
+                  color: this.p().primary
+                })
+                .margin({ right: 4 })
+                .onClick(() => { this.setCourseColor(i); })
+            }, (i: number) => 'cc_' + i)
+          }.width('100%').margin({ top: 4 })
         }
         .width('100%')
         .padding(12)
@@ -1187,7 +1234,7 @@ export struct SchedulePage {
       Text(b.course === null ? '' : b.course.KCM)
         .fontSize(10)
         .fontWeight(FontWeight.Medium)
-        .fontColor(this.blockColors(dayIndex).ink)
+        .fontColor(this.blockColors(b, dayIndex).ink)
         .maxLines(b.span >= 2 ? 3 : 1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .textAlign(TextAlign.Center)
@@ -1196,7 +1243,7 @@ export struct SchedulePage {
       Blank()
       Text(b.course === null ? '' : (b.course.JASMC.length > 0 ? b.course.JASMC : ''))
         .fontSize(9)
-        .fontColor(this.blockColors(dayIndex).ink)
+        .fontColor(this.blockColors(b, dayIndex).ink)
         .opacity(0.75)
         // 官方教室名也是两行（「文萃楼」+「I404」）；1 节块只给 1 行
         .maxLines(b.span >= 2 ? 2 : 1)
@@ -1207,7 +1254,7 @@ export struct SchedulePage {
     .width('100%')
     .height(CELL_H * b.span - 2)
     .padding(3)
-    .backgroundColor(this.blockColors(dayIndex).fill)
+    .backgroundColor(this.blockColors(b, dayIndex).fill)
     .borderRadius(12)
     // 原版 CourseScheduleItem.kt L64-69：左缘 4dp ink 竖条（恒显，§8.2 第二编码）；
     // 另三边的细边框仅 showBorder 开关打开时显示（Android showBorder 默认 false）。
@@ -1215,7 +1262,7 @@ export struct SchedulePage {
       width: this.displayFlags.showBorder
         ? { left: 4, right: 1, top: 1, bottom: 1 }
         : { left: 4, right: 0, top: 0, bottom: 0 },
-      color: this.blockColors(dayIndex).ink
+      color: this.blockColors(b, dayIndex).ink
     })
     // 无障碍：读屏要念「课程名，第几节到第几节，教室」，只念课名等于没信息
     .accessibilityText(b.course === null ? '' : (b.course.KCM + '，周' + DAY_LABELS[dayIndex] +
@@ -1231,9 +1278,72 @@ export struct SchedulePage {
     })
   }
 
-  /** 课程块配色：所有课程同一个容器色，只按列的调休档取变体。 */
-  private blockColors(dayIndex: number) {
-    return tintedScheduleColors(this.isDark, this.columnTint(dayIndex), this.paletteName);
+  /**
+   * 课程块配色（S01/S02）：按族 + 色号取色 + 调休变体。
+   * 色号 = 单课覆盖（若有）优先，否则课名 FNV 哈希（对齐 A:itemColorIndex）。
+   * 空块（b.course===null）传 -1，legacy 族下 12 支同值所以视觉无差。
+   */
+  private blockColors(b: Block, dayIndex: number) {
+    const title: string = b.course === null ? '' : b.course.KCM;
+    const override: number = indexOfOverride(this.courseOverrides, title);
+    const idx: number = override >= 0 ? override : courseColorOf(title);
+    return tintedScheduleColors(this.isDark, this.columnTint(dayIndex), this.paletteName,
+      this.courseFamily, idx);
+  }
+
+  /** S02：给当前选中课程改色号（覆盖哈希，落盘）。 */
+  private async setCourseColor(index: number): Promise<void> {
+    if (this.selected === null) {
+      return;
+    }
+    const title: string = this.selected.KCM;
+    const next: CourseColorOverride[] = [];
+    let replaced: boolean = false;
+    for (let i = 0; i < this.courseOverrides.length; i++) {
+      const o: CourseColorOverride = this.courseOverrides[i];
+      if (o.title === title) {
+        next.push({ title: title, index: index });
+        replaced = true;
+      } else {
+        next.push({ title: o.title, index: o.index });
+      }
+    }
+    if (!replaced) {
+      next.push({ title: title, index: index });
+    }
+    this.courseOverrides = next;
+    try {
+      await saveOverrides(next);
+      info('set course color: ' + title + ' -> ' + index);
+    } catch (e) {
+      warn('set course color fail: ' + JSON.stringify(e));
+    }
+  }
+
+  /** S02：重置当前课程的改色（回到按课名哈希）。 */
+  private async resetCourseColor(): Promise<void> {
+    if (this.selected === null) {
+      return;
+    }
+    const title: string = this.selected.KCM;
+    const next: CourseColorOverride[] = [];
+    for (let i = 0; i < this.courseOverrides.length; i++) {
+      if (this.courseOverrides[i].title !== title) {
+        next.push({ title: this.courseOverrides[i].title, index: this.courseOverrides[i].index });
+      }
+    }
+    this.courseOverrides = next;
+    try {
+      await saveOverrides(next);
+      info('reset course color: ' + title);
+    } catch (e) {
+      warn('reset course color fail: ' + JSON.stringify(e));
+    }
+  }
+
+  /** 当前选中课是否已改色（详情里显示「已改色」）。 */
+  private hasOverride(): boolean {
+    return this.selected !== null && indexOfOverride(this.courseOverrides, this.selected.KCM) >= 0;
   }
 
   /**

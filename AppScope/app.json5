@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "cn.bit101.next",
     "vendor": "example",
-    "versionCode": 50,
-    "versionName": "1.0.0-alpha.50",
+    "versionCode": 51,
+    "versionName": "1.0.0-alpha.51",
     "icon": "$media:layered_image",
     "label": "$string:app_name"
   }

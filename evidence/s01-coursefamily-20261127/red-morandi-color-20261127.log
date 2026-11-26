@@ -1,0 +1,17 @@
+时间戳: 2026-11-27 00:29:38 +0800
+守卫: test-coursefamily.mjs / morandi.light[0] 逐格色
+=== 拆红改动（CoursePalette.ts MORANDI_LIGHT[0]）===
+改前原文:   { fill: '#D9DCE1', ink: '#4A4F58', mark: '#8A929E' }, // 灰蓝
+改后原文:   { fill: '#D9DCE2', ink: '#4A4F58', mark: '#8A929E' }, // 灰蓝
+=== 跑套件 ===
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: [ '#D9DCE2', '#4A4F58', '#8A929E' ],
+  expected: [ '#D9DCE1', '#4A4F58', '#8A929E' ],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.22.2
+EXITCODE:1

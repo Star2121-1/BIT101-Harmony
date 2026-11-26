@@ -1,0 +1,10 @@
+时间戳: 2026-11-27 00:30:08 +0800
+守卫: test-coursefamily.mjs / Auto 解析
+=== 恢复动作：CoursePalette.ts resolveCourseFamily 还原为改前原文 ===
+  if (paletteName === 'classic') { return 'legacy'; }
+（与红日志改前原文逐字一致）
+=== 跑套件 ===
+=== 5. 源码接线守卫（静态）===
+
+ALL PASS  pass=101 fail=0
+EXITCODE:0

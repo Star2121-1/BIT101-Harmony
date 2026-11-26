@@ -1,0 +1,11 @@
+时间戳: 2026-11-27 00:29:48 +0800
+守卫: test-coursefamily.mjs / morandi.light[0]
+=== 恢复动作：CoursePalette.ts MORANDI_LIGHT[0] 还原为改前原文 ===
+  { fill: '#D9DCE1', ink: '#4A4F58', mark: '#8A929E' }, // 灰蓝
+（与红日志改前原文逐字一致）
+=== 跑套件 ===
+
+=== 5. 源码接线守卫（静态）===
+
+ALL PASS  pass=101 fail=0
+EXITCODE:0

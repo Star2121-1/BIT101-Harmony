@@ -58,6 +58,12 @@ import {
   loadHideBusyClassroom, saveHideBusyClassroom, loadFreeMinutes, saveFreeMinutes,
   normalizeFreeMinutes
 } from '../data/ClassroomSettings.ts';
+import {
+  CourseColorFamily, ALL_COURSE_FAMILIES, courseFamilyLabel, DEFAULT_COURSE_FAMILY
+} from '../core/theme/CoursePalette.ts';
+import {
+  loadCourseFamily, saveCourseFamily
+} from '../data/CourseColorFamilyStore.ts';
 
 /** 默认校区偏好的持久化键（ClassroomPage 也读这个）。 */
 export const KEY_DEFAULT_CAMPUS: string = 'default_campus_code';
@@ -126,6 +132,10 @@ struct SettingsPage {
   @State termExpanded: boolean = false;
   /** 课表显示开关（当前只暴露边框/分隔线两项，其余原版开关待接）。 */
   @State displayFlags: ScheduleDisplayFlags = defaultScheduleDisplay();
+  /** 课程配色族（S01；默认 legacy 统色）。 */
+  @State courseFamily: CourseColorFamily = DEFAULT_COURSE_FAMILY;
+  /** 族选择面板是否展开。 */
+  @State familyPickerOpen: boolean = false;
 
   private p(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -429,6 +439,25 @@ struct SettingsPage {
       this.minutesDraft = String(this.freeMinutes);
     } catch (e) {
       warn('Settings read classroom settings fail: ' + JSON.stringify(e));
+    }
+    // S01：课程配色族（读失败留默认 legacy）
+    try {
+      this.courseFamily = await loadCourseFamily();
+    } catch (e) {
+      warn('Settings read course family fail: ' + JSON.stringify(e));
+    }
+  }
+
+  /** S01：切换课程配色族（落盘 + 可见反馈；课表页 onWake 重读生效）。 */
+  private async pickCourseFamily(f: CourseColorFamily): Promise<void> {
+    this.courseFamily = f;
+    this.familyPickerOpen = false;
+    try {
+      await saveCourseFamily(f);
+      this.toast = '课程配色：' + courseFamilyLabel(f);
+    } catch (e) {
+      this.toast = '保存失败：' + (e as Error).message;
+      warn('Settings save course family fail: ' + JSON.stringify(e));
     }
   }
 
@@ -1033,6 +1062,36 @@ struct SettingsPage {
                 })
             }
             .width('100%')
+            // S01：课程配色族（对齐 A:CalendarSettingPage 的单选列表）
+            Row() {
+              Text('课程配色').fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
+              Text(courseFamilyLabel(this.courseFamily))
+                .fontSize(13).fontColor(this.p().textPlaceholder)
+              Text(' ›').fontSize(13).fontColor(this.p().textPlaceholder)
+            }
+            .width('100%').padding({ top: 10 })
+            .border({ width: { top: 0.5 }, color: this.p().outlineVariant })
+            .onClick(() => {
+              this.familyPickerOpen = !this.familyPickerOpen;
+            })
+            if (this.familyPickerOpen) {
+              Column() {
+                ForEach(ALL_COURSE_FAMILIES, (f: CourseColorFamily) => {
+                  Row() {
+                    Text(courseFamilyLabel(f))
+                      .fontSize(13)
+                      .fontColor(f === this.courseFamily ? this.p().primary : this.p().onSurface)
+                      .layoutWeight(1)
+                    if (f === this.courseFamily) {
+                      Text('✓').fontSize(13).fontColor(this.p().primary)
+                    }
+                  }
+                  .width('100%').padding({ top: 8, bottom: 8 })
+                  .border({ width: { bottom: 0.5 }, color: this.p().outlineVariant })
+                  .onClick(() => { this.pickCourseFamily(f); })
+                }, (f: CourseColorFamily) => 'cf_' + f)
+              }.width('100%').margin({ top: 8 })
+            }
           }
           .width('100%').padding(12)
           .backgroundColor(this.p().secondaryContainer)

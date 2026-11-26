@@ -104,16 +104,20 @@ ok(clsDiff(light.secondaryContainer, mixHex(light.errorContainer, light.secondar
 ok(clsDiff(dark.secondaryContainer, mixHex(dark.errorContainer, dark.secondaryContainer, 0.5)) > 20,
   'dark 教室项空闲/占用底色差 > 20');
 
-console.log('\n=== tint 档位语义（2026-10-31 改口：课块统一容器色）===');
+console.log('\n=== tint 档位语义（S01 全量移植：默认族 legacy 逐格对齐 Android）===');
 eq(HOLIDAY_TINT, 0.85, 'HOLIDAY_TINT=0.85（照搬源码）');
 eq(MAKEUP_TINT, 0.6, 'MAKEUP_TINT=0.6（照搬源码）');
 for (const dark of [false, true]) {
   const t = gridTokens(dark);
-  // 原版 scheduleItemColors normal 恒为 secondaryContainer/onSecondaryContainer，
-  // **不按课名换色**；这里盯的就是这条（旧实现按 12 色哈希取，真机被官方截图打脸）
-  const base = { fill: t.secondaryContainer, ink: t.onSecondaryContainer, mark: t.secondary };
-  eq(tintedScheduleColors(dark, 'normal').fill, base.fill, (dark ? 'dark' : 'light') + ' normal.fill = secondaryContainer');
-  eq(tintedScheduleColors(dark, 'normal').ink, base.ink, (dark ? 'dark' : 'light') + ' normal.ink = onSecondaryContainer');
+  // ⚠️ 2026-11-27 口径变更（用户拍板「按 Android 权威逐格对齐」）：
+  // 旧锚点是 secondaryContainer（2026-10-31 当时原版口径）；Android 1.12.0 起
+  // 默认族 legacy 的课块色是 CoursePalette.legacyLight/Dark 固定色（不随 palette）。
+  // 见 A:features/theme/CoursePalette.kt:61-66。不再按课名换色（12 支同值）。
+  const base = dark
+    ? { fill: '#2C3542', ink: '#C6D3E3', mark: '#C6D3E3' }
+    : { fill: '#E7ECF3', ink: '#3D5573', mark: '#5B7BA6' };
+  eq(tintedScheduleColors(dark, 'normal').fill, base.fill, (dark ? 'dark' : 'light') + ' normal.fill = legacy 权威色');
+  eq(tintedScheduleColors(dark, 'normal').ink, base.ink, (dark ? 'dark' : 'light') + ' normal.ink = legacy 权威 ink');
   // holiday：fill 朝 surfaceVariant 靠 0.85；ink 朝 onSurfaceVariant 靠 0.85
   eq(tintedScheduleColors(dark, 'holiday').fill, refMix(t.surfaceVariant, base.fill, HOLIDAY_TINT),
     (dark ? 'dark' : 'light') + ' holiday.fill');
@@ -128,11 +132,13 @@ for (const dark of [false, true]) {
   const diff = (a, b) => Math.abs(parseInt(a.slice(1, 3), 16) - parseInt(b.slice(1, 3), 16)) +
     Math.abs(parseInt(a.slice(3, 5), 16) - parseInt(b.slice(3, 5), 16)) +
     Math.abs(parseInt(a.slice(5, 7), 16) - parseInt(b.slice(5, 7), 16));
-  // 阈值按 Android 侧同款测试（ScheduleItemColorTest）的口径：只要**看得出不同**即可。
-  // 旧实现 base 是饱和的 12 色，60/40 的硬阈值能过；统一容器色后 base 本身就接近
-  // surfaceVariant，硬阈值不再成立 —— 但"两档必须互不相同"仍然要盯住。
-  ok(diff(tintedScheduleColors(dark, 'holiday').fill, base.fill) > 8,
-    (dark ? 'dark' : 'light') + ' holiday 与常态看得出不同');
+  // ⚠️ 2026-11-27：对齐 Android 同款测试（ScheduleItemColorTest:60 assertNotEquals）。
+  // 旧鸿蒙口径是「色差 > 8」硬阈值；legacy 权威色 #E7ECF3 与 brand surfaceVariant
+  // #E4E9F1 几乎同色（A:BrandColor.kt:60 同值），混 0.85 后色差=8，硬阈值不成立。
+  // Android 自己只断言「不相等」（放假编码主要靠列头角标 + 灰化，不靠块底大色差）。
+  // 这里按 Android 权威口径降为「不相等」，不擅自放宽到假绿。
+  ok(tintedScheduleColors(dark, 'holiday').fill !== base.fill,
+    (dark ? 'dark' : 'light') + ' holiday 与常态不相等（A:ScheduleItemColorTest:60）');
   ok(diff(tintedScheduleColors(dark, 'makeup').fill, base.fill) > 8,
     (dark ? 'dark' : 'light') + ' makeup 与常态看得出不同');
   ok(diff(tintedScheduleColors(dark, 'makeup').fill, tintedScheduleColors(dark, 'holiday').fill) > 8,
