@@ -1,0 +1,12 @@
+时间戳: 2026-11-26 22:26:48 +0800
+守卫: test-widget.mjs / F01 卡片首帧 warm 写死
+=== 拆红改动（FormExtension.ets:109）===
+改前原文（FormExtension.ets:109，逐字）:       widgetPayload: '', widgetPalette: DEFAULT_PALETTE, widgetDark: false
+改后原文（FormExtension.ets:109，逐字）:       widgetPayload: '', widgetPalette: 'warm', widgetDark: false
+（上面第 4 行的引号在 tee 时被 shell 吞掉，本行为准确的改前原文，供 QA 逐字比对）
+=== 跑套件 ===
+FAIL: F01: FormExtension 不再出现写死 warm 的首帧
+FAIL: F01: 预览与真卡首帧都引用 DEFAULT_PALETTE 单一来源
+
+FAILED  pass=22 fail=2
+EXITCODE:1

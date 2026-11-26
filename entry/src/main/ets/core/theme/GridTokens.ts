@@ -19,8 +19,10 @@
  *   **发布后冻结的数据兼容契约**，永不随展示名改。展示名映射（反直觉！）：
  *   Brand → 「BIT101经典配色」（深蓝占位，experimental）
  *   Classic → 「暖棕配色」
- *   Warm → 「清新青绿配色」**默认**
- *   ⚠️ 展示序 Brand 在前 ≠ 默认值——默认 Warm，脏值回落也必须显式 Warm。
+ *   Warm → 「清新青绿配色」（历史曾是默认，现已改）
+ *   ⚠️ 默认值是 Brand（`DEFAULT_PALETTE`，:213）——展示序首位即默认；
+ *      脏值回落也显式 Brand（:523-533）。旧注释写「默认 Warm」是历史错误，
+ *      曾误导卡片首帧写死 warm（F01，2026-11-26 已修）。
  *
  * ⚠️ 缺档 **fail-fast**（对齐 Android `Palettes.paletteSchemeByName` 的
  *   `error()`）：查不到 palette 表直接抛，绝不静默回退——静默回退会让

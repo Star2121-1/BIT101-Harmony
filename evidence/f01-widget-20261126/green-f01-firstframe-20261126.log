@@ -1,0 +1,9 @@
+时间戳: 2026-11-26 22:27:11 +0800
+守卫: test-widget.mjs / F01
+=== 恢复动作：FormExtension.ets:109 还原为改前原文 ===
+      widgetPayload: '', widgetPalette: DEFAULT_PALETTE, widgetDark: false
+（与红日志改前原文逐字一致）
+=== 跑套件 ===
+
+ALL PASS  pass=24 fail=0
+EXITCODE:0

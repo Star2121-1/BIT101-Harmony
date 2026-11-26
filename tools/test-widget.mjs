@@ -17,6 +17,9 @@ import {
 } from "../entry/src/main/ets/corelogic/WidgetData.ts";
 import { FALLBACK_TIME_TABLE } from "../entry/src/main/ets/corelogic/TimeTableLogic.ts";
 import { parseISODate } from "../entry/src/main/ets/corelogic/timeutil.ts";
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 let passed = 0;
 let failed = 0;
@@ -129,6 +132,20 @@ function courseRow(over) {
   const s = JSON.stringify(pages);
   ok(s.indexOf("undefined") < 0, "序列化结果不含 undefined");
   ok(s.indexOf('"null"') < 0 || s.indexOf(":null") >= 0, "null 值走合法 JSON 而非字符串 'null'");
+}
+
+// ── F01（GAP 08）：卡片首帧 palette 必须取全局默认 brand，不再写死 warm ──
+{
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const ext = readFileSync(join(root, 'entry/src/main/ets/extensionability/FormExtension.ets'), 'utf8');
+  const tok = readFileSync(join(root, 'entry/src/main/ets/core/theme/GridTokens.ts'), 'utf8');
+  ok(ext.indexOf("widgetPalette: 'warm'") < 0, 'F01: FormExtension 不再出现写死 warm 的首帧');
+  ok((ext.match(/widgetPalette: DEFAULT_PALETTE/g) || []).length >= 2,
+    'F01: 预览与真卡首帧都引用 DEFAULT_PALETTE 单一来源');
+  ok(ext.includes('getPaletteName, DEFAULT_PALETTE'), 'F01: DEFAULT_PALETTE 已从 GridTokens 导入');
+  ok(tok.includes("export const DEFAULT_PALETTE: PaletteName = 'brand'"), 'F01: 全局默认仍是 brand（未偷改）');
+  ok(tok.indexOf('默认 Warm，脏值回落也必须显式 Warm') < 0,
+    'F01: GridTokens 文件头历史「默认 Warm」错误注释已订正');
 }
 
 console.log("\n" + (failed === 0 ? "ALL PASS" : "FAILED") + "  pass=" + passed + " fail=" + failed);

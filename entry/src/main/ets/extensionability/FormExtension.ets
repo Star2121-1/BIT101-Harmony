@@ -28,7 +28,7 @@ import { assembleWidgetPages, isSerializablePayload } from '../corelogic/WidgetD
 import { coursesToSchedule, ddlsToSchedule } from '../corelogic/WidgetData.ts';
 import { FALLBACK_TIME_TABLE } from '../corelogic/TimeTableLogic.ts';
 import { parseISODate } from '../corelogic/timeutil.ts';
-import { getPaletteName } from '../core/theme/GridTokens.ts';
+import { getPaletteName, DEFAULT_PALETTE } from '../core/theme/GridTokens.ts';
 import type { PaletteName } from '../core/theme/GridTokens.ts';
 import type { AdjustmentEntry } from '../corelogic/TeachingAdjustment.ts';
 import type { EclassActivity } from '../corelogic/EclassActivityLogic.ts';
@@ -95,7 +95,7 @@ export default class FormExtension extends FormExtensionAbility {
       // 预览实例（画廊里的那张）：没有真 formId，推不进去也不该占配额
       hilog.info(DOMAIN, this.TAG, 'onAddForm preview (no formId), skip quota');
       return formBindingData.createFormBindingData({
-        widgetPayload: '', widgetPalette: 'brand', widgetDark: false
+        widgetPayload: '', widgetPalette: DEFAULT_PALETTE, widgetDark: false
       });
     }
     // 新卡片这一次必须给数据（force：不卡 30 分钟间隔），同时记一次计数并约下次刷新
@@ -106,7 +106,7 @@ export default class FormExtension extends FormExtensionAbility {
       hilog.error(DOMAIN, this.TAG, 'onAddForm quota/push fail: %{public}s', JSON.stringify(e));
     });
     return formBindingData.createFormBindingData({
-      widgetPayload: '', widgetPalette: 'warm', widgetDark: false
+      widgetPayload: '', widgetPalette: DEFAULT_PALETTE, widgetDark: false
     });
   }
 
