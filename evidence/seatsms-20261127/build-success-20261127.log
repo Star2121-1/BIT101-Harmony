@@ -1,0 +1,19 @@
+时间戳: 2026-11-27 10:11 +0800
+阶段: S-02 座位页就地短信码框 —— 编译门（S4）
+
+=== 构建 ===
+DEVECO_SDK_HOME + hvigorw assembleHap buildMode=debug
+BUILD_EXIT=0
+> hvigor BUILD SUCCESSFUL in 3 min 7 s 246 ms
+COMPILE RESULT 无 ERROR（机器负载高，耗时偏长）
+
+=== 拆红-恢复反证 ===
+1) 删 SeatSmsChallengeLogic.seatSmsRoute 的就地码框分支 →
+   红：actual='goto-login' expected='show-sms-dialog'，EXIT=1（red-inplace-route.log）
+   恢复 → ALL PASS 47 断言（green-inplace-route.log）
+2) 删 SeatPage 码框分支的 return（使其落到跳登录页）→
+   红：EXIT=1（red-noreturn.log）
+   恢复 → ALL PASS 47 断言（green-noreturn.log）
+
+⚠️ 真机未验（按用户要求真机留到最后集中做）：
+   真实短信二验需学校风控触发，就地码框/5min 超时/成功后换票均未上机。
