@@ -33,7 +33,9 @@
  * - 本页是首页 push 进来的子页，顶栏是鸿蒙自有 chrome（原版在 5-tab 骨架里）；
  * - 加载失败/空态鸿蒙用红字错误块（原版用 secondaryContainer  mint 卡），
  *   错误可读性优先；
- * - 原版 FAB 组（回到顶部 + 设置）与「隐藏非空闲」设置未搬（见 ROADMAP 待办）；
+ * - ~~原版 FAB 组（回到顶部 + 设置）与「隐藏非空闲」设置未搬~~（G07-15 订正 2026-11-27：
+ *   两颗 FAB 已在 `fabActions()` 实现（回到顶部 + 设置，见文件下方），
+ *   「隐藏非空闲」开关也已随 G07-01 落地；本行是历史注释，不再是现状陈述）；
  * - 「现在空闲」节次边界与原版 nextBusyTime>=now 差每节开头一瞬，取诚实侧
  *   （corelogic/ClassroomFree.ts 注释与 test-classroomfree.mjs 钉死）。
  */

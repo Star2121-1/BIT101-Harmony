@@ -64,6 +64,10 @@ eq(techName(3), 'IsoDep', 'tech 3 = IsoDep');
 eq(techName(8), 'MifareClassic', 'tech 8 = MifareClassic');
 eq(techName(99), 'Tech99', '未知 tech 不猜名字');
 eq(techListText([1, 3, 6, 8]), 'NfcA / IsoDep / Ndef / MifareClassic', 'tech 列表');
+// F05-11：展示去重（对齐 Android distinct），但不改变能力判定
+eq(techListText([3, 1, 1, 8, 7]), 'IsoDep / NfcA / MifareClassic / NdefFormatable', 'tech 去重（重复 NfcA 消失）');
+eq(techListText([1, 1, 1]), 'NfcA', '全重复只留一个');
+eq(techListText([]), '', '空 tech 列表');
 ok(hasTech([1, 3], 3), 'hasTech 命中');
 ok(!hasTech([1, 8], 3), 'hasTech 不命中');
 ok(supportsApdu([1, 3]), '含 IsoDep 才支持 APDU');

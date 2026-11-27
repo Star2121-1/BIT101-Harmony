@@ -1,5 +1,13 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-27 alpha.60（versionCode 59→60）剩余项批次 A（纯逻辑/文档低风险）**：
+> - **F05-11** `techListText` 展示去重（对齐 Android `.distinct()`，部分 ROM 重复枚举 tech）；能力判定 `hasTech/supportsApdu` 不受影响。
+> - **F05-07** `NfcLogic.cardKindOf/cardKindLabel` 对齐 Android `CardKind`（IsoDep 优先于 Classic，真卡 `[IsoDep,...,MifareClassic,...]` 必须判 CPU 卡，防掐断唯一安全 APDU 通道）；页面已有 apdu/classic 双徽章，未动真机已验 UI。
+> - **G-06** 空表带 `EMPTY_TABLE_NOTE` 文案（逐字对齐 Android `ScoreCachePolicy.kt:30-32`），仍不写基线；ScorePage 按 count=0+detail 显示，不谎报「0 门课」。
+> - **F13** SettingsPage 三处 Toggle 加 `switchA11y` 读屏文案；**G07-15** 订正 ClassroomPage 过时注释（实为 `fabActions()` 已实现两颗 FAB，不造伪证据）。
+> - **S-01** 分罐等价性文档说明（守卫 test-sso §2 已存在）；**S-07** 乐学源结论「无契约不接回」登记；**S-08/S-10** 保持现状/平台不做登记。
+> - `test-p1batch2` 31 断言 + 拆红反证（颠倒 CardKind 优先级即红，`evidence/p1batch2-20261127/`）；全测 **104/104 套件 4701 断言绿**；BUILD SUCCESSFUL。**真机待集中验**。
+
 > **2026-11-27 alpha.59（versionCode 58→59）Android↔鸿蒙差距 P1 低风险批次（5 条，纯本地/只读/配置/UI）**：
 > - **F01-05** 登出补清座位预约任务：`SeatTaskRepository.clearAll()`（清内存 + Prefs 落盘），`SessionStore.logoutAll()` 经仓库单例调用，仍不清课表缓存/TermStore（对齐 Android `SessionCleanup.kt:42`）。
 > - **G-04** 成绩筛选补学期/课程性质两维：新增 `corelogic/ScoreFilterLogic.ts`（三维 AND 谓词 + 选项抽取 + 清空 + 空态文案，课名/编号忽略大小写），复用 G-01 的 `term`/`category`/`courseNumber`；`ScorePage` 两组 chip + 清空入口。**关键坑已防**：清空入口按筛选态判、不绑统计门数，筛到 0 门仍能退出（Android `ScorePage.kt:195` 踩过）。顺带同步成绩页两处 F01-02 遗留旧文案。

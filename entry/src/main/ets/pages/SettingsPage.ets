@@ -64,6 +64,7 @@ import {
 import {
   loadCourseFamily, saveCourseFamily
 } from '../data/CourseColorFamilyStore.ts';
+import { switchA11y } from '../corelogic/A11yText.ts';
 
 /** 默认校区偏好的持久化键（ClassroomPage 也读这个）。 */
 export const KEY_DEFAULT_CAMPUS: string = 'default_campus_code';
@@ -1046,6 +1047,7 @@ struct SettingsPage {
               Text('课程块四周细边框，默认关')
                 .fontSize(11).fontColor(this.p().textPlaceholder)
               Toggle({ type: ToggleType.Checkbox, isOn: this.displayFlags.showBorder })
+                .accessibilityText(switchA11y('课程卡边框', this.displayFlags.showBorder))
                 .onChange((on: boolean) => {
                   this.toggleDisplayFlag(KEY_SHOW_BORDER, on);
                 })
@@ -1057,6 +1059,7 @@ struct SettingsPage {
               Text('空格的横竖细线，默认开')
                 .fontSize(11).fontColor(this.p().textPlaceholder)
               Toggle({ type: ToggleType.Checkbox, isOn: this.displayFlags.showDivider })
+                .accessibilityText(switchA11y('网格分隔线', this.displayFlags.showDivider))
                 .onChange((on: boolean) => {
                   this.toggleDisplayFlag(KEY_SHOW_DIVIDER, on);
                 })
@@ -1285,6 +1288,7 @@ struct SettingsPage {
               Text('隐藏当前不空闲的教室')
                 .fontSize(14).fontColor(this.p().onSurface).layoutWeight(1)
               Toggle({ type: ToggleType.Checkbox, isOn: this.hideBusyClassroom })
+                .accessibilityText(switchA11y('隐藏当前不空闲的教室', this.hideBusyClassroom))
                 .onChange((on: boolean) => {
                   this.toggleHideBusy(on);
                 })

@@ -70,10 +70,21 @@ export function techName(tech: number): string {
   }
 }
 
-/** technology 数组 → `NfcA / IsoDep / ...`。 */
+/**
+ * technology 数组 → `NfcA / IsoDep / ...`（F05-11：对齐 Android `.distinct()`）。
+ *
+ * ⚠️ 部分 ROM 会重复枚举同一 tech（北理工校园卡实测 `[IsoDep,NfcA,NfcA,MifareClassic,...]`），
+ * 重复项不携带信息，列出来只会让人以为有两种技术。只在**展示**去重，
+ * hasTech/supportsApdu 的能力判定仍按原数组（不受影响）。
+ */
 export function techListText(tech: number[]): string {
   const out: string[] = [];
+  const seen: Set<number> = new Set<number>();
   for (let i = 0; i < tech.length; i++) {
+    if (seen.has(tech[i])) {
+      continue;
+    }
+    seen.add(tech[i]);
     out.push(techName(tech[i]));
   }
   return out.join(' / ');
@@ -155,6 +166,40 @@ export interface NfcReadSummary {
   apdu: boolean;
   classic: boolean;
   ndef: string[];
+}
+
+/**
+ * F05-07：卡大类（对齐 Android `NfcCardLogic.CardKind`）。
+ * ⚠️ IsoDep 必须排在 MifareClassic 前（真卡实测北理工校园卡同时具备两层；
+ * 判成 Classic 会误以为「要密钥读不了」，掐断唯一安全的 APDU 取数通道）。
+ */
+export type CardKind = 'mifare_classic' | 'cpu_card' | 'nfc_forum_tag' | 'nfc_v' | 'unknown';
+
+export function cardKindOf(tech: number[]): CardKind {
+  if (hasTech(tech, 3)) {
+    return 'cpu_card';
+  }
+  if (hasTech(tech, 8)) {
+    return 'mifare_classic';
+  }
+  if (hasTech(tech, 5)) {
+    return 'nfc_v';
+  }
+  if (hasTech(tech, 6) || hasTech(tech, 7)) {
+    return 'nfc_forum_tag';
+  }
+  return 'unknown';
+}
+
+/** 卡大类的人话文案（对齐 Android kindLabel）。 */
+export function cardKindLabel(kind: CardKind): string {
+  switch (kind) {
+    case 'mifare_classic': return 'MIFARE Classic（读扇区要密钥）';
+    case 'cpu_card': return 'CPU 卡（能发 APDU）';
+    case 'nfc_forum_tag': return 'NFC 贴纸 / Type 4 标签';
+    case 'nfc_v': return 'ISO 15693 标签';
+    default: return '认不出来';
+  }
 }
 
 /** TagInfo → 页面摘要；NDEF 文本由调用方先读好传入。 */

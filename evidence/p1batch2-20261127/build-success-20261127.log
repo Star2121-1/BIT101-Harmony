@@ -1,0 +1,9 @@
+时间戳: 2026-11-27 12:11 +0800
+阶段: 剩余项批次 A（纯逻辑/文档低风险）—— 编译门
+
+构建: BUILD_EXIT=0，hvigor BUILD SUCCESSFUL in 3 min 45 s，无 ERROR
+全测: EXIT=0，ALL PASS 104/104 套件，累计 4701 条断言
+test-p1batch2 31 断言：F05-11 tech 去重 / F05-07 CardKind / G-06 空表文案 / F13 A11yText / G07-15 注释
+拆红-恢复: 把 CardKind 的 IsoDep/Classic 优先级颠倒 → 红（真卡被误判成 Classic，red-cardkind-order.log）→ 恢复绿
+
+⚠️ 真机未验（留到最后集中做）。

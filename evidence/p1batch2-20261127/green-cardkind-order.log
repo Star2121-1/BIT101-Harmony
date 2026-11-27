@@ -1,0 +1,9 @@
+=== F05-11 technology 展示去重（对齐 Android distinct）===
+=== F05-07 CardKind 枚举（IsoDep 优先于 Classic）===
+=== G-06 空表文案（对齐 Android EMPTY_TABLE_NOTE）===
+=== F13 A11yText 推广到设置页开关 ===
+=== G07-15 注释订正（不作假陈述）===
+
+ALL PASS  pass=31 fail=0
+(node:41384) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

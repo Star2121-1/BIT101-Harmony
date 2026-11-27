@@ -50,6 +50,12 @@ function skipped(code: ScoreCheckCode, reason: string): ScoreCheckOutcome {
   return { ran: false, code: code, count: 0, newCount: 0, detail: null, reason: reason };
 }
 
+/**
+ * G-06：空表提示（对齐 Android ScoreCachePolicy.EMPTY_TABLE_NOTE）。
+ * 不带分数（隐私边界），只说「这次没返回、没覆盖上次」。
+ */
+export const EMPTY_TABLE_NOTE: string = '教务这次一门成绩都没返回（多半是还没评教），没覆盖掉上次取到的';
+
 export class ScoreCheckRunner {
   /**
    * 检查一次并按需通知。
@@ -102,7 +108,12 @@ export class ScoreCheckRunner {
     if (entries.length === 0) {
       // 空表：记 OK(0) 但**不写基线**（可能只是接口降级，写空会把基线清掉）
       await ScoreStore.saveLastCheck(ScoreCheckCode.OK, 0, null);
-      return { ran: true, code: ScoreCheckCode.OK, count: 0, newCount: 0, detail: null, reason: '' };
+      // G-06：空表文案对齐 Android ScoreCachePolicy.EMPTY_TABLE_NOTE——
+      // 如实告诉用户「这次没返回、没覆盖上次」，而不是只显示「查询完成：0 门课」让人以为真没成绩。
+      return {
+        ran: true, code: ScoreCheckCode.OK, count: 0, newCount: 0,
+        detail: EMPTY_TABLE_NOTE, reason: ''
+      };
     }
 
     let snapshot: Record<string, string> | null = null;

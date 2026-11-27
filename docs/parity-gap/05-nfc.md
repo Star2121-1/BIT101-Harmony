@@ -314,3 +314,14 @@ v1.0 / 2026-11-24
 > F05-01 不判 ✅（G5 未签字）。待用户贴卡验证名片保持/换卡替换/忘掉保留输入框后回写。
 
 *v1.1 进度登记 / 2026-11-27*
+
+### 7.2 F05-07 / F05-11 纯逻辑对齐（2026-11-27，v1.0 审计内容不改动）
+
+| 编号 | 状态 | 证据 |
+|---|---|---|
+| F05-07 | ⚠️ 纯逻辑完成 + 静态绿，**页面展示真机待集中验** | alpha.60；`NfcLogic.cardKindOf/cardKindLabel` 对齐 Android `CardKind`（IsoDep 优先于 Classic —— 真卡 `[IsoDep,NfcA,NfcA,MifareClassic,...]` 判 CPU 卡，防掐断唯一安全 APDU 通道）；页面已有 `apdu`/`classic` 双徽章表达语义，未另加 UI（不动真机已验页面）。`test-p1batch2` 12 断言 + 拆红反证（把 IsoDep/Classic 顺序颠倒即红，`evidence/p1batch2-20261127/red-cardkind-order.log`）。 |
+| F05-11 | ⚠️ 纯逻辑完成 + 静态绿，**真机待集中验** | alpha.60；`techListText` 展示去重（对齐 Android `.distinct()`，部分 ROM 重复枚举同一 tech）；`hasTech/supportsApdu` 能力判定仍按原数组不受影响。`test-nfc` 加 3 断言。真机需验：重复 tech 页只显示一次。 |
+
+> ⚠️ **红线不变**：F05-07/11 均为纯展示/判定逻辑，不涉及写卡、HCE、破密钥、支付。NFC 其余项（F05-03/04/05/06/08/09/10）按风险另批评估。
+
+*v1.2 F05-07/11 进度 / 2026-11-27*

@@ -232,3 +232,12 @@ v1.0 / 2026-11-24
 | G-04 | ⚠️ 代码完成 + 静态绿，**真机待集中验** | alpha.59；新增 `corelogic/ScoreFilterLogic.ts`（学期/性质选项抽取 + 三维 AND 谓词 + `hasAnyFilter` + `toggleChip` + 空态文案，课名/编号忽略大小写），复用 G-01 已解析的 `term`/`category`/`courseNumber`；`ScorePage` 加两组 chip + 清空筛选入口。**关键坑已防**：清空入口按筛选态判（不绑统计门数），筛到 0 门时仍在（对齐 Android `ScorePage.kt:195`）；空态只在「有成绩但筛空」显示，不与整块空态重复。`test-p1batch` 三维纯逻辑 20+ 断言 + 拆红反证（删性质维筛选即红，`evidence/p1batch-20261127/red-category-filter.log`）。顺带同步成绩页两处遗留的「密码默认不保存」旧文案（F01-02 已改无条件存）。真机需验：chip 切换可见变化 + 筛空能退出。 |
 
 *v1.2 G-04 进度 / 2026-11-27*
+
+### 7.3 G-06 空表文案 + S-01 分罐等价性（2026-11-27，v1.0 审计内容不改动）
+
+| 编号 | 状态 | 证据 |
+|---|---|---|
+| G-06 | ⚠️ 代码完成 + 静态绿，**真机待集中验** | alpha.60；`ScoreCheckRunner` 空表分支（count=0）带 `EMPTY_TABLE_NOTE` 文案（逐字对齐 Android `ScoreCachePolicy.kt:30-32`「教务这次一门成绩都没返回（多半是还没评教），没覆盖掉上次取到的」），仍**不写基线**；`ScorePage` 按 `count===0 && detail` 显示专门文案，不谎报「0 门课」。`test-p1batch2` 静态守卫。真机需验：服务端返回空表时页面显示该文案。 |
+| S-01 | ✅ 文档完成 + 守卫已存在（**文档项，无真机诉求**） | 等价性说明：Android 全局单罐靠 `WebViewCookieSync` 自然共享；鸿蒙分罐 `JAR_LOGIN/JAR_CAS/JAR_LIB/JAR_CARD` + `SsoCookieBroker` 只下沉 CAS/sso 域 cookie（**不复制 jxzx/lib/card 业务 cookie**）——两端效果等价（业务子系统各自持有自己的会话 cookie），且鸿蒙更防串罐。守卫 `tools/test-sso.mjs §2 只下沉 CAS 域` + `test-seat500rc`（sso 域 4 条、school_cookies_v1 无 seatlib）已存在；本批不再改代码，仅登记说明。 |
+
+*v1.3 G-06/S-01 进度 / 2026-11-27*

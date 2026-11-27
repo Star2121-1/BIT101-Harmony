@@ -306,6 +306,10 @@ export struct ScorePage {
       if (out.newCount > 0) {
         t = t + '（新出分 ' + out.newCount + ' 门）';
       }
+      // G-06：空表带专门文案（对齐 Android EMPTY_TABLE_NOTE），不谎报「0 门课」
+      if (out.count === 0 && out.detail !== null && out.detail.length > 0) {
+        t = out.detail;
+      }
       this.msg = t;
       return;
     }
