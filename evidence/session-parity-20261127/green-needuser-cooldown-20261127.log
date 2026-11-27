@@ -1,0 +1,6 @@
+时间戳: 2026-11-27 09:25:37 +0800
+守卫: need_user 不冷却红线
+=== 恢复动作：AutoReloginLogic.ts 逐字 cp 备份 ===
+
+ALL PASS  pass=69 fail=0
+EXITCODE:0

@@ -8,9 +8,12 @@
  * 混用会让「我在成绩页忘记密码」意外关掉自动续期，或反过来。独立 alias + 独立 key，
  * 互不牵连；登出时两边都要清（见 SessionStore.logoutAll）。
  *
+ * ## F01-02 决策（2026-11-27 用户拍板 B，对齐 Android 无条件存）
+ * - 登录成功即存（不再 opt-in）；风险评审见 docs/parity-gap/01-login-session.md §7；
+ * - 自动重登仍受 F01-01 限流约束（identity 24h×2^(n-1) / seat 30s/5min）。
+ *
  * ## 红线
- * - **默认不存**：用户不在登录页勾「记住密码以便自动续期」，这里永远是空的；
- * - opt-in 后密码落**系统密钥库**（AssetStoreKit，DEVICE_FIRST_UNLOCKED），不是明文偏好；
+ * - 密码落**系统密钥库**（AssetStoreKit，DEVICE_FIRST_UNLOCKED），不是明文偏好；
  * - 学号存普通偏好（不敏感，设置页打码展示）；
  * - 密码只经 `load()` 进入自动重登调用栈，绝不打印、不进 LoginOutcome.steps。
  *

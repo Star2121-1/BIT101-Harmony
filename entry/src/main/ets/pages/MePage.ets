@@ -149,7 +149,11 @@ export struct MePage {
     if (r === null) return '—';
     if (r.kind === 'loggedOut') return '未登录，点开登录';
     if (r.kind === 'failed') return '取不到（点开重试）';
-    return '在借 ' + r.records.length + ' 本';
+    // F01-03：自动重登触发短信二验，明示就地续输；不可当成「0 本」
+    if (r.kind === 'smsPending') return '短信验证中，点开输入验证码';
+    // F01-03：显式判 ok（不能靠排除法窄化——LibBorrowResult 多了 smsPending 分支）
+    if (r.kind === 'ok') return '在借 ' + r.records.length + ' 本';
+    return '—';
   }
 
   private libSubLine(): string {

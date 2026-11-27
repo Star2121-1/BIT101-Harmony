@@ -29,6 +29,7 @@ import { webview } from '@kit.ArkWeb';
 import { CardCookieStore } from '../data/CardCookieStore.ts';
 import { SsoCookieBroker } from './SsoCookieBroker.ts';
 import { AutoReloginService } from './AutoReloginService.ts';
+import { hasPendingSms } from './CasLoginService.ts';
 import { CardSnapshot, HOME_URL, parse } from '../corelogic/CampusCardLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
 
@@ -59,6 +60,11 @@ export class CampusCardService {
         if (renewed.kind === 'renewed') {
           info('card renew ok, retry snapshot');
           return await CampusCardService.fetchSnapshot(context, false);
+        }
+        // F01-03：自动重登触发短信二验 → 带标志给页面就地续输（不重输学号密码）
+        if (renewed.kind === 'need_user' && hasPendingSms()) {
+          snap.smsPending = true;
+          info('card renew need_user with sms pending -> show inline dialog');
         }
       }
       return snap;

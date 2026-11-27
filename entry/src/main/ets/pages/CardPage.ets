@@ -22,6 +22,7 @@ import { CampusCardStore } from '../data/CampusCardStore.ts';
 import { CardEntry, CardSnapshot, balanceText } from '../corelogic/CampusCardLogic.ts';
 import { BalanceTrend, emptyTrend, trendRowText } from '../corelogic/CampusCardBalanceLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
+import { SmsChallengeDialog } from '../components/SmsChallengeDialog.ets';
 
 @Entry
 @Component
@@ -33,6 +34,8 @@ struct CardPage {
   @State busy: boolean = false;
   @State loaded: boolean = false;
   @State trend: BalanceTrend = emptyTrend();
+  /** F01-03：自动重登触发短信二验时，就地弹验证码框（不重输学号密码）。 */
+  @State private smsShow: boolean = false;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -75,6 +78,8 @@ struct CardPage {
       const ctx: Context = getContext(this) as Context;
       const snap: CardSnapshot = await CampusCardService.fetchSnapshot(ctx);
       this.snap = snap;
+      // F01-03：自动重登触发短信二验 → 就地弹框（短信已由学校发过一次，不重发）
+      this.smsShow = snap.smsPending === true;
       // 只有「已登录 + 解析出金额」才记采样：未登录页面上那几个数字是登录页里的，
       // 记进去会污染趋势（Android 原注释同款纪律）
       this.trend = await CampusCardStore.record(this.parsedAmount());
@@ -183,6 +188,26 @@ struct CardPage {
       .layoutWeight(1)
       // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
       .align(Alignment.Top)
+
+      // F01-03：短信二验就地续输（覆盖层，居中）；成功即重取、取消即复位
+      if (this.smsShow) {
+        Stack() {
+          SmsChallengeDialog({
+            show: true,
+            onSuccess: () => {
+              this.smsShow = false;
+              this.refresh();
+            },
+            onCancel: () => {
+              this.smsShow = false;
+              this.refresh();
+            }
+          })
+        }
+        .width('100%').height('100%')
+        .backgroundColor('#66000000')
+        .position({ x: 0, y: 0 })
+      }
     }
     .width('100%').height('100%')
     .backgroundColor(this.tk().background)

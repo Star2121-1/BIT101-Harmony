@@ -44,7 +44,8 @@ ok(aStart > 0 && aEnd > aStart, 'authorizeSeat 方法存在');
 const authBody = seat.slice(aStart, aEnd);
 
 ok(authBody.includes('CasLoginService.silentRenewJwt(ctx)'), '第一步：cookie 静默续期（无副作用）');
-ok(authBody.includes('AutoReloginService.renew(ctx)'), '第二步：cookie 失败后用 opt-in 凭据重登');
+// F01-02 无条件存 + F01-01 seat 口径：renew 传 'seat' 模式
+ok(authBody.includes("AutoReloginService.renew(ctx, 'seat')"), '第二步：cookie 失败后用凭据重登（seat 限流口径）');
 ok(authBody.includes("seatRenewAction(decision.kind) === 'renew-jwt-and-retry'"), '按纯逻辑结果分派');
 ok((authBody.match(/silentRenewJwt\(ctx\)/g) || []).length === 2,
   'renewed 后再 silentRenewJwt 一次（换 seatlib JWT），共两处');

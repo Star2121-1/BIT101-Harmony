@@ -29,6 +29,7 @@ import { webview } from '@kit.ArkWeb';
 import { LibCookieStore } from '../data/LibCookieStore.ts';
 import { SsoCookieBroker } from './SsoCookieBroker.ts';
 import { AutoReloginService } from './AutoReloginService.ts';
+import { hasPendingSms } from './CasLoginService.ts';
 import {
   BorrowRecord,
   HOST,
@@ -73,6 +74,8 @@ function apiHeaders(): rcp.RequestHeaders {
 export type LibBorrowResult =
   | { kind: 'ok'; records: BorrowRecord[] }
   | { kind: 'loggedOut' }
+  /** F01-03：自动重登触发短信二验，页面就地弹验证码框（不重输学号密码）。 */
+  | { kind: 'smsPending' }
   | { kind: 'failed'; reason: string };
 
 export class LibBorrowService {
@@ -218,6 +221,11 @@ async function fetch(context: Context, appId: string, allowRenew: boolean = true
       if (renewed.kind === 'renewed') {
         info('lib renew ok, retry fetch appId=' + appId);
         return await fetch(context, appId, false);
+      }
+      // F01-03：自动重登触发短信二验 → 交页面就地输码（不重输学号密码）
+      if (renewed.kind === 'need_user' && hasPendingSms()) {
+        info('lib renew need_user with sms pending appId=' + appId);
+        return { kind: 'smsPending' };
       }
       // 没续上（未存密码/需短信/失败）⇒ 如实报未登录，并把原因带出去给 UI
       info('lib loggedOut (renew=' + renewed.kind + ') appId=' + appId);

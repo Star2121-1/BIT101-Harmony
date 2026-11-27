@@ -20,6 +20,7 @@ import { BorrowRecord, cardSummary, statusText, dueText } from '../corelogic/Lib
 import { ServiceAlertRunner } from '../service/ServiceAlertRunner.ts';
 import type { DateTime } from '../corelogic/timeutil.ts';
 import { info, warn } from '../core/log/BitLog.ts';
+import { SmsChallengeDialog } from '../components/SmsChallengeDialog.ets';
 
 @Entry
 @Component
@@ -33,6 +34,8 @@ struct LibBorrowPage {
   @State history: LibBorrowResult | null = null;
   @State busy: boolean = false;
   @State loaded: boolean = false;
+  /** F01-03：自动重登触发短信二验时，就地弹验证码框（不重输学号密码）。 */
+  @State private smsShow: boolean = false;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
@@ -102,6 +105,8 @@ struct LibBorrowPage {
       const his: Promise<LibBorrowResult> = LibBorrowService.fetchHistory(ctx);
       this.current = await cur;
       this.history = await his;
+      // F01-03：自动重登触发短信二验 → 就地弹框（短信已由学校发过一次，不重发）
+      this.smsShow = this.current.kind === 'smsPending';
       this.loaded = true;
       info('lib page refresh cur=' + this.current.kind + ' his=' + this.history.kind);
       // ⚠️ 只有「当前在借且确实取到」才判；loggedOut/failed/历史栏一律不判，
@@ -238,6 +243,26 @@ struct LibBorrowPage {
       .layoutWeight(1)
       // ⚠️ 顶对齐必须挂 Scroll 自身：加在内层 Column 上不生效（内容不足一屏会被垂直居中）
       .align(Alignment.Top)
+
+      // F01-03：短信二验就地续输（覆盖层，居中）；成功即重取、取消即复位
+      if (this.smsShow) {
+        Stack() {
+          SmsChallengeDialog({
+            show: true,
+            onSuccess: () => {
+              this.smsShow = false;
+              this.refresh();
+            },
+            onCancel: () => {
+              this.smsShow = false;
+              this.refresh();
+            }
+          })
+        }
+        .width('100%').height('100%')
+        .backgroundColor('#66000000')
+        .position({ x: 0, y: 0 })
+      }
     }
     .width('100%').height('100%')
     .backgroundColor(this.tk().background)

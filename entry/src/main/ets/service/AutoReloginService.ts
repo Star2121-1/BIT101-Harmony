@@ -21,7 +21,7 @@ import { CasLoginService, LoginOutcome } from './CasLoginService.ts';
 import { AutoLoginCredentialStore } from '../data/AutoLoginCredentialStore.ts';
 import { RenewThrottleStore } from '../data/RenewThrottleStore.ts';
 import {
-  RenewDecision, RenewThrottle, canAttempt, skipReason, nextThrottle,
+  RenewDecision, RenewThrottle, RenewMode, canAttempt, skipReason, nextThrottle,
   classifyCasStatus, decision, messageFor
 } from '../corelogic/AutoReloginLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
@@ -34,12 +34,12 @@ export class AutoReloginService {
    * 尝试静默续期一次。调用方在「确认会话失效」后调用；返回分类结果。
    * 无论哪种结果都不抛异常（失效路径不该把取数页搞崩）。
    */
-  static async renew(context: Context): Promise<RenewDecision> {
+  static async renew(context: Context, mode: RenewMode = 'identity'): Promise<RenewDecision> {
     if (inFlight !== null) {
       info('autorenew dedup: join in-flight');
       return await inFlight;
     }
-    const p: Promise<RenewDecision> = AutoReloginService.doRenew(context);
+    const p: Promise<RenewDecision> = AutoReloginService.doRenew(context, mode);
     inFlight = p;
     try {
       return await p;
@@ -48,7 +48,7 @@ export class AutoReloginService {
     }
   }
 
-  private static async doRenew(context: Context): Promise<RenewDecision> {
+  private static async doRenew(context: Context, mode: RenewMode): Promise<RenewDecision> {
     try {
       const cred = await AutoLoginCredentialStore.load();
       const throttle: RenewThrottle = await RenewThrottleStore.load();
@@ -67,7 +67,10 @@ export class AutoReloginService {
 
       const out: LoginOutcome = await CasLoginService.login(context, username, password);
       const kind = classifyCasStatus(out.status);
-      await RenewThrottleStore.save(nextThrottle(throttle, kind, Date.now()));
+      // F01-01：两套限流口径（identity 24h×2^(n-1) / seat 30s-5min），
+      // 服务端 Retry-After 与本地估算取较大值（解析在纯逻辑层，可单测）。
+      await RenewThrottleStore.save(
+        nextThrottle(throttle, kind, Date.now(), mode, out.retryAfter));
 
       if (kind === 'renewed') {
         info('autorenew ok');

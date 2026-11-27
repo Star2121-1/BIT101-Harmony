@@ -1,0 +1,10 @@
+时间戳: 2026-11-27 09:25:30 +0800
+守卫: test-sessionparity.mjs / 红线 need_user 不冷却
+=== 拆红改动（AutoReloginLogic.ts nextThrottle）===
+改前原文: if (kind === need_user || no_credential || skipped) { // 不加冷却
+改后原文: if (kind === no_credential || skipped) { // need_user 落入失败退避
+=== 跑套件 ===
+AssertionError [ERR_ASSERTION]: need_user 不加失败计数
+  actual: 3,
+  expected: 2,
+EXITCODE:1

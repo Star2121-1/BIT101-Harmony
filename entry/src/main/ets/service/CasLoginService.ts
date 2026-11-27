@@ -70,6 +70,8 @@ export interface LoginOutcome {
   steps: string[];
   /** 给用户看的一句话（中文，不含敏感值） */
   message: string;
+  /** F01-01：服务端 Retry-After 原值（秒数/RFC1123），供自动重登限流取较大值；无头时 undefined。 */
+  retryAfter?: string;
 }
 
 /** 跨页面的待决登录态（页面 struct 会被路由器重建，会话不能丢）。 */
@@ -216,6 +218,11 @@ export class CasLoginService {
         return outcome;
       }
       location = post.headers['location'] ?? '';
+      // F01-01：读服务端 Retry-After（不打印值，避免非预期内容进 steps/日志）
+      const retryAfterRaw: string = post.headers['retry-after'] ?? '';
+      if (retryAfterRaw.length > 0) {
+        outcome.retryAfter = retryAfterRaw;
+      }
       steps.push('step5 http=' + post.status + ' location=' + (location.length > 0 ? mask(location) : '(none)'));
 
       const ticket: string = extractTicket(location + '|' + post.body);

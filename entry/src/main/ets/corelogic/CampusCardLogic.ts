@@ -21,6 +21,11 @@ export interface CardSnapshot {
   loggedIn: boolean;
   /** **请求本身失败**（网络/超时/异常）——与「未登录」是两回事，混一起会说错话。 */
   failed: boolean;
+  /**
+   * F01-03：自动重登触发了短信二验且 pending 仍在 —— 页面应就地弹验证码框，
+   * 不让用户重输学号密码。只由服务层在 need_user+hasPendingSms 时置 true。
+   */
+  smsPending?: boolean;
 }
 
 /**

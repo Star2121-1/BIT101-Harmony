@@ -55,10 +55,20 @@ struct LibLoginPage {
         this.busy = false;
         return;
       }
-      this.verified = true;
-      this.detail = '当前在借 ' + r.records.length + ' 本';
-      this.status = '✅ 图书馆会话就绪（在借 ' + r.records.length + ' 本）';
-      info('lib verify ok n=' + r.records.length);
+      if (r.kind === 'smsPending') {
+        // 自动重登触发了学校短信二验：本页只做 Web 登录验证，不代收验证码；
+        // 引导到「图书馆」页就地续输（短信已由学校发过，这里绝不重发）。
+        this.status = '⚠️ 学校要求短信验证，请到「图书馆」页输入验证码完成验证';
+        this.busy = false;
+        return;
+      }
+      // F01-03：显式判 ok（不能靠排除法窄化——LibBorrowResult 多了 smsPending 分支）
+      if (r.kind === 'ok') {
+        this.verified = true;
+        this.detail = '当前在借 ' + r.records.length + ' 本';
+        this.status = '✅ 图书馆会话就绪（在借 ' + r.records.length + ' 本）';
+        info('lib verify ok n=' + r.records.length);
+      }
     } catch (e) {
       warn('lib sync/verify fail: ' + (e as Error).message);
       this.status = '⚠️ 验证失败：' + (e as Error).message;

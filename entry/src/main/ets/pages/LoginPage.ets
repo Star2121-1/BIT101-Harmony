@@ -42,7 +42,8 @@ struct LoginPage {
   /** 调试通道：`aa start --ps probe_user X --ps probe_pass Y` 注入时才为 true。 */
   @State hasInjectedCreds: boolean = false;
   /**
-   * opt-in：记住密码以便会话过期后自动续期。默认 false（不存密码）。
+   * F01-02（用户拍板 B）：无条件存密码，本字段仅保留兼容（aboutToAppear 读存量状态），
+   * 不再控制是否保存 —— 登录成功即存，见 doLogin。
    * 页面出现时按「是否已存凭据」回填，已经是开启态就显示勾选（不撒谎）。
    */
   @State remember: boolean = false;
@@ -93,19 +94,17 @@ struct LoginPage {
       // 但 opt-in 要存密码：必须在清空前、且用「用户实际登录用的那组」存。
       // 存失败不阻塞已成功的登录，只如实提示（登录态本身已经建立）。
       let credNote: string = '';
-      // sms_required 也要存：用户会在本页输验证码完成登录，那之后就没密码了。
+      // F01-02（用户拍板 B，对齐 Android 无条件存）：登录成功即把凭据加密存入系统密钥库，
+      // 不再依赖 remember 勾选。sms_required 也存（本页输验证码完成登录，那之后就没密码了）。
       // 只有真正走完（ok 或待短信）才存；失败/验证码错误的凭据不落地。
       const reachedLogin: boolean = out.status === 'ok' || out.status === 'sms_required';
-      if (reachedLogin && this.remember) {
+      if (reachedLogin) {
         try {
           await AutoLoginCredentialStore.save(u, p);
           credNote = '（已记住密码，会话过期可自动续期）';
         } catch (e) {
           credNote = '（自动续期未开启：' + (e as Error).message + '）';
         }
-      } else if (out.status === 'ok' && !this.remember) {
-        // 用户本次取消了勾选 ⇒ 清掉可能存在的旧凭据（语义：不记住 = 别留着）
-        await AutoLoginCredentialStore.clear();
       }
       this.password = '';
       if (this.hasInjectedCreds) {
@@ -237,9 +236,9 @@ struct LoginPage {
           .fontSize(17).fontWeight(FontWeight.Bold).layoutWeight(1)
       }.width('100%').padding({ left: 16, right: 16, top: 16, bottom: 4 })
 
-      Text(this.remember
-        ? '已开启自动续期：密码加密存入本机系统密钥库，会话过期时自动重新登录'
-        : '默认不保存密码；勾选后可在本机会话过期时自动续期')
+      // F01-02（用户拍板 B，对齐 Android 无条件存）：登录成功即加密存凭据。
+      // 说明文字如实告知，不再声称「默认不保存」。
+      Text('登录成功后密码加密存入本机系统密钥库，会话过期时自动续期（对齐 Android 端）')
         .fontSize(12).fontColor(this.tk().onSurfaceVariant)
         .width('100%').padding({ left: 16, right: 16, bottom: 12 })
 
@@ -277,20 +276,14 @@ struct LoginPage {
           })
 
         Row() {
-          Toggle({ type: ToggleType.Checkbox, isOn: this.remember })
-            .enabled(!this.loading)
-            .onChange((on: boolean) => {
-              this.remember = on;
-            })
-          Text('记住密码，会话过期后自动续期')
+          // F01-02：无条件存，勾选框退化为状态展示（isOn 恒 true、不可关闭）。
+          // 保留控件而非删除：避免改动 build() 结构导致布局回归，且如实展示当前行为。
+          Toggle({ type: ToggleType.Checkbox, isOn: true })
+            .enabled(false)
+          Text('已启用自动续期（本机加密保存）')
             .fontSize(13).fontColor(this.tk().onSurfaceVariant)
             .margin({ left: 8 })
-            .accessibilityText('记住密码，会话过期后自动续期')
-            .onClick(() => {
-              if (!this.loading) {
-                this.remember = !this.remember;
-              }
-            })
+            .accessibilityText('已启用自动续期，密码在本机加密保存')
         }
         .width('100%')
       }

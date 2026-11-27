@@ -448,8 +448,9 @@ export struct SeatPage {
         await this.loadSeats(false);
         return;
       }
-      // 2. cookie 死了 ⇒ 用户已显式点授权，允许用 opt-in 凭据重登（对齐 allowCredentials=true）
-      const decision: RenewDecision = await AutoReloginService.renew(ctx);
+      // 2. cookie 死了 ⇒ 用户已显式点授权，允许用凭据重登（对齐 allowCredentials=true）
+      // F01-01：座位走 seat 限流口径（30s/5min）；此路径仍是用户显式点击，不是自动路径
+      const decision: RenewDecision = await AutoReloginService.renew(ctx, 'seat');
       info('seat authorize: credential renew kind=' + decision.kind);
       if (seatRenewAction(decision.kind) === 'renew-jwt-and-retry') {
         // CAS 会话已重建，但还要用新 cookie 换 seatlib JWT 才算座位会话可用（不把半程当成功）

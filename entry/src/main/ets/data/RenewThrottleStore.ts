@@ -22,7 +22,9 @@ export class RenewThrottleStore {
       return {
         lastAttemptMs: typeof o.lastAttemptMs === 'number' ? o.lastAttemptMs : 0,
         consecutiveFails: typeof o.consecutiveFails === 'number' ? o.consecutiveFails : 0,
-        freezeUntilMs: typeof o.freezeUntilMs === 'number' ? o.freezeUntilMs : 0
+        freezeUntilMs: typeof o.freezeUntilMs === 'number' ? o.freezeUntilMs : 0,
+        // F01-01：新字段 retryAtMs 落盘（判据④重启后冷却仍生效）；旧数据缺字段 → undefined 走兼容分支
+        retryAtMs: typeof o.retryAtMs === 'number' ? o.retryAtMs : undefined
       };
     } catch (e) {
       return emptyThrottle();

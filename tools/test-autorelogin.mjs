@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MIN_RETRY_MS, MAX_FAILS_BEFORE_FREEZE, FREEZE_MS, emptyThrottle,
+  MIN_RETRY_MS, MAX_FAILS_BEFORE_FREEZE, FREEZE_MS, IDENTITY_INTERVAL_MS, emptyThrottle,
   canAttempt, skipReason, nextThrottle, classifyCasStatus, decision, messageFor
 } from '../entry/src/main/ets/corelogic/AutoReloginLogic.ts';
 
@@ -38,7 +38,9 @@ console.log('\n=== 自动重登纯逻辑 ===');
   const t = { lastAttemptMs: T0, consecutiveFails: 0, freezeUntilMs: 0 };
   eq(canAttempt(t, true, T0 + MIN_RETRY_MS - 1), false, '闸门内（9分59秒）不重试');
   eq(canAttempt(t, true, T0 + MIN_RETRY_MS), true, '闸门到期（10分钟）可重试');
-  ok(has(skipReason(t, true, T0 + 1000), '稍后'), '冷却提示让用户稍后或手动');
+  // F01-01：skipReason 文案改为「约 N 分钟后可再试（或手动登录）」
+  ok(has(skipReason(t, true, T0 + 1000), '分钟') && has(skipReason(t, true, T0 + 1000), '手动'),
+    '冷却提示告知分钟数与手动登录');
 }
 
 // ── 冻结 ──
@@ -46,7 +48,9 @@ console.log('\n=== 自动重登纯逻辑 ===');
   const t = { lastAttemptMs: T0, consecutiveFails: 3, freezeUntilMs: T0 + FREEZE_MS };
   eq(canAttempt(t, true, T0 + FREEZE_MS - 1), false, '冻结期内不重试');
   eq(canAttempt(t, true, T0 + FREEZE_MS + 1), true, '冻结到期可重试');
-  ok(has(skipReason(t, true, T0), '暂停'), '冻结提示说清楚已暂停');
+  // F01-01：skipReason 统一为「登录冷却中，约 N 分钟后可再试（或手动登录）」
+  ok(has(skipReason(t, true, T0), '冷却') && has(skipReason(t, true, T0), '分钟'),
+    '冻结提示说清楚冷却时长');
 }
 
 // ── 结果分类 ──
@@ -58,21 +62,22 @@ console.log('\n=== 自动重登纯逻辑 ===');
   eq(classifyCasStatus('error'), 'failed', '其它 ⇒ failed');
 }
 
-// ── 节流状态转移 ──
+// ── 节流状态转移（F01-01 新口径：identity 24h×2^(n-1)，详见 test-sessionparity）──
 {
   const t0 = emptyThrottle();
   const t1 = nextThrottle(t0, 'failed', T0);
   eq(t1.consecutiveFails, 1, '失败一次 ⇒ 计数 1');
   eq(t1.lastAttemptMs, T0, '记录尝试时间');
-  eq(t1.freezeUntilMs, 0, '第一次失败不冻结');
-  const t2 = nextThrottle(t1, 'bad_cred', T0 + MIN_RETRY_MS);
+  eq(t1.retryAtMs, T0 + IDENTITY_INTERVAL_MS, '第一次失败即 24h 冷却（判据①）');
+  const t2 = nextThrottle(t1, 'bad_cred', T0 + IDENTITY_INTERVAL_MS);
   eq(t2.consecutiveFails, 2, '再失败 ⇒ 计数 2');
-  const t3 = nextThrottle(t2, 'failed', T0 + 2 * MIN_RETRY_MS);
-  eq(t3.consecutiveFails, MAX_FAILS_BEFORE_FREEZE, '第三次失败达到阈值');
-  eq(t3.freezeUntilMs, T0 + 2 * MIN_RETRY_MS + FREEZE_MS, '第三次失败 ⇒ 冻结 8 小时');
-  const t4 = nextThrottle(t3, 'renewed', T0 + 3 * MIN_RETRY_MS);
+  eq(t2.retryAtMs, T0 + IDENTITY_INTERVAL_MS + 2 * IDENTITY_INTERVAL_MS, '第二次失败 ⇒ 48h');
+  const t3 = nextThrottle(t2, 'failed', T0 + 3 * IDENTITY_INTERVAL_MS);
+  eq(t3.consecutiveFails, 3, '第三次失败计数 3');
+  eq(t3.retryAtMs, T0 + 3 * IDENTITY_INTERVAL_MS + 4 * IDENTITY_INTERVAL_MS, '第三次失败 ⇒ 96h');
+  const t4 = nextThrottle(t3, 'renewed', T0 + 7 * IDENTITY_INTERVAL_MS);
   eq(t4.consecutiveFails, 0, '成功后清零失败计数');
-  eq(t4.freezeUntilMs, 0, '成功后解冻');
+  eq(t4.retryAtMs, 0, 'identity 成功后清冷却');
 }
 
 // ── 非失败结果不加计数（need_user / skipped 不算撞风控）──
@@ -116,9 +121,11 @@ console.log('\n=== 自动重登纯逻辑 ===');
 {
   const login = code('../entry/src/main/ets/pages/LoginPage.ets');
   ok(has(login, "import { AutoLoginCredentialStore }"), '登录页引入凭据存储');
-  ok(has(login, 'Toggle({ type: ToggleType.Checkbox, isOn: this.remember })'), '登录页有 opt-in 勾选');
-  ok(has(login, 'reachedLogin && this.remember'), '只有真正登录成功/待短信才存凭据');
-  ok(has(login, 'AutoLoginCredentialStore.clear()'), '取消勾选清掉旧凭据');
+  // F01-02 用户拍板 B（无条件存）：勾选框退化为只读展示，登录成功即存
+  ok(has(login, 'Toggle({ type: ToggleType.Checkbox, isOn: true })'), '凭据勾选框为只读展示（无条件存）');
+  ok(has(login, 'if (reachedLogin) {'), '登录成功即存凭据（不判断 remember）');
+  const sessionStore = code('../entry/src/main/ets/data/SessionStore.ts');
+  ok(has(sessionStore, 'AutoLoginCredentialStore.clear()'), '登出仍清除自动续期凭据');
 
   const lib = code('../entry/src/main/ets/service/LibBorrowService.ts');
   ok(has(lib, 'allowRenew: boolean = true'), '图书馆取数有防递归开关');
