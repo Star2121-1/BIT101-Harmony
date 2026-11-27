@@ -34,12 +34,16 @@ import {
   emptySeatMapImages, isSeatMapImagesEmpty, resolveSeatSegment,
 } from '../corelogic/SeatApiLogic.ts';
 import { info, warn } from '../core/log/BitLog.ts';
-import { CasLoginService } from '../service/CasLoginService.ts';
+import { CasLoginService, hasPendingSms } from '../service/CasLoginService.ts';
 import { AutoReloginService } from '../service/AutoReloginService.ts';
 import { RenewDecision } from '../corelogic/AutoReloginLogic.ts';
 import {
   seatRenewAction, seatJwtStillExpiredMessage,
 } from '../corelogic/SeatAutoReloginLogic.ts';
+import {
+  seatSmsRoute, SMS_WAIT_TIMEOUT_MS, smsTimeoutMessage,
+} from '../corelogic/SeatSmsChallengeLogic.ts';
+import { SmsChallengeDialog } from '../components/SmsChallengeDialog.ets';
 import { getTaskRepository } from '../data/SeatTaskStore.ts';
 import { createTask, isTerminalStatus, TaskMode } from '../model/SeatTask.ts';
 import type { ReservationTask } from '../model/SeatTask.ts';
@@ -80,6 +84,12 @@ export struct SeatPage {
   @StorageLink(STORAGE_SEAT_RESERVE_DONE) @Watch('onSeatReserveDone') seatReserveDone: number = 0;
   /** 阶段3：座位图预约成功提示（含签到时限文案），列表 tab 顶部直出。 */
   @StorageLink(STORAGE_SEAT_RESERVE_MSG) seatReserveMsg: string = '';
+
+  /**
+   * S-02：自动重登触发学校短信二验时，在座位页就地弹码框（对齐 Android 顶层 SmsCodeDialog）。
+   * 只在用户显式点「去授权」路径置真；不跳登录页、不重输学号密码、不代收不猜码。
+   */
+  @State private smsShow: boolean = false;
 
   /** 座位页两个视图（对齐原版顶部「预约/列表」双 chip）：'book' 预约 / 'list' 列表。 */
   @State seatTab: string = 'book';
@@ -452,6 +462,15 @@ export struct SeatPage {
       // F01-01：座位走 seat 限流口径（30s/5min）；此路径仍是用户显式点击，不是自动路径
       const decision: RenewDecision = await AutoReloginService.renew(ctx, 'seat');
       info('seat authorize: credential renew kind=' + decision.kind);
+      // S-02：need_user + 学校已发短信（pending）⇒ 就地弹码框，不跳登录页、不重输学号密码。
+      // 用纯逻辑判定（可单测/可拆红），避免把「密码错/图形验证码/节流」误引到短信输入框。
+      const smsRoute = seatSmsRoute(decision.kind, hasPendingSms());
+      if (smsRoute === 'show-sms-dialog') {
+        info('seat authorize: sms pending, show in-place dialog (no re-login)');
+        this.seatsErr = '';
+        this.smsShow = true;
+        return; // 码框就地续输；成功/取消/超时回调各自复位，绝不跳登录页
+      }
       if (seatRenewAction(decision.kind) === 'renew-jwt-and-retry') {
         // CAS 会话已重建，但还要用新 cookie 换 seatlib JWT 才算座位会话可用（不把半程当成功）
         if (await CasLoginService.silentRenewJwt(ctx)) {
@@ -471,6 +490,27 @@ export struct SeatPage {
       });
     } finally {
       this.seatAuthorizing = false;
+    }
+  }
+
+  /**
+   * S-02：短信续输成功后的收尾（对齐 Android 挂起协程恢复后继续换票）。
+   * submitSmsCode 已用 pending 续上 CAS 会话，这里只需再换 seatlib JWT + 重试取数，
+   * **不跳登录页、不重输学号密码**；换票失败如实报错，不把半程当成功。
+   */
+  private async afterSmsSuccess(): Promise<void> {
+    try {
+      const ctx: Context = getContext(this) as Context;
+      if (await CasLoginService.silentRenewJwt(ctx)) {
+        info('seat sms ok: seatlib jwt renewed');
+        this.seatAuthExpired = false;
+        await this.loadSeats(false);
+      } else {
+        this.seatsErr = seatJwtStillExpiredMessage();
+      }
+    } catch (e) {
+      warn('seat after sms fail: ' + JSON.stringify(e));
+      this.seatsErr = '短信验证成功，但座位会话未恢复，请点「去授权」重试';
     }
   }
 
@@ -867,6 +907,32 @@ export struct SeatPage {
       // 阶段4：规则弹窗（对齐 Android SeatRulesDialog，点外部/「知道了」关闭）
       if (this.showRules) {
         this.rulesDialog()
+      }
+
+      // S-02：短信二验就地码框（对齐 Android 座位页顶层 SmsCodeDialog）。
+      // 只在「去授权」路径触发；成功即换 seatlib JWT 重试，不跳登录页、不重输学号密码。
+      if (this.smsShow) {
+        Stack() {
+          SmsChallengeDialog({
+            show: true,
+            timeoutMs: SMS_WAIT_TIMEOUT_MS,
+            onSuccess: () => {
+              this.smsShow = false;
+              void this.afterSmsSuccess();
+            },
+            onCancel: () => {
+              this.smsShow = false;
+              this.seatsErr = '已取消短信验证，可稍后重新授权';
+            },
+            onTimeout: () => {
+              this.smsShow = false;
+              this.seatsErr = smsTimeoutMessage();
+            }
+          })
+        }
+        .width('100%').height('100%')
+        .backgroundColor('#66000000')
+        .position({ x: 0, y: 0 })
       }
 
       // 底部固定预约操作栏（对齐 Android SeatMapScreen.ReserveBottomBar）：

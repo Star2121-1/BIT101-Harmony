@@ -1,0 +1,25 @@
+=== S-02 纯逻辑：路由决策 ===
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: need_user+短信pending → 就地码框
++ actual - expected
+
++ 'goto-login'
+- 'show-sms-dialog'
+
+    at eq (file:///F:/Agent_Work/BIT-102/harmony/BIT101-harmony/tools/test-seatsms.mjs:17:33)
+    at file:///F:/Agent_Work/BIT-102/harmony/BIT101-harmony/tools/test-seatsms.mjs:24:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'goto-login',
+  expected: 'show-sms-dialog',
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.22.2

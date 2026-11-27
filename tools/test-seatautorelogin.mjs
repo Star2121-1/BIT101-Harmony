@@ -39,8 +39,12 @@ ok(seatNoCredentialHint().includes('记住密码'), '无凭据提示引导 opt-i
 
 // ── ② 接线：authorizeSeat 两步链 ──
 const aStart = seat.indexOf('private async authorizeSeat()');
-const aEnd = seat.indexOf('private async loadSeats(', aStart);
-ok(aStart > 0 && aEnd > aStart, 'authorizeSeat 方法存在');
+// S-02：authorizeSeat 与 loadSeats 之间新增了 afterSmsSuccess（就地码框成功续输），
+// 旧锚点若截到 loadSeats 会把第 3 处 silentRenewJwt 算进来 → 显式截到 afterSmsSuccess。
+const aEnd = seat.indexOf('private async afterSmsSuccess()', aStart);
+const afterStart = aEnd;
+const loadStart = seat.indexOf('private async loadSeats(', aStart);
+ok(aStart > 0 && aEnd > aStart && loadStart > aEnd, 'authorizeSeat / afterSmsSuccess / loadSeats 方法都存在且顺序正确');
 const authBody = seat.slice(aStart, aEnd);
 
 ok(authBody.includes('CasLoginService.silentRenewJwt(ctx)'), '第一步：cookie 静默续期（无副作用）');
@@ -52,6 +56,13 @@ ok((authBody.match(/silentRenewJwt\(ctx\)/g) || []).length === 2,
 ok(authBody.includes('await this.loadSeats(false)'), '成功后重试取数');
 ok(authBody.includes('this.seatsErr = decision.message'), '失败显示分类文案（不吞掉 need_user 等）');
 ok(authBody.includes("params: { from: 'seat' }"), '仍带 from=seat 回跳（登录成功回座位页）');
+
+// ── ②b S-02：就地码框成功后续输（不跳登录页、不重输学号密码）──
+const afterBody = seat.slice(afterStart, loadStart);
+ok(afterBody.includes('CasLoginService.silentRenewJwt(ctx)'), '短信成功后换 seatlib JWT');
+ok(afterBody.includes('await this.loadSeats(false)'), '短信成功后重试取数');
+ok(!afterBody.includes('router.pushUrl'), '短信成功路径不跳登录页');
+ok(!afterBody.includes('username') && !afterBody.includes('password'), '短信成功路径不重输学号密码');
 
 // ── ③ 红线：renew 只在用户点击授权路径，自动路径绝不走凭据直登 ──
 const renewCalls = (seat.match(/AutoReloginService\.renew\(/g) || []).length;

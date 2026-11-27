@@ -236,3 +236,17 @@
 > 本次为**纯静态审计**：未做网络请求、未连真机、未跑构建；上述数字全部为 ROADMAP 记载的历史口径，不代表本次验证结果。
 
 v1.0 / 2026-11-24
+
+---
+
+## 修复进度登记（2026-11-27，v1.0 审计内容不改动）
+
+| 编号 | 状态 | 证据 |
+|---|---|---|
+| S-01 | ⚠️ 代码完成 + 静态绿，**真机待集中验** | 已随 P0 第9条 F01-01 落地：`AutoReloginLogic` 两套口径，seat 模式成功 30s 冷却 / 失败 5min 退避；`SeatPage.authorizeSeat` 显式传 `'seat'`（`renew(ctx, 'seat')`）。`test-sessionparity` 69 断言覆盖。 |
+| S-02 | ⚠️ 代码完成 + 静态绿 + 编译通过，**真机待集中验** | commit 待提交（alpha.58/versionCode 58）。新增 `corelogic/SeatSmsChallengeLogic.ts`：`seatSmsRoute` 仅在 `need_user + hasPendingSms` 走就地码框（图形验证码/密码错/节流仍跳登录页，防误引）；5min 超时 `SMS_WAIT_TIMEOUT_MS=300000` 对齐 Android `SeatSmsChallengeHub`。`SeatPage.authorizeSeat` 就地弹 `SmsChallengeDialog`（成功→`afterSmsSuccess` 换 seatlib JWT + 重试，不跳登录页不重输密码；取消 clearPending；超时报「验证码输入超时，请重新授权」）。`SmsChallengeDialog` 加可选 `timeoutMs`（默认 0，向后兼容 CardPage/LibBorrowPage）。`test-seatsms` 47 断言 + 两组拆红-恢复（`evidence/seatsms-20261127/`：删就地路由分支红、删码框分支 return 红）。红线守住：4 处 `authorizeSeat` 入口全在 `.onClick`（静态守卫），自动路径绝不发短信。 |
+| S-03 | ⚠️ 代码完成 + 静态绿，**真机待集中验** | 已随 P0 第9条 F01-02 落地（用户拍板 B：无条件存，对齐 Android）：`LoginPage` 登录成功即存 AssetStoreKit 密钥库；本域不再单独改。 |
+
+> 本批不判 ✅（G5 集中验收未做；S-02 需真实短信二验上机才成立）。按用户要求真机留到最后集中做，编译/全测通过不等于真机通过。
+
+*v1.1 进度登记 / 2026-11-27*

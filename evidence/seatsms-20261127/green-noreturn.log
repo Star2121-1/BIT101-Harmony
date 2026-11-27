@@ -1,0 +1,10 @@
+=== S-02 纯逻辑：路由决策 ===
+=== S-02 纯逻辑：5min 超时（对齐 Android SeatSmsChallengeHub）===
+=== S-02 纯逻辑：验证码可提交判据 ===
+=== 守卫：SeatPage 就地弹框接线（静态）===
+=== 守卫：显式授权路径（红线）===
+=== 守卫：SmsChallengeDialog 超时可复用且向后兼容 ===
+
+ALL PASS  pass=47 fail=0
+(node:3324) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

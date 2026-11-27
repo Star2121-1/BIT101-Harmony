@@ -32,13 +32,38 @@ export struct SmsChallengeDialog {
   onSuccess: () => void = () => {};
   /** 用户取消的回调（页面据此复位状态）。 */
   onCancel: () => void = () => {};
+  /**
+   * S-02：等待用户输码的上限（ms）。0 = 不启用（CardPage/LibBorrowPage 的老用法保持默认）。
+   * 座位页传 SMS_WAIT_TIMEOUT_MS（5min），对齐 Android SeatSmsChallengeHub：到点自动收起。
+   */
+  @Prop timeoutMs: number = 0;
+  /** 超时回调（页面据此复位 + 报「验证码输入超时，请重新授权」）。 */
+  onTimeout: () => void = () => {};
 
   @State private code: string = '';
   @State private status: string = '';
   @State private busy: boolean = false;
+  private timerId: number = 0;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
+  }
+
+  aboutToAppear(): void {
+    // 一次性定时器：页面用 `if (smsShow)` 挂载，每次显示都是新实例，无需监听 show 变化。
+    if (this.timeoutMs > 0) {
+      this.timerId = setTimeout(() => {
+        clearPending();
+        this.onTimeout();
+      }, this.timeoutMs);
+    }
+  }
+
+  aboutToDisappear(): void {
+    if (this.timerId !== 0) {
+      clearTimeout(this.timerId);
+      this.timerId = 0;
+    }
   }
 
   /** 提交验证码：一次点击只提交一次；失败就地显示原因，不重试不发第二条。 */
@@ -55,6 +80,11 @@ export struct SmsChallengeDialog {
       if (out.status === 'ok') {
         info('SmsChallengeDialog: sms login ok');
         this.status = '';
+        // 成功即停计时器（防页面尚未卸载时超时回调误触发）
+        if (this.timerId !== 0) {
+          clearTimeout(this.timerId);
+          this.timerId = 0;
+        }
         this.onSuccess();
         return;
       }
@@ -71,6 +101,10 @@ export struct SmsChallengeDialog {
 
   /** 取消：pending 复位，不留半截会话。 */
   private cancel(): void {
+    if (this.timerId !== 0) {
+      clearTimeout(this.timerId);
+      this.timerId = 0;
+    }
     clearPending();
     this.code = '';
     this.status = '';

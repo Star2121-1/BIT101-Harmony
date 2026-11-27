@@ -1,0 +1,14 @@
+时间戳: 2026-11-27 10:15 +0800
+事项: 旧套件锚点更新（S-02 新增路径导致计数失效，非回归）
+
+首轮全测：101/102 套件，4576 断言，失败 test-seatautorelogin。
+失败断言：「renewed 后再 silentRenewJwt 一次，共两处」——
+  旧代码 aEnd 截到 `private async loadSeats(`，S-02 在 authorizeSeat 与 loadSeats
+  之间新增 afterSmsSuccess()（就地码框成功续输，内含第 3 处 silentRenewJwt），
+  导致 authBody 误含该方法，计数变成 3。
+
+修复：aEnd 显式截到 `private async afterSmsSuccess()`；另加 ②b 段守卫验证
+  afterSmsSuccess 含换票+重试、且不含 router.pushUrl/username/password（不跳登录页、不重输密码）。
+  非放宽断言：约束只增不减（35 断言仍全绿）。
+
+重跑 test-seatautorelogin：ALL PASS pass=35 fail=0 EXIT=0。

@@ -1,5 +1,11 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-27 alpha.58（versionCode 57→58）Android↔鸿蒙差距 P0 第 10 条：座位短信二验就地码框（S-02）**：
+> - 核对确认 S-01（seat 限流 30s/5min）与 S-03（无条件存密码）已随第9条 F01-01/02 落地，本批只补唯一缺口 S-02。
+> - `SeatPage.authorizeSeat` 的 `need_user + hasPendingSms` 分支改为就地弹 `SmsChallengeDialog`（对齐 Android 座位页顶层 `SmsCodeDialog`），不再跳登录页、不重输学号密码；成功走 `afterSmsSuccess()` 换 seatlib JWT + 重试取数，取消 clearPending，超时报「验证码输入超时，请重新授权」。5min 上限对齐 Android `SeatSmsChallengeHub.WAIT_CODE_TIMEOUT_MS`。
+> - 判定收口到纯逻辑 `corelogic/SeatSmsChallengeLogic.ts`：`seatSmsRoute` 只在 `need_user+pending` 走码框（图形验证码/密码错/节流仍跳登录页，防误引）；`smsWaitExpired`/`smsCodeSubmittable`/`smsTimeoutMessage` 可单测。`SmsChallengeDialog` 加可选 `timeoutMs`（默认 0，向后兼容一卡通/图书馆老用法），一次性定时器 aboutToAppear/Disappear 管理。
+> - 红线：4 处 `authorizeSeat` 入口全在用户 `.onClick`（静态守卫），自动路径绝不发短信；不代收不猜码、不发第二条。`test-seatsms` 47 断言 + 两组拆红-恢复（`evidence/seatsms-20261127/`：删就地路由分支红、删码框分支 return 红）。**真机待集中验**（真实短信二验需学校风控触发）。
+
 > **2026-11-27 alpha.57（versionCode 56→57）Android↔鸿蒙差距 P0 第 9 条：登录会话三件套对齐（F01-01/02/03）**：
 > - **F01-01 两套限流口径**：`AutoReloginLogic.ts` 重写——身份模式按 Android `LoginRetryPolicy` 24h→48h→96h→192h 封顶，座位模式按 `SeatAutoLogin` 成功 30s / 失败 5min；`parseRetryAfter` 支持秒数与 RFC1123 并取本地/服务端较大值（**守卫抓到真 bug**：`-5` 曾被 `Date.parse` 误解析为年份，已显式拒绝）；`retryAtMs` 落盘重启不绕过闸门；`need_user`/`no_credential`/`skipped` 不计数不冷却（红线，已拆红反证）。`SeatPage.authorizeSeat` 显式授权传 `'seat'` 模式，自动取数路径不变。
 > - **F01-02 无条件存凭据（用户拍板 B，对齐 Android）**：`LoginPage.doLogin` 登录成功即存（不再看 remember 勾选），文案如实告知「登录即在本机密钥库保存凭据」，勾选框退化为只读；仍落 `AssetStoreKit` 系统密钥库，密码不打印/不进 steps/不拼 URL。风险评审见 `docs/parity-gap/01-login-session.md` §7.1。
