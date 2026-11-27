@@ -279,3 +279,11 @@ v1.0 / 2026-11-24
 > 静态验收：全量 **101/101 套件 4560 断言绿**（`tools/run-tests.sh` EXIT=0）；`assembleHap` BUILD SUCCESSFUL（`evidence/session-parity-20261127/build-success-20261127.log`）；拆红反证 `red-/green-needuser-cooldown-20261127.log`。按用户要求，真机验收留到最后集中做，本批不冒称真机通过。
 
 *v1.1 进度登记 + 风险评审 / 2026-11-27*
+
+### 7.2 F01-05 登出清座位预约任务（2026-11-27，v1.0 审计内容不改动）
+
+| 编号 | 状态 | 证据 |
+|---|---|---|
+| F01-05 | ⚠️ 代码完成 + 静态绿，**真机待集中验** | alpha.59；`SeatTaskRepository.clearAll()` 清内存 + `Prefs.remove(STORAGE_KEY)` 清落盘（防「内存清了落盘残留」）；`SessionStore.logoutAll()` 调仓库单例（单一入口，不另开写入者）；仍不清课表缓存/TermStore。`test-p1batch` 静态守卫 + 拆红反证（删 clearAll 调用即红，`evidence/p1batch-20261127/red-logout-clearall.log`）。真机需验：登录后产生任务 → 登出 → 换账号不看到旧任务。 |
+
+*v1.2 F01-05 进度 / 2026-11-27*

@@ -52,6 +52,8 @@ export struct GridChip {
         .fontSize(13)
         .fontColor(this.style().content)
         .maxLines(1)
+        // F10：选中态读屏文案非空（禁用态也应可感知，不能只靠颜色）
+        .accessibilityText(this.style().showCheck ? this.label + '，已选中' : this.label)
     }
     .height(CHIP_HEIGHT)
     .borderRadius(CHIP_RADIUS)

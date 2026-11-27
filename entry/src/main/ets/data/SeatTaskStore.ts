@@ -166,6 +166,23 @@ export class SeatTaskRepository {
   }
 
   /**
+   * F01-05：清空**全部**任务（含活跃/终态）并落盘（对齐 Android SessionCleanup.kt:42）。
+   *
+   * 退出登录时调用：座位预约任务按账号隔离，换账号后不能看到上一个账号的监控任务。
+   * 与 stopAll（只把活跃任务标失败、留历史）语义不同——这里是**整表清空**。
+   */
+  async clearAll(): Promise<void> {
+    const before = this.tasks.length;
+    this.tasks = [];
+    // 即使内存里本来为空也要清 Prefs：防止「内存被清过但落盘残留」的脏快照。
+    await Prefs.remove(STORAGE_KEY);
+    if (before > 0) {
+      this.notifyChange();
+    }
+    info('SeatTaskRepository: cleared all ' + before + ' tasks (logout account isolation)');
+  }
+
+  /**
    * 删除单个任务。
    */
   remove(id: string): void {

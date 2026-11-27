@@ -1,0 +1,10 @@
+=== F01-05 登出清座位预约任务（静态守卫）===
+=== G-04 成绩筛选三维（纯逻辑）===
+=== G-04 成绩页接线（静态守卫）===
+=== G07-09 关于页自动检查更新（静态守卫）===
+=== F08 卡片 colorMode 统一（静态守卫）===
+=== F10 读屏文案（静态守卫）===
+
+ALL PASS  pass=54 fail=0
+(node:16808) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

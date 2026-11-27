@@ -1,5 +1,12 @@
 # BIT101-S 鸿蒙版迁移路线图（唯一进度权威）
 
+> **2026-11-27 alpha.59（versionCode 58→59）Android↔鸿蒙差距 P1 低风险批次（5 条，纯本地/只读/配置/UI）**：
+> - **F01-05** 登出补清座位预约任务：`SeatTaskRepository.clearAll()`（清内存 + Prefs 落盘），`SessionStore.logoutAll()` 经仓库单例调用，仍不清课表缓存/TermStore（对齐 Android `SessionCleanup.kt:42`）。
+> - **G-04** 成绩筛选补学期/课程性质两维：新增 `corelogic/ScoreFilterLogic.ts`（三维 AND 谓词 + 选项抽取 + 清空 + 空态文案，课名/编号忽略大小写），复用 G-01 的 `term`/`category`/`courseNumber`；`ScorePage` 两组 chip + 清空入口。**关键坑已防**：清空入口按筛选态判、不绑统计门数，筛到 0 门仍能退出（Android `ScorePage.kt:195` 踩过）。顺带同步成绩页两处 F01-02 遗留旧文案。
+> - **G07-09** 关于页自动检查更新开关：`data/UpdateSettings.ts` 默认开（对齐 Android initial=true），`aboutToAppear` 串行（先取版本号再检查，防竞态），关闭则不发 GET，手动按钮保留。
+> - **F08** 卡片 `form_metadata.json` colorMode `default`→`auto`（与 form_config/FormExtension 跟随系统口径一致）；**F10** GridCard/GridChip 选中态 `accessibilityText`。
+> - `test-p1batch` 54 断言 + 两组拆红-恢复（`evidence/p1batch-20261127/`：删性质维筛选红、删登出 clearAll 红）。**真机待集中验**（按用户要求留到最后）。
+
 > **2026-11-27 alpha.58（versionCode 57→58）Android↔鸿蒙差距 P0 第 10 条：座位短信二验就地码框（S-02）**：
 > - 核对确认 S-01（seat 限流 30s/5min）与 S-03（无条件存密码）已随第9条 F01-01/02 落地，本批只补唯一缺口 S-02。
 > - `SeatPage.authorizeSeat` 的 `need_user + hasPendingSms` 分支改为就地弹 `SmsChallengeDialog`（对齐 Android 座位页顶层 `SmsCodeDialog`），不再跳登录页、不重输学号密码；成功走 `afterSmsSuccess()` 换 seatlib JWT + 重试取数，取消 clearPending，超时报「验证码输入超时，请重新授权」。5min 上限对齐 Android `SeatSmsChallengeHub.WAIT_CODE_TIMEOUT_MS`。

@@ -18,6 +18,7 @@ import { CardCookieStore } from './CardCookieStore.ts';
 import { AutoLoginCredentialStore } from './AutoLoginCredentialStore.ts';
 import { RenewThrottleStore } from './RenewThrottleStore.ts';
 import { FakeCookieStore } from './FakeCookieStore.ts';
+import { getTaskRepository } from './SeatTaskStore.ts';
 import { CampusCardStore } from './CampusCardStore.ts';
 import { CampusNetTrafficStore } from './CampusNetTrafficStore.ts';
 import { info, mask, warn } from '../core/log/BitLog.ts';
@@ -122,6 +123,9 @@ export class SessionStore {
     await RenewThrottleStore.clear();
     await FakeCookieStore.clear();  // 社区票据（换账号不能留旧会话）
     await SeatCookieStore.clear();  // 座位独立 cookie（方案 A′，换账号不能留旧座位会话）
+    // ⑤ F01-05：座位预约任务（对齐 Android SessionCleanup.kt:42 seatTaskStore.tasks.set("")）。
+    //    任务按账号隔离，换账号不能看到旧账号的监控任务；仍走仓库单例，不另开写入者。
+    await getTaskRepository().clearAll();
     info('SessionStore.logoutAll done (all sessions + creds + per-account data cleared, course cache kept)');
   }
 }

@@ -22,6 +22,7 @@ import type { ChangelogEntry } from '../corelogic/VersionLogic.ts';
 import { hasNewerNotes, parseChangelog, versionLine } from '../corelogic/VersionLogic.ts';
 import type { UpdateDecision } from '../corelogic/UpdateCheckLogic.ts';
 import { checkForUpdate } from '../service/VersionCheckService.ts';
+import { loadAutoCheckUpdate, saveAutoCheckUpdate } from '../data/UpdateSettings.ts';
 import { warn, info } from '../core/log/BitLog.ts';
 
 const CHANGELOG_RAWFILE: string = 'changelog.json';
@@ -39,14 +40,27 @@ export struct AboutPage {
   // 联网检查更新（只读；不下载不安装）
   @State checking: boolean = false;
   @State updateDecision: UpdateDecision | null = null;
+  /** G07-09：自动检查开关（默认开，对齐 Android AboutSettings）。 */
+  @State autoCheck: boolean = true;
 
   private tk(): GridTokens {
     return gridTokens(this.isDark, getPalette(this.paletteName));
   }
 
   aboutToAppear(): void {
-    this.loadVersion();
     this.loadNotes();
+    // G07-09：开关开启才自动发只读 GET；关闭则进页不请求。手动按钮始终可用。
+    // ⚠️ 串行：必须等 loadVersion 拿到版本号再检查（doCheckUpdate 要用 versionName/Code），
+    //    否则并发会拿空版本号去打 /version（审计判据要求带当前版本）。
+    void loadAutoCheckUpdate().then(async (on: boolean) => {
+      this.autoCheck = on;
+      await this.loadVersion();
+      if (on) {
+        await this.doCheckUpdate();
+      }
+    }).catch((e: Error) => {
+      warn('AboutPage autoCheck fail: ' + JSON.stringify(e));
+    });
   }
 
   private async loadVersion(): Promise<void> {
@@ -144,6 +158,20 @@ export struct AboutPage {
                 .enabled(!this.checking)
                 .onClick(() => { this.doCheckUpdate(); })
             }.width('100%').margin({ top: 10 })
+
+            // G07-09：自动检查更新开关（默认开；关闭后进页不发 /version 请求）
+            Row() {
+              Text('自动检查更新')
+                .fontSize(12).fontColor(this.tk().onSurface).layoutWeight(1)
+              Toggle({ type: ToggleType.Checkbox, isOn: this.autoCheck })
+                .selectedColor(this.tk().primary)
+                .onChange((v: boolean) => {
+                  this.autoCheck = v;
+                  void saveAutoCheckUpdate(v).catch((e: Error) => {
+                    warn('AboutPage saveAutoCheck fail: ' + JSON.stringify(e));
+                  });
+                })
+            }.width('100%').margin({ top: 8 })
 
             if (this.updateDecision !== null && this.updateDecision.level !== 'none') {
               Column() {

@@ -1,0 +1,26 @@
+时间戳: 2026-11-27 11:00 +0800
+阶段: P1 低风险批次（5 条）—— 编译门（S4）
+
+=== 首次构建失败 ===
+BUILD_EXIT=127，COMPILE RESULT:FAIL {ERROR:3 WARN:274}
+  - AboutPage.ets:166 —— Cannot find name 'Switch'。
+    根因：ArkTS 无 Switch 组件（项目既有只用 Toggle{ToggleType.Checkbox}）。
+    修复：改为 Toggle({ type: ToggleType.Checkbox, isOn: this.autoCheck })。
+    test-p1batch 加守卫「开关用项目既有 Toggle（非不存在的 Switch）」。
+
+=== 修复后构建 ===
+BUILD_EXIT=0
+> hvigor BUILD SUCCESSFUL in 4 min 59 s 745 ms
+COMPILE RESULT 无 ERROR（机器负载高，耗时偏长）
+
+=== 全量单测（最终态）===
+EXIT=0
+ALL PASS  通过 103/103 套件，累计 4667 条断言
+test-p1batch 55 断言：F01-05 登出清任务 / G-04 成绩三维筛选 / G07-09 更新开关 / F08 colorMode / F10 读屏
+
+=== 拆红-恢复反证 ===
+1) 删 ScoreFilterLogic 性质维筛选 → 红（red-category-filter.log）→ 恢复绿
+2) 删 logoutAll 的 getTaskRepository().clearAll() → 红（red-logout-clearall.log）→ 恢复绿
+
+⚠️ 真机未验（按用户要求真机留到最后集中做）：
+   登出换账号隔离、成绩 chip 切换/筛空退出、更新开关落盘、卡片深浅、读屏朗读均未上机。

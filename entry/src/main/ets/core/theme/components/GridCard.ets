@@ -65,6 +65,18 @@ export struct GridCard {
     return !this.isDisabled && this.onTap !== null;
   }
 
+  /** F10：读屏文案——选中/禁用都要有语义，不能只靠颜色/描边编码。 */
+  private a11yText(): string {
+    let s: string = '卡片';
+    if (this.selected) {
+      s = s + '，已选中';
+    }
+    if (this.isDisabled) {
+      s = s + '，不可用';
+    }
+    return s;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Row() {
@@ -110,5 +122,6 @@ export struct GridCard {
       }
     }
     .width('100%')
+    .accessibilityText(this.a11yText())
   }
 }

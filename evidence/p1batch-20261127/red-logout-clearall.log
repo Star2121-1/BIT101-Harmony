@@ -1,0 +1,20 @@
+=== F01-05 登出清座位预约任务（静态守卫）===
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: logoutAll 调 clearAll（单一入口）
+    at ok (file:///F:/Agent_Work/BIT-102/harmony/BIT101-harmony/tools/test-p1batch.mjs:20:30)
+    at file:///F:/Agent_Work/BIT-102/harmony/BIT101-harmony/tools/test-p1batch.mjs:31:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v22.22.2

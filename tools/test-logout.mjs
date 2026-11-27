@@ -42,7 +42,8 @@ console.log('\n=== 退出清空单点 (#150) ===');
     'CampusNetTrafficStore.clear()',
     'AutoLoginCredentialStore.clear()',  // 自动续期凭据（换账号不能留旧密码）
     'RenewThrottleStore.clear()',        // 自动续期节流状态（换账号不能被旧冻结挡住）
-    'FakeCookieStore.clear()'            // 社区票据（换账号不留旧会话）
+    'FakeCookieStore.clear()',           // 社区票据（换账号不留旧会话）
+    'getTaskRepository().clearAll()'     // F01-05：座位预约任务（账号隔离，对齐 Android SessionCleanup）
   ];
   // 只扫 logoutAll 方法体，避免别处的 clear 干扰
   const body = session.slice(session.indexOf('static async logoutAll()'));

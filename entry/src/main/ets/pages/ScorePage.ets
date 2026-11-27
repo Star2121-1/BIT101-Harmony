@@ -39,6 +39,11 @@ import type { CreditSummary, BucketCount, TermCredit } from '../corelogic/ScoreS
 import { summarizeGpa } from '../corelogic/ScoreGpaLogic.ts';
 import type { GpaSummary } from '../corelogic/ScoreGpaLogic.ts';
 import { scoreCsv } from '../corelogic/ScoreCsvLogic.ts';
+import {
+  emptyScoreFilter, filterTermsOf, filterCategoriesOf, scoreRowMatches, hasAnyFilter,
+  toggleChip, scoreEmptyHint,
+} from '../corelogic/ScoreFilterLogic.ts';
+import type { ScoreFilter } from '../corelogic/ScoreFilterLogic.ts';
 import type { ScoreTermGroup } from '../corelogic/ScoreFlowLogic.ts';
 import { statusText, fmtCheckTime, humanReason, ScoreCheckCode } from '../corelogic/ScoreCheckLogic.ts';
 import type { ScoreCheckStatus } from '../corelogic/ScoreCheckLogic.ts';
@@ -66,8 +71,11 @@ export struct ScorePage {
   @State lastLine: string = '';
   /** 折叠起来的学期（默认只展开最新一个；其余折叠，避免几十门课一次铺满）。 */
   @State collapsed: string[] = [];
-  /** 课程名过滤（成绩多时按课名找）。 */
+  /** 课程名/课程编号过滤（成绩多时按关键词找）。 */
   @State filter: string = '';
+  /** G-04：学期/性质两组 chip 选中项（空=不限）。 */
+  @State selTerms: string[] = [];
+  @State selCats: string[] = [];
   /** 「计算口径」弹窗是否展开（G-03）。 */
   @State showGpaRule: boolean = false;
 
@@ -85,18 +93,54 @@ export struct ScorePage {
     return groupByTerm(this.entries);
   }
 
-  /** 按课名过滤后的分组（过滤为空则原样）。 */
+  /** G-04：当前筛选条件（三维合一，喂给纯逻辑谓词）。 */
+  private currentFilter(): ScoreFilter {
+    return { terms: this.selTerms, categories: this.selCats, keyword: this.filter };
+  }
+
+  /** 可筛选的学期选项（全量行抽取，不随筛选变化）。 */
+  private filterTermOptions(): string[] {
+    return filterTermsOf(this.entries);
+  }
+
+  /** 可筛选的课程性质选项。 */
+  private filterCatOptions(): string[] {
+    return filterCategoriesOf(this.entries);
+  }
+
+  /** 是否处于筛选态（与统计门数解耦：筛到 0 门也要显示清空入口）。 */
+  private hasFilter(): boolean {
+    return hasAnyFilter(this.currentFilter());
+  }
+
+  /** 清空全部筛选。 */
+  private clearFilters(): void {
+    this.selTerms = [];
+    this.selCats = [];
+    this.filter = '';
+  }
+
+  private toggleTerm(t: string): void {
+    this.selTerms = toggleChip(this.selTerms, t);
+  }
+
+  private toggleCat(c: string): void {
+    this.selCats = toggleChip(this.selCats, c);
+  }
+
+  /** 按学期/性质/课名三维过滤后的分组（全部为空则原样）。 */
   private visibleGroups(): ScoreTermGroup[] {
-    const kw: string = this.filter.trim();
-    if (kw.length === 0) {
+    const f: ScoreFilter = this.currentFilter();
+    if (!hasAnyFilter(f)) {
       return this.groups();
     }
     const out: ScoreTermGroup[] = [];
     const src: ScoreTermGroup[] = this.groups();
     for (let i = 0; i < src.length; i++) {
+      // 学期 chip 已把学期维收窄，这里仍需按完整 f 判（性质/关键词），保持单一判据。
       const kept: ScoreEntry[] = [];
       for (let j = 0; j < src[i].entries.length; j++) {
-        if (src[i].entries[j].course.indexOf(kw) >= 0) {
+        if (scoreRowMatches(src[i].entries[j], f)) {
           kept.push(src[i].entries[j]);
         }
       }
@@ -417,7 +461,7 @@ export struct ScorePage {
               Column() {
                 Text(this.hasCred
                   ? '还没有成绩数据。点「立即查询」取一次。'
-                  : '填入学号与密码后可查询。密码默认不保存，只在本次查询里用一次。')
+                  : '填入学号与密码后可查询。登录即加密存入本机密钥库，用于会话过期自动续期。')
                   .fontSize(12).fontColor(this.tk().onSecondaryContainer)
                   .width('100%').textAlign(TextAlign.Center)
               }
@@ -462,21 +506,25 @@ export struct ScorePage {
             }
 
             if (this.entries.length > 0) {
-              TextInput({ placeholder: '按课名筛选（如：数学）', text: this.filter })
+              TextInput({ placeholder: '按课名/课程编号筛选', text: this.filter })
                 .fontSize(13).fontColor(this.tk().onSurface)
                 .backgroundColor(this.tk().surface)
                 .height(38).margin({ top: 12 })
                 .onChange((v: string) => {
                   this.filter = v;
                 })
+              // G-04：学期 / 性质 chip + 清空入口（筛到 0 门时仍在）
+              this.filterBar()
             }
 
             ForEach(this.visibleGroups(), (g: ScoreTermGroup) => {
               this.termBlock(g)
             }, (g: ScoreTermGroup) => 'term_' + g.term)
 
-            if (this.filter.trim().length > 0 && this.visibleGroups().length === 0) {
-              Text('没有匹配「' + this.filter.trim() + '」的课程')
+            // ⚠️ 空态看的是「筛选后结果」，与统计卡分开判（Android ScorePage:195 那个坑）。
+            // 仅在「有成绩、但筛选后为空」时显示；entries 全空时上面的整块空态已经说明，避免重复。
+            if (this.entries.length > 0 && this.visibleGroups().length === 0) {
+              Text(scoreEmptyHint(this.currentFilter()))
                 .fontSize(12).fontColor(this.tk().onSurfaceVariant)
                 .width('100%').margin({ top: 14 })
             }
@@ -512,11 +560,57 @@ export struct ScorePage {
     .backgroundColor(this.tk().background)
   }
 
-  /** 临时凭据表单（默认不保存；勾了才写系统密钥库）。 */
+  /** G-04：学期 / 性质两维 chip + 清空筛选（对齐 Android ScoreFilterBar）。 */
+  @Builder
+  filterBar() {
+    Column() {
+      // 学期 chip（只有 >1 个学期或已选中时才画，避免空筛选条）
+      if (this.filterTermOptions().length > 1 || this.selTerms.length > 0) {
+        Text('学期').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%')
+        Row() {
+          ForEach(this.filterTermOptions(), (t: string) => {
+            Text(t)
+              .fontSize(11)
+              .fontColor(this.selTerms.indexOf(t) >= 0 ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.selTerms.indexOf(t) >= 0 ? this.tk().primary : this.tk().surface2)
+              .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+              .borderRadius(12)
+              .margin({ right: 6 })
+              .onClick(() => { this.toggleTerm(t); })
+          }, (t: string) => 'ft_' + t)
+        }.width('100%').margin({ top: 4 })
+      }
+      // 课程性质 chip
+      if (this.filterCatOptions().length > 1 || this.selCats.length > 0) {
+        Text('性质').fontSize(11).fontColor(this.tk().onSurfaceVariant).width('100%').margin({ top: 8 })
+        Row() {
+          ForEach(this.filterCatOptions(), (c: string) => {
+            Text(c)
+              .fontSize(11)
+              .fontColor(this.selCats.indexOf(c) >= 0 ? this.tk().onPrimary : this.tk().onSurfaceVariant)
+              .backgroundColor(this.selCats.indexOf(c) >= 0 ? this.tk().primary : this.tk().surface2)
+              .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+              .borderRadius(12)
+              .margin({ right: 6 })
+              .onClick(() => { this.toggleCat(c); })
+          }, (c: string) => 'fc_' + c)
+        }.width('100%').margin({ top: 4 })
+      }
+      // 清空筛选（与统计门数解耦：筛到 0 门也要留入口，防 Android 那个坑）
+      if (this.hasFilter()) {
+        Text('清空筛选').fontSize(12).fontColor(this.tk().primary)
+          .width('100%').margin({ top: 10 })
+          .onClick(() => { this.clearFilters(); })
+      }
+    }
+    .width('100%').alignItems(HorizontalAlign.Start)
+  }
+
+  /** 临时凭据表单。⚠️ F01-02：登录即存凭据（无条件），此文案已同步。 */
   @Builder
   credForm() {
     Column() {
-      Text('学号密码只用于这次查询。勾选「记住」才会保存到系统密钥库。')
+      Text('登录成功后学号密码会加密存入本机系统密钥库，会话过期时自动续期（对齐 Android 端）。')
         .fontSize(11).fontColor(this.tk().onSurfaceVariant)
         .width('100%')
 

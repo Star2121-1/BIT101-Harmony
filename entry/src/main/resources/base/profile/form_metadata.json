@@ -8,7 +8,7 @@
       "defaultValue": {
         "src": "pages/WidgetPage",
         "name": "bit101_widget",
-        "colorMode": "default",
+        "colorMode": "auto",
         "dimension": 2,
         "updateEnabled": true,
         "nextUpdateTime": 0

@@ -187,3 +187,12 @@ v1.0 / 2026-11-24
 > 本批不判 ✅（G5 集中验收未做）。真机需验：卡片考试页可见且过期场次不显示、点 DDL 行落到 DDL 页并高亮该条、EXAM 页 tab 切换正常。F04 座位/动态真实行需先有本地源（另立任务），当前不视为完成。
 
 *v1.2 进度登记 / 2026-11-27*
+
+### 7.3 F08 卡片 colorMode 统一 + F10 读屏文案（2026-11-27，v1.0 审计内容不改动）
+
+| 编号 | 状态 | 证据 |
+|---|---|---|
+| F08 | ⚠️ 代码完成 + 静态绿，**真机待集中验** | alpha.59；`form_metadata.json` 的 `colorMode` 从 `default` 改为 `auto`，与 `form_config.json:auto` 及 `FormExtension` 读 `getConfiguration().colorMode` 跟随系统的实际口径一致。`test-p1batch` 静态守卫（两文件均 auto、无残留 default）。真机需验：切系统深浅卡片配色与 App 一致。 |
+| F10 | ⚠️ 代码完成 + 静态绿，**真机待集中验** | alpha.59；`GridChip` 文本挂 `.accessibilityText`（选中态「label，已选中」）、`GridCard` 根挂 `.accessibilityText`（选中/禁用语义），复用既有 `style()/cardStyle()` 状态判定不另起状态。`test-p1batch` 静态守卫。真机需验：TalkBack/Vision 读屏朗读选中态。 |
+
+*v1.3 F08/F10 进度 / 2026-11-27*
